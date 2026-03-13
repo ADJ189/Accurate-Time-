@@ -15,37 +15,7 @@ A feature-rich animated clock with 25 themes — Natural, TV Shows, Movies, and 
 - 🌐 UTC pill display
 - 💬 Rotating quotes per theme
 
-## File Structure
-
-```
-index.html                        ← HTML shell, loads everything
-style.css                         ← All CSS custom properties + layout
-js/
-  themes.js       ← Theme data, logos, quotes
-  utils.js        ← Math helpers (rnd, p2, p3, easeIO)
-  canvas.js       ← Canvas setup, particle pools, buildParticles
-  renderer.js     ← drawBg() — per-theme background rendering
-  symbols.js      ← Iconic canvas symbols (Devil's Trap, Gargantua, etc.)
-  f1symbols.js    ← F1 team canvas symbols (RB #1 plate, Ferrari horse, etc.)
-  sync.js         ← Cloudflare time sync, multi-probe, 15-min intervals
-  session.js      ← Session timer logic
-  clock.js        ← Main render loop, DOM updates
-  theme.js        ← applyTheme(), CSS custom property updates
-  transitions.js  ← 14 cinematic transitions
-  panel.js        ← Theme switcher panel builder
-  main.js         ← init() entry point
-.github/
-  workflows/
-    deploy.yml    ← GitHub Pages auto-deploy on push to main
-```
-
-## Deploy to GitHub Pages
-
-1. Push this repo to GitHub (must be **public**)
-2. Go to **Settings → Pages → Source** → select `Deploy from a branch` → `main` / `root`
-3. Or let the included workflow handle it automatically on every push
-
-Live URL will be: `https://YOUR-USERNAME.github.io/REPO-NAME/`
+Live URL : https://adj189.github.io/Accurate-Time-/)
 
 ## Themes
 
