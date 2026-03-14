@@ -1,15 +1,20 @@
-name: Deploy Session Clock to GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
+  # Runs on every push to main branch
   push:
-    branches: ["main"]
+    branches:
+      - main
+  # Also allows manual trigger from the Actions tab
   workflow_dispatch:
 
+# Sets permissions so the action can deploy to Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
+# Only allow one deployment at a time; don't cancel in-progress runs
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -19,18 +24,21 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+      - name: Setup GitHub Pages
+        uses: actions/configure-pages@v5
 
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          # Upload the entire repo root (index.html + style.css + app.js)
+          path: "."
 
       - name: Deploy to GitHub Pages
         id: deployment
