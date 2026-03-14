@@ -926,7 +926,30 @@ SC.themeBuilder=(()=>{
       const row=document.createElement('div');row.className='color-row';
       const rawVal=draft[f.key];
       const hexVal=rawVal.startsWith('rgba')||rawVal.startsWith('rgb')?rgbaToHex(rawVal):rawVal;
-      row.innerHTML=`<span class="color-label">${f.label}</span><div class="color-picker-wrap"><input type="color" value="${hexVal}" data-key="${f.key}"></div><span class="color-hex" id="hex_${f.key}">${hexVal}</span>`;
+      // Build DOM nodes explicitly instead of using innerHTML to avoid re-parsing tainted data as HTML
+      const labelSpan=document.createElement('span');
+      labelSpan.className='color-label';
+      labelSpan.textContent=f.label;
+
+      const pickerWrap=document.createElement('div');
+      pickerWrap.className='color-picker-wrap';
+
+      const colorInput=document.createElement('input');
+      colorInput.type='color';
+      colorInput.value=hexVal;
+      colorInput.setAttribute('data-key',f.key);
+
+      pickerWrap.appendChild(colorInput);
+
+      const hexSpan=document.createElement('span');
+      hexSpan.className='color-hex';
+      hexSpan.id='hex_'+f.key;
+      hexSpan.textContent=hexVal;
+
+      row.appendChild(labelSpan);
+      row.appendChild(pickerWrap);
+      row.appendChild(hexSpan);
+
       container.appendChild(row);
     });
     container.querySelectorAll('input[type=color]').forEach(inp=>{
