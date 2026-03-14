@@ -1,0 +1,15 @@
+# OS / editor clutter
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Node (if you ever add a dev server)
+node_modules/
+package-lock.json
+
+# Build artefacts (none currently — project is dependency-free)
+dist/
