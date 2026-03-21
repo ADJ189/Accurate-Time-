@@ -1,7 +1,8 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: '/Accurate-Time-/',
+  base: './',
+  plugins: [],
   build: {
     outDir: 'dist',
     target: 'es2022',
