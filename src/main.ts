@@ -309,7 +309,10 @@ document.addEventListener('keydown', e => {
   if (hasOpen && e.key !== 'Escape') return;
   for (const [key, , action] of SHORTCUTS) {
     const ek = e.code === 'Space' ? 'space' : e.key.toLowerCase();
-    if (key.toLowerCase() === ek || (key === 'Space' && e.code === 'Space')) { e.preventDefault(); action(); return; }
+    const match = key.toLowerCase() === ek
+      || (key === 'Space' && e.code === 'Space')
+      || (key === '?' && e.key === '?');
+    if (match) { e.preventDefault(); action(); return; }
   }
 });
 
@@ -321,6 +324,13 @@ function toggleKiosk() {
   if (kioskOn) document.documentElement.requestFullscreen?.().catch(() => {});
   else document.exitFullscreen?.().catch(() => {});
 }
+// Sync kioskOn if user exits fullscreen via browser Escape (bypasses toggleKiosk)
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && kioskOn) {
+    kioskOn = false;
+    document.body.classList.remove('kiosk');
+  }
+});
 function togglePresent() { presentOn = !presentOn; document.body.classList.toggle('present', presentOn); }
 
 // ── Pomodoro UI ────────────────────────────────────────────────────────
@@ -366,18 +376,46 @@ function buildPomUI() {
 
 // ── Sound UI ───────────────────────────────────────────────────────────
 function buildSoundUI() {
-  const grid = $('soundGrid'); grid.innerHTML = '';
+  const container = $('soundGrid'); container.innerHTML = '';
   Sound.SOUNDS.forEach(s => {
-    const card = document.createElement('div');
-    card.className = 'sound-card' + (Sound.currentId === s.id ? ' playing' : '');
-    card.innerHTML = `<span class="sound-icon">${s.icon}</span><div class="sound-name">${s.name}</div>`;
-    card.onclick = () => { Sound.toggle(s.id); buildSoundUI(); };
-    grid.appendChild(card);
+    const active = Sound.isPlaying(s.id);
+    const trackVol = Math.round(Sound.getTrackVolume(s.id) * 100);
+    const track = document.createElement('div');
+    track.className = 'sound-track' + (active ? ' active' : '');
+    track.innerHTML = `
+      <div class="sound-track-icon">${s.icon}</div>
+      <div class="sound-track-info">
+        <div class="sound-track-name">${s.name}</div>
+        <div class="sound-track-desc">${s.desc ?? ''}</div>
+      </div>
+      <div class="sound-track-vol">
+        <input type="range" class="track-vol-slider" min="0" max="100" value="${trackVol}" data-id="${s.id}">
+        <span class="sound-vol-pct" id="tvp_${s.id}">${trackVol}%</span>
+      </div>
+      <button class="track-toggle${active ? ' on' : ''}" data-id="${s.id}" title="${active ? 'Stop' : 'Play'}"></button>
+    `;
+    track.querySelector<HTMLInputElement>('.track-vol-slider')!.addEventListener('input', e => {
+      const el = e.target as HTMLInputElement;
+      const v = +el.value / 100;
+      Sound.setTrackVolume(el.dataset.id!, v);
+      const lbl = document.getElementById('tvp_' + el.dataset.id);
+      if (lbl) lbl.textContent = Math.round(v * 100) + '%';
+    });
+    track.querySelector<HTMLButtonElement>('.track-toggle')!.addEventListener('click', e => {
+      Sound.toggleTrack((e.currentTarget as HTMLButtonElement).dataset.id!);
+    });
+    container.appendChild(track);
   });
 }
+
+// Re-render tracks whenever a track starts/stops
+Sound.setTrackChangeHandler(buildSoundUI);
+
+($('volSlider') as HTMLInputElement).value = String(Math.round(Sound.getMasterVolume() * 100));
+($('volLabel') as HTMLElement).textContent = Math.round(Sound.getMasterVolume() * 100) + '%';
 ($('volSlider') as HTMLInputElement).addEventListener('input', e => {
   const v = +(e.target as HTMLInputElement).value / 100;
-  Sound.setVolume(v);
+  Sound.setMasterVolume(v);
   $('volLabel').textContent = Math.round(v * 100) + '%';
 });
 ($('fadeSlider') as HTMLInputElement).addEventListener('input', e => {
