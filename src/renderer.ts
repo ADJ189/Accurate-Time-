@@ -56,6 +56,8 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   nordic(dt, t)  { drawNordic(); },
   midnight(dt,t) { drawMidnight(t); drawParticles(dt, t); },
   lemon(dt, t)   { drawLemon(); },
+  blueprint(dt,t){ drawBlueprint(t); },
+  commonroom(dt,t){ drawCommonRoom(t); },
   literary(dt,t) { drawLiterary(t); drawParticles(dt, t); },
   supernatural(dt,t){ drawMediaBg(t); drawSymbol('supernatural', t); },
   mentalist(dt,t)   { drawMediaBg(t); drawSymbol('mentalist', t); },
@@ -149,6 +151,64 @@ function drawLiterary(t: Theme) {
   const g = c.createRadialGradient(W/2, H*0.3, 0, W/2, H*0.5, W*0.6);
   g.addColorStop(0, t.accent + '14'); g.addColorStop(1, 'transparent');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
+}
+
+function drawBlueprint(t: Theme) {
+  // Technical grid lines — major and minor
+  const gridSm = 28, gridLg = 140;
+  c.globalAlpha = 0.06;
+  c.strokeStyle = t.accent;
+  c.lineWidth = 0.5;
+  for (let x = 0; x < W; x += gridSm) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); }
+  for (let y = 0; y < H; y += gridSm) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
+  c.globalAlpha = 0.14;
+  c.lineWidth = 0.9;
+  for (let x = 0; x < W; x += gridLg) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); }
+  for (let y = 0; y < H; y += gridLg) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
+  c.globalAlpha = 1;
+  // Animated crosshair at centre
+  const cx = W/2, cy = H/2, cs = 22 + Math.sin(tick*1.2)*4;
+  c.globalAlpha = 0.22 + 0.08*Math.sin(tick*1.8);
+  c.strokeStyle = t.accent; c.lineWidth = 1.2;
+  c.beginPath(); c.moveTo(cx-cs,cy); c.lineTo(cx+cs,cy); c.stroke();
+  c.beginPath(); c.moveTo(cx,cy-cs); c.lineTo(cx,cy+cs); c.stroke();
+  c.beginPath(); c.arc(cx, cy, cs*0.5, 0, Math.PI*2); c.stroke();
+  c.globalAlpha = 1;
+  // Subtle radial glow
+  const g2 = c.createRadialGradient(cx, cy, 0, cx, cy, W*0.5);
+  g2.addColorStop(0, t.accent + '0c'); g2.addColorStop(1, 'transparent');
+  c.fillStyle = g2; c.fillRect(0, 0, W, H);
+  // Animated scan line
+  const scanY = ((tick * 38) % (H + 60)) - 30;
+  const sg = c.createLinearGradient(0, scanY-16, 0, scanY+16);
+  sg.addColorStop(0, 'transparent'); sg.addColorStop(0.5, t.accent + '18'); sg.addColorStop(1, 'transparent');
+  c.fillStyle = sg; c.fillRect(0, scanY-16, W, 32);
+}
+
+function drawCommonRoom(t: Theme) {
+  // Warm ember glow from bottom — like a fireplace
+  const g = c.createRadialGradient(W*0.5, H*1.05, 0, W*0.5, H*0.7, W*0.65);
+  const flicker = 0.12 + 0.06*Math.sin(tick*3.1) + 0.03*Math.sin(tick*7.3);
+  g.addColorStop(0, `rgba(220,80,10,${flicker})`);
+  g.addColorStop(0.4, `rgba(160,45,5,${flicker*0.5})`);
+  g.addColorStop(1, 'transparent');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  // Secondary amber warmth at mid
+  const g2 = c.createRadialGradient(W*0.5, H*0.6, 0, W*0.5, H*0.6, W*0.4);
+  g2.addColorStop(0, `rgba(200,120,20,${flicker*0.4})`); g2.addColorStop(1, 'transparent');
+  c.fillStyle = g2; c.fillRect(0, 0, W, H);
+  // Floating ember particles
+  for (let i = 0; i < poolN; i++) {
+    const o = i * PSTRIDE;
+    pool[o] += pool[o+2] * 0.4 + Math.sin(tick*0.8 + i)*0.3;
+    pool[o+1] -= 0.6 + pool[o+4]*0.3;
+    if (pool[o+1] < -8) { pool[o+1] = H + 8; pool[o] = rnd(W); }
+    if (pool[o] < -8) pool[o] = W+8; if (pool[o] > W+8) pool[o] = -8;
+    const alpha = pool[o+5] * 0.55 * Math.max(0, 1 - pool[o+1]/H);
+    c.beginPath(); c.arc(pool[o], pool[o+1], pool[o+4]*0.7, 0, Math.PI*2);
+    c.fillStyle = `rgba(255,${140 + (i%40)*2},20,${alpha})`; c.globalAlpha = alpha; c.fill();
+  }
+  c.globalAlpha = 1;
 }
 
 function drawMediaBg(t: Theme) {

@@ -3,7 +3,7 @@ import { THEMES, THEME_BY_ID, THEMES_BY_CAT, NAT_QUOTES } from './themes';
 import { LIT_CLOCK } from './litclock';
 import { p2, p3, fmtSession, DAYS, MONTHS, GREETS } from './utils';
 import { clockOffset, synced, syncTime, setSyncHandler } from './timesync';
-import { initWeather } from './weather';
+import { initWeather, stopWeather } from './weather';
 import * as Sound from './sound';
 import * as Pom from './pomodoro';
 import * as Log from './focuslog';
@@ -29,6 +29,8 @@ const LOGOS: Record<string, string> = {
   mclaren:      `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#ff8000"/><path d="M3 11 Q16 4 29 11 Q16 18 3 11Z" fill="#c86000" opacity=".7"/><text x="16" y="13" text-anchor="middle" fill="white" font-size="5.5" font-family="Arial Black,sans-serif" font-weight="900">MCL</text></svg>`,
   astonmartin:  `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#006f62"/><path d="M8 14 Q16 6 24 14" stroke="#cedc00" stroke-width="1.5" fill="none"/><text x="16" y="19" text-anchor="middle" fill="#cedc00" font-size="3.5" font-family="Arial,sans-serif" font-weight="700" letter-spacing=".5">ASTON MARTIN</text></svg>`,
   literary:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0d0a06"/><path d="M8 5h16v13H8z" stroke="#c8a870" stroke-width="1" fill="none" opacity=".7"/><path d="M10 9h12M10 12h9M10 15h7" stroke="#c8a870" stroke-width=".7" opacity=".5"/></svg>`,
+  blueprint:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#040d1a"/><line x1="4" y1="4" x2="28" y2="4" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="4" y1="11" x2="28" y2="11" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="4" y1="18" x2="28" y2="18" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="4" y1="4" x2="4" y2="18" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="16" y1="4" x2="16" y2="18" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="28" y1="4" x2="28" y2="18" stroke="#00cfff" stroke-width=".6" opacity=".4"/><circle cx="16" cy="11" r="4" stroke="#00cfff" stroke-width="1" fill="none" opacity=".9"/><line x1="12" y1="11" x2="20" y2="11" stroke="#00cfff" stroke-width=".7" opacity=".7"/><line x1="16" y1="7" x2="16" y2="15" stroke="#00cfff" stroke-width=".7" opacity=".7"/></svg>`,
+  commonroom:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0d0603"/><path d="M6 18 Q10 8 16 12 Q22 8 26 18" stroke="#e07030" stroke-width="1.2" fill="rgba(200,60,10,.3)"/><circle cx="16" cy="10" r="2.5" fill="#e8a040" opacity=".8"/><path d="M13 14 Q16 10 19 14" stroke="#ff8020" stroke-width=".8" fill="none" opacity=".6"/></svg>`,
 };
 
 // ── Cached DOM refs ────────────────────────────────────────────────────
@@ -91,6 +93,26 @@ function resetTimer() {
 DOM.btnStart.addEventListener('click', () => sessionRunning ? pauseTimer() : startTimer());
 DOM.btnReset.addEventListener('click', resetTimer);
 
+// ── Privacy toggle ────────────────────────────────────────────────────
+let privacyMode = localStorage.getItem('sc_privacy') === '1';
+function isPrivacyMode() { return privacyMode; }
+function togglePrivacy() {
+  privacyMode = !privacyMode;
+  localStorage.setItem('sc_privacy', privacyMode ? '1' : '0');
+  const btn = document.getElementById('btnPrivacy');
+  if (btn) btn.classList.toggle('on', privacyMode);
+  // Update sync dot label
+  if (privacyMode) {
+    updateSyncDisplay('failed'); // shows "Local clock"
+    stopWeather();
+    const wp = $('weatherPill');
+    if (wp) { wp.classList.remove('loaded'); }
+  } else {
+    syncTime();
+    initWeather($('weatherIcon'), $('weatherText'), $('weatherPill'), isPrivacyMode);
+  }
+}
+
 // ── Current theme ──────────────────────────────────────────────────────
 let currentTheme: Theme = THEMES[0];
 const root = document.documentElement;
@@ -147,6 +169,8 @@ function applyTheme(theme: Theme, instant = false) {
     document.querySelectorAll<HTMLElement>('.nat-btn,.media-card').forEach(b => b.classList.toggle('active', b.dataset.id === theme.id));
     lastQKey = '';
     localStorage.setItem('sc_last_theme', theme.id);
+    // Common Room: auto-start rain + fire
+    if (theme.id === 'commonroom') setTimeout(() => Sound.autoStartCommonRoom(), 400);
   };
 
   if (instant || !theme.isMedia) { doApply(); return; }
@@ -261,16 +285,19 @@ function buildPanel() {
                    makeRow('Movies',   THEMES_BY_CAT.movie, makeCard));
 
   // Feature bar
-  ([ ['btnSound','🎵 Sound',  () => { buildSoundUI(); openModal('soundOverlay'); }],
-     ['btnKiosk','⛶ Kiosk',  toggleKiosk],
-     ['btnPresent','📺 Present', togglePresent],
+  ([ ['btnSound',   '🎵 Sound',   () => { buildSoundUI(); openModal('soundOverlay'); }],
+     ['btnKiosk',   '⛶ Kiosk',   toggleKiosk],
+     ['btnPresent', '📺 Present', togglePresent],
      ['btnThemeBuilder','🎨 Custom', openThemeBuilder],
-     ['btnKb','⌨ Keys', () => openModal('kbOverlay')],
+     ['btnKb',      '⌨ Keys',    () => openModal('kbOverlay')],
+     ['btnPrivacy', '🔒 Privacy', togglePrivacy],
   ] as [string, string, () => void][]).forEach(([id, label, action]) => {
-    const b = document.createElement('button'); b.className = 'feat-btn'; b.id = id; b.textContent = label;
-    b.addEventListener('click', action); featBar.appendChild(b);
+    const b = document.createElement('button');
+    b.className = 'feat-btn'; b.id = id; b.textContent = label;
+    if (id === 'btnPrivacy' && privacyMode) b.classList.add('on');
+    b.addEventListener('click', action);
+    featBar.appendChild(b);
   });
-
 }
 
 // ── Modals ─────────────────────────────────────────────────────────────
@@ -375,7 +402,12 @@ Pom.init({
   ring:      DOM.pomRingSvg as unknown as SVGSVGElement,
   pill:      DOM.pomPill,
   label:     DOM.sessionLabel,
-  onPhase:   txt => DOM.pomPill.textContent = txt,
+  onPhase: txt => {
+    DOM.pomPill.textContent = txt;
+    // Adaptive audio: duck on work start, restore on break
+    if (txt.includes('Work')) Sound.adaptOnWorkStart();
+    else Sound.adaptOnBreak();
+  },
 });
 
 $('btnPomToggle').addEventListener('click', () => {
@@ -458,10 +490,33 @@ Sound.setTrackChangeHandler(buildSoundUI);
 });
 
 // ── Focus log UI ───────────────────────────────────────────────────────
-$('btnLog').addEventListener('click', () => { Log.render($('logEntries')); openModal('logOverlay'); });
+let logView: 'list' | 'heatmap' = 'list';
+
+function openLog() {
+  renderLogView();
+  openModal('logOverlay');
+}
+
+function renderLogView() {
+  const listBtn = $('logTabList');
+  const heatBtn = $('logTabHeat');
+  const container = $('logEntries');
+  if (listBtn) listBtn.classList.toggle('active', logView === 'list');
+  if (heatBtn) heatBtn.classList.toggle('active', logView === 'heatmap');
+  if (logView === 'heatmap') Log.renderHeatmap(container);
+  else Log.render(container);
+}
+
+$('btnLog').addEventListener('click', openLog);
+
+// Tab buttons wired via onclick in HTML — expose via SC
 (window as any).SC = {
   ...(window as any).SC,
-  focusLog: { exportCSV: Log.exportCSV, clear: () => { Log.clear(); Log.render($('logEntries')); } },
+  focusLog: {
+    exportCSV: Log.exportCSV,
+    clear: () => { Log.clear(); renderLogView(); },
+    switchTab: (tab: 'list' | 'heatmap') => { logView = tab; renderLogView(); },
+  },
 };
 
 // ── Custom Theme Builder ───────────────────────────────────────────────
@@ -544,8 +599,13 @@ function init() {
   const lastId = localStorage.getItem('sc_last_theme');
   applyTheme(lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0], true);
   requestAnimationFrame(ts => { lastTs = ts; renderFrame(ts); });
-  syncTime();
-  initWeather($('weatherIcon'), $('weatherText'), $('weatherPill'));
+
+  if (!privacyMode) {
+    syncTime();
+    initWeather($('weatherIcon'), $('weatherText'), $('weatherPill'), isPrivacyMode);
+  } else {
+    updateSyncDisplay('failed'); // show "Local clock" from the start
+  }
 }
 
 init();

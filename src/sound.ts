@@ -155,6 +155,46 @@ export function getMasterVolume() { return masterVol; }
 
 export function setFade(v: number) { fadeMinutes = v; }
 
+// ── Adaptive ambient audio ────────────────────────────────────────────
+// Called by Pomodoro on phase transitions
+let adaptiveDuckTimer = 0;
+export function adaptOnWorkStart() {
+  if (!masterGain) return;
+  // Duck master by 22% for 8 seconds, then restore
+  const orig = masterGain.gain.value;
+  const ducked = orig * 0.78;
+  masterGain.gain.value = ducked;
+  clearTimeout(adaptiveDuckTimer);
+  adaptiveDuckTimer = window.setTimeout(() => {
+    if (masterGain) masterGain.gain.value = orig;
+  }, 8000);
+}
+
+export function adaptOnWorkNearEnd() {
+  // Boost fire crackle slightly if it's playing (last 2 mins)
+  if (trackNodes['fire']) {
+    const cur = trackNodes['fire'].gain.gain.value;
+    trackNodes['fire'].gain.gain.value = Math.min(1, cur * 1.18);
+  }
+}
+
+export function adaptOnBreak() {
+  // Restore master to full on break
+  clearTimeout(adaptiveDuckTimer);
+  if (masterGain) masterGain.gain.value = masterVol;
+  // Restore fire if boosted
+  if (trackNodes['fire']) trackNodes['fire'].gain.gain.value = trackVols['fire'] ?? 0.8;
+}
+
+// Common Room: auto-start rain + fire if nothing is playing
+export function autoStartCommonRoom() {
+  const anyPlaying = SOUNDS.some(s => isPlaying(s.id));
+  if (!anyPlaying) {
+    playTrack('rain');
+    playTrack('fire');
+  }
+}
+
 function fadeAll() {
   if (!masterGain) return;
   const start = masterGain.gain.value; let t = 0;
