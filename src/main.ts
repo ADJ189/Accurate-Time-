@@ -113,6 +113,9 @@ function applyTheme(theme: Theme, instant = false) {
     cssVar('--btn-radius',  theme.isMedia ? '3px' : '99px');
     cssVar('--lb-h', (theme.isMedia && theme.lb) ? '3.8vh' : '0px');
 
+    // Light theme body class (Nordic, Lemon)
+    document.body.classList.toggle('light-theme', !!theme.light);
+
     $('overlay').style.background  = theme.overlay  === 'none' ? '' : theme.overlay;
     $('vignette').style.background = theme.vignette === 'none' ? '' : theme.vignette;
     ($('scanlines') as HTMLElement).style.opacity = theme.scanlines ? '1' : '0';
@@ -477,23 +480,7 @@ function buildColorRows() {
     const raw = draft[f.key];
     const hex = (raw.startsWith('rgba')||raw.startsWith('rgb')) ? rgbaToHex(raw) : raw;
     const row = document.createElement('div'); row.className = 'color-row';
-    const labelSpan = document.createElement('span');
-    labelSpan.className = 'color-label';
-    labelSpan.textContent = f.label;
-    const pickerWrap = document.createElement('div');
-    pickerWrap.className = 'color-picker-wrap';
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.value = hex;
-    input.setAttribute('data-key', f.key);
-    pickerWrap.appendChild(input);
-    const hexSpan = document.createElement('span');
-    hexSpan.className = 'color-hex';
-    hexSpan.id = `hex_${f.key}`;
-    hexSpan.textContent = hex;
-    row.appendChild(labelSpan);
-    row.appendChild(pickerWrap);
-    row.appendChild(hexSpan);
+    row.innerHTML = `<span class="color-label">${f.label}</span><div class="color-picker-wrap"><input type="color" value="${hex}" data-key="${f.key}"></div><span class="color-hex" id="hex_${f.key}">${hex}</span>`;
     container.appendChild(row);
   });
   container.querySelectorAll<HTMLInputElement>('input[type=color]').forEach(inp => {
@@ -536,11 +523,24 @@ function openThemeBuilder() { buildColorRows(); openModal('themeBuilderOverlay')
 
 (window as any).SC = { ...(window as any).SC, themeBuilder: { preview: previewCustomTheme, save: saveCustomTheme, reset: () => applyTheme(currentTheme, true), openBuilder: openThemeBuilder } };
 
+function updatePanelHeight() {
+  const panel = $('themePanel');
+  if (!panel) return;
+  const h = panel.offsetHeight;
+  document.documentElement.style.setProperty('--panel-h', h + 'px');
+}
+
 // ── Init ───────────────────────────────────────────────────────────────
 function init() {
   resize();
-  window.addEventListener('resize', resize);
+  window.addEventListener('resize', () => { resize(); updatePanelHeight(); });
   buildPanel();
+  updatePanelHeight();
+
+  // Topbar keyboard shortcut button
+  const kbBtn = $('btnKbShortcuts');
+  if (kbBtn) kbBtn.addEventListener('click', () => openModal('kbOverlay'));
+
   const lastId = localStorage.getItem('sc_last_theme');
   applyTheme(lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0], true);
   requestAnimationFrame(ts => { lastTs = ts; renderFrame(ts); });
