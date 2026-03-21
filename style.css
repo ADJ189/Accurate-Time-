@@ -443,12 +443,35 @@ body.present .quote-area     { display: none; }
 body.present .greeting       { display: none; }
 body.present .date-display   { opacity: .3; }
 
+/* Show THEMES reveal button when panel is hidden */
+body.kiosk #themesRevealBtn,
+body.present #themesRevealBtn { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: all; }
+
 /* Keyboard hint */
 #kbHint {
   position: fixed; bottom: calc(var(--panel-h) + 10px); right: 14px; z-index: 99;
   font-size: .52rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700;
   opacity: .2; color: var(--clr-text); pointer-events: none; transition: opacity .3s;
 }
+
+/* THEMES reveal button — floats at bottom centre, slides up when needed */
+#themesRevealBtn {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(80px);
+  z-index: 199; border: none; cursor: pointer; font-family: inherit; font-weight: 700;
+  font-size: .62rem; letter-spacing: .14em; text-transform: uppercase;
+  padding: 8px 18px 8px 14px; border-radius: 99px;
+  background: var(--clr-panel); color: var(--clr-text);
+  border: 1px solid rgba(255,255,255,.12);
+  backdrop-filter: blur(16px);
+  display: flex; align-items: center; gap: 7px;
+  opacity: 0; pointer-events: none;
+  transition: transform .4s cubic-bezier(.34,1.56,.64,1), opacity .35s, background .4s, color .4s, box-shadow .2s;
+  box-shadow: 0 4px 20px rgba(0,0,0,.4);
+}
+#themesRevealBtn:hover { box-shadow: 0 4px 28px rgba(0,0,0,.55); filter: brightness(1.12); }
+/* Also show when panel is manually collapsed */
+#themePanel.collapsed ~ #themesRevealBtn,
+body:has(#themePanel.collapsed) #themesRevealBtn { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: all; }
 
 /* ── Mobile ── */
 @media (max-width: 600px) {
