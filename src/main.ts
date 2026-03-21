@@ -268,7 +268,6 @@ function buildPanel() {
     b.addEventListener('click', action); featBar.appendChild(b);
   });
 
-  $('panelToggle').onclick = () => DOM.themePanel.classList.toggle('collapsed');
 }
 
 // ── Modals ─────────────────────────────────────────────────────────────
@@ -288,7 +287,7 @@ const SHORTCUTS: [string, string, () => void][] = [
   ['P',     'Toggle Pomodoro mode',         () => $('btnPomToggle').click()],
   ['M',     'Open ambient sound mixer',     () => { buildSoundUI(); openModal('soundOverlay'); }],
   ['L',     'Open session focus log',       () => { Log.render($('logEntries')); openModal('logOverlay'); }],
-  ['K',     'Collapse / expand panel',      () => DOM.themePanel.classList.toggle('collapsed')],
+  ['K',     'Collapse / expand panel',      () => { DOM.themePanel.classList.toggle('collapsed'); updateRevealBtn(); }],
   ['G',     'Open custom theme builder',    openThemeBuilder],
   ['?',     'Show shortcuts',               () => openModal('kbOverlay')],
   ['Escape','Close any open panel',         () => document.querySelectorAll<HTMLElement>('.sc-overlay.open').forEach(el => el.classList.remove('open'))],
@@ -308,30 +307,61 @@ document.addEventListener('keydown', e => {
   const hasOpen = document.querySelector('.sc-overlay.open');
   if (hasOpen && e.key !== 'Escape') return;
   for (const [key, , action] of SHORTCUTS) {
-    const ek = e.code === 'Space' ? 'space' : e.key.toLowerCase();
-    const match = key.toLowerCase() === ek
-      || (key === 'Space' && e.code === 'Space')
-      || (key === '?' && e.key === '?');
+    const ek = e.key.toLowerCase();
+    const match =
+      (key === 'Space'  && e.code === 'Space') ||
+      (key === '?'      && (e.key === '?' || (e.code === 'Slash' && e.shiftKey))) ||
+      (key === 'Escape' && e.key === 'Escape') ||
+      (key.length === 1 && key.toLowerCase() === ek && key !== '?');
     if (match) { e.preventDefault(); action(); return; }
   }
 });
 
 // ── Display modes ──────────────────────────────────────────────────────
 let kioskOn = false, presentOn = false;
+
+function updateRevealBtn() {
+  const btn = $('themesRevealBtn');
+  const hidden = kioskOn || presentOn || DOM.themePanel.classList.contains('collapsed');
+  btn.style.opacity = hidden ? '1' : '0';
+  btn.style.transform = hidden ? 'translateX(-50%) translateY(0)' : 'translateX(-50%) translateY(80px)';
+  (btn as HTMLButtonElement).disabled = !hidden;
+}
+
 function toggleKiosk() {
   kioskOn = !kioskOn;
   document.body.classList.toggle('kiosk', kioskOn);
   if (kioskOn) document.documentElement.requestFullscreen?.().catch(() => {});
   else document.exitFullscreen?.().catch(() => {});
+  updateRevealBtn();
 }
 // Sync kioskOn if user exits fullscreen via browser Escape (bypasses toggleKiosk)
 document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement && kioskOn) {
     kioskOn = false;
     document.body.classList.remove('kiosk');
+    updateRevealBtn();
   }
 });
-function togglePresent() { presentOn = !presentOn; document.body.classList.toggle('present', presentOn); }
+function togglePresent() {
+  presentOn = !presentOn;
+  document.body.classList.toggle('present', presentOn);
+  updateRevealBtn();
+}
+
+// THEMES reveal button
+$('themesRevealBtn').addEventListener('click', () => {
+  if (kioskOn) { toggleKiosk(); return; }
+  if (presentOn) { togglePresent(); return; }
+  DOM.themePanel.classList.remove('collapsed');
+  updateRevealBtn();
+});
+
+// Hook panel toggle to also update reveal button
+$('panelToggle').onclick = () => {
+  DOM.themePanel.classList.toggle('collapsed');
+  updateRevealBtn();
+};
 
 // ── Pomodoro UI ────────────────────────────────────────────────────────
 Pom.init({
@@ -447,28 +477,7 @@ function buildColorRows() {
     const raw = draft[f.key];
     const hex = (raw.startsWith('rgba')||raw.startsWith('rgb')) ? rgbaToHex(raw) : raw;
     const row = document.createElement('div'); row.className = 'color-row';
-
-    const labelSpan = document.createElement('span');
-    labelSpan.className = 'color-label';
-    labelSpan.textContent = f.label;
-
-    const pickerWrap = document.createElement('div');
-    pickerWrap.className = 'color-picker-wrap';
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.value = hex;
-    input.dataset.key = f.key;
-    pickerWrap.appendChild(input);
-
-    const hexSpan = document.createElement('span');
-    hexSpan.className = 'color-hex';
-    hexSpan.id = 'hex_' + f.key;
-    hexSpan.textContent = hex;
-
-    row.appendChild(labelSpan);
-    row.appendChild(pickerWrap);
-    row.appendChild(hexSpan);
-
+    row.innerHTML = `<span class="color-label">${f.label}</span><div class="color-picker-wrap"><input type="color" value="${hex}" data-key="${f.key}"></div><span class="color-hex" id="hex_${f.key}">${hex}</span>`;
     container.appendChild(row);
   });
   container.querySelectorAll<HTMLInputElement>('input[type=color]').forEach(inp => {
