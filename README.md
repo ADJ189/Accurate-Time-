@@ -24,48 +24,6 @@ A beautiful, animated clock app with 32 themes, Pomodoro mode, ambient soundscap
 
 ## 🚀 Getting Started
 
-```bash
-# Install dev dependencies (TypeScript + Vite only — no runtime deps)
-npm install
-
-# Start dev server with hot-reload
-npm run dev
-
-# Type-check without building
-npm run typecheck
-
-# Production build → dist/
-npm run build
-
-# Preview production build locally
-npm run preview
-```
-
----
-
-## 🌐 Deploy to GitHub Pages
-
-### Step 1 — Create the repo
-
-```bash
-git init
-git add .
-git commit -m "feat: session clock v8 (TypeScript)"
-git branch -M main
-git remote add origin https://github.com/YOUR-USERNAME/session-clock.git
-git push -u origin main
-```
-
-### Step 2 — Enable GitHub Pages
-
-1. Go to your repo → **Settings** → **Pages**
-2. Under **Source**, select **GitHub Actions**
-3. The `.github/workflows/deploy.yml` workflow runs automatically on every push to `main`
-4. Live at `https://YOUR-USERNAME.github.io/session-clock`
-
-> **No npm, no config, no manual steps.** The workflow type-checks, builds, and deploys automatically.
-
----
 
 ## ⌨ Keyboard Shortcuts
 
@@ -85,34 +43,6 @@ git push -u origin main
 
 ---
 
-## 📁 File Structure
-
-```
-session-clock/
-├── index.html                  # HTML shell — structure, modals, canvas layers
-├── style.css                   # All CSS — themes, layout, animations, modals
-├── src/
-│   ├── main.ts                 # App entry — render loop, UI wiring, theme panel
-│   ├── types.ts                # All TypeScript interfaces and types
-│   ├── themes.ts               # All 32 theme definitions (typed objects)
-│   ├── litclock.ts             # Literary clock — 288 entries (00:00–23:55)
-│   ├── utils.ts                # Math helpers, formatters, constants
-│   ├── timesync.ts             # Cloudflare multi-probe NTP + WorldTimeAPI fallback
-│   ├── renderer.ts             # Canvas BG animations, symbols, all 14 transitions
-│   ├── sound.ts                # 6 Web Audio synthesisers — no audio files
-│   ├── pomodoro.ts             # Pomodoro timer module
-│   ├── focuslog.ts             # Session logging + CSV export
-│   └── weather.ts              # Open-Meteo weather fetch
-├── vite.config.ts              # Vite build config
-├── tsconfig.json               # TypeScript compiler config (strict mode)
-├── package.json
-├── .gitignore
-└── .github/
-    └── workflows/
-        └── deploy.yml          # GitHub Actions — type-check → build → deploy
-```
-
----
 
 ## 🎨 Themes
 
