@@ -408,32 +408,8 @@ function buildColorRows() {
   THEME_FIELDS.forEach(f => {
     const raw = draft[f.key];
     const hex = (raw.startsWith('rgba')||raw.startsWith('rgb')) ? rgbaToHex(raw) : raw;
-    const row = document.createElement('div');
-    row.className = 'color-row';
-
-    const labelSpan = document.createElement('span');
-    labelSpan.className = 'color-label';
-    labelSpan.textContent = f.label;
-
-    const pickerWrap = document.createElement('div');
-    pickerWrap.className = 'color-picker-wrap';
-
-    const colorInput = document.createElement('input');
-    colorInput.type = 'color';
-    colorInput.value = hex;
-    colorInput.dataset.key = f.key;
-
-    pickerWrap.appendChild(colorInput);
-
-    const hexSpan = document.createElement('span');
-    hexSpan.className = 'color-hex';
-    hexSpan.id = 'hex_' + f.key;
-    hexSpan.textContent = hex;
-
-    row.appendChild(labelSpan);
-    row.appendChild(pickerWrap);
-    row.appendChild(hexSpan);
-
+    const row = document.createElement('div'); row.className = 'color-row';
+    row.innerHTML = `<span class="color-label">${f.label}</span><div class="color-picker-wrap"><input type="color" value="${hex}" data-key="${f.key}"></div><span class="color-hex" id="hex_${f.key}">${hex}</span>`;
     container.appendChild(row);
   });
   container.querySelectorAll<HTMLInputElement>('input[type=color]').forEach(inp => {
