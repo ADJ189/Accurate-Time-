@@ -5,24 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="description" content="Session Clock — animated themes, Pomodoro, ambient sound, literary clock, focus log and more.">
 <meta name="theme-color" content="#06030f">
-
-<!-- Open Graph / social preview -->
 <meta property="og:title" content="Session Clock">
 <meta property="og:description" content="A beautiful animated clock with 30+ themes, Pomodoro, ambient soundscapes, literary clock and session logging.">
 <meta property="og:type" content="website">
-
 <title>Session Clock</title>
-
-<!-- Google Fonts — only external dependency -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Orbitron:wght@400;700;900&family=Comfortaa:wght@300;400;700&family=Josefin+Sans:wght@100;300;400;600&family=Fraunces:ital,wght@0,100;0,700;1,400&family=Bebas+Neue&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Special+Elite&family=Nunito:wght@300;400;600;700;800&family=IM+Fell+English:ital@0;1&family=Teko:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- ── Canvas layers ── -->
+<!-- Canvas layers -->
 <canvas id="bgCanvas"></canvas>
 <div id="overlay"></div>
 <div id="vignette"></div>
@@ -33,7 +27,7 @@
 <div id="letterboxBot"></div>
 <canvas id="transCanvas"></canvas>
 
-<!-- ── Floating pills ── -->
+<!-- Floating pills -->
 <div id="showBadge"></div>
 <div class="utc-pill" id="utcPill">UTC --:--:--</div>
 <div id="weatherPill">
@@ -41,69 +35,46 @@
   <span id="weatherText">--°</span>
 </div>
 
-<!-- ══════════════════════════════════════════
-     MAIN CLOCK UI
-══════════════════════════════════════════ -->
+<!-- Main clock UI -->
 <div class="main" id="mainUI">
-
   <div class="greeting" id="greeting">Good morning</div>
-
   <div>
     <div class="clock-wrap">
-      <div class="time-display" id="timeDis">
-        --<span class="colon">:</span>--<span class="colon">:</span>--
-      </div>
+      <div class="time-display" id="timeDis">--<span class="colon">:</span>--<span class="colon">:</span>--</div>
       <div class="ampm" id="ampmDis">--</div>
     </div>
     <div class="seconds-ms" id="secMs">.---</div>
   </div>
-
   <div class="date-display" id="dateDis">—</div>
 
-  <!-- Day progress bar -->
+  <!-- Day progress -->
   <div class="progress-wrap">
-    <div class="progress-labels">
-      <span>Day Progress</span>
-      <span id="dayPct">0%</span>
-    </div>
-    <div class="progress-track">
-      <div class="progress-fill" id="progressFill"></div>
-    </div>
+    <div class="progress-labels"><span>Day Progress</span><span id="dayPct">0%</span></div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
   </div>
 
-  <!-- Session / Pomodoro area -->
+  <!-- Session / Pomodoro -->
   <div class="session-area">
     <div class="pom-mode-pill" id="pomModePill">🍅 Pomodoro</div>
     <div class="session-label" id="sessionLabel">Session Timer</div>
-
-    <!-- Pomodoro ring wraps around the timer digits -->
     <div id="pomRingWrap">
       <svg id="pomRingSvg" width="0" height="0" viewBox="0 0 120 120" style="display:none">
-        <circle cx="60" cy="60" r="54" fill="none"
-                stroke="rgba(255,255,255,.08)" stroke-width="3"/>
-        <circle id="pomRingArc" cx="60" cy="60" r="54" fill="none"
-                stroke="var(--clr-accent)" stroke-width="3"
-                stroke-linecap="round"
-                stroke-dasharray="339.3" stroke-dashoffset="0"
-                transform="rotate(-90 60 60)"
-                style="transition:stroke-dashoffset .5s linear,stroke .5s"/>
+        <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="3"/>
+        <circle id="pomRingArc" cx="60" cy="60" r="54" fill="none" stroke="var(--clr-accent)"
+                stroke-width="3" stroke-linecap="round" stroke-dasharray="339.3" stroke-dashoffset="0"
+                transform="rotate(-90 60 60)" style="transition:stroke-dashoffset .5s linear,stroke .5s"/>
       </svg>
       <div class="session-timer" id="sessionTimer">00:00:00</div>
     </div>
-
-    <!-- Focus log input (visible when session is running) -->
     <div id="focusInputWrap">
       <span id="focusTag">Working on:</span>
-      <input id="focusInput" type="text"
-             placeholder="what are you working on?"
-             maxlength="60" autocomplete="off"/>
+      <input id="focusInput" type="text" placeholder="what are you working on?" maxlength="60" autocomplete="off"/>
     </div>
-
     <div class="session-controls">
       <button class="btn" id="btnStart">Start</button>
       <button class="btn" id="btnReset">Reset</button>
       <button class="btn" id="btnPomToggle" title="Toggle Pomodoro mode">🍅</button>
-      <button class="btn" id="btnLog"       title="Session log">📋</button>
+      <button class="btn" id="btnLog" title="Session log">📋</button>
     </div>
   </div>
 
@@ -116,30 +87,18 @@
   <!-- Quote / literary clock -->
   <div class="quote-area">
     <div class="quote-text" id="quoteText"></div>
-    <div class="lit-meta"   id="litMeta"></div>
+    <div class="lit-meta" id="litMeta"></div>
   </div>
+</div>
 
-</div><!-- /.main -->
-
-<!-- ══════════════════════════════════════════
-     THEME PANEL (bottom bar)
-══════════════════════════════════════════ -->
+<!-- Theme panel -->
 <div id="themePanel">
-  <!-- Toggle tab — floats above panel top edge -->
   <button id="panelToggle"><span id="panelArrow">▲</span></button>
-
-  <!-- Theme rows injected by buildPanel() -->
   <div id="themePanelRows"></div>
-
-  <!-- Feature shortcut buttons -->
   <div id="featBar"></div>
 </div>
 
-<!-- ══════════════════════════════════════════
-     MODALS
-══════════════════════════════════════════ -->
-
-<!-- Focus Log -->
+<!-- Modals -->
 <div class="sc-overlay" id="logOverlay">
   <div class="sc-modal">
     <button class="modal-close" onclick="SC.modals.close('logOverlay')">✕</button>
@@ -152,7 +111,6 @@
   </div>
 </div>
 
-<!-- Custom Theme Builder -->
 <div class="sc-overlay" id="themeBuilderOverlay">
   <div class="sc-modal">
     <button class="modal-close" onclick="SC.modals.close('themeBuilderOverlay')">✕</button>
@@ -169,7 +127,6 @@
   </div>
 </div>
 
-<!-- Ambient Sound -->
 <div class="sc-overlay" id="soundOverlay">
   <div class="sc-modal">
     <button class="modal-close" onclick="SC.modals.close('soundOverlay')">✕</button>
@@ -177,22 +134,17 @@
     <div class="sound-grid" id="soundGrid"></div>
     <div class="vol-row">
       <span class="vol-label">Volume</span>
-      <input type="range" class="sc-range" id="volSlider"
-             min="0" max="100" value="40"
-             oninput="SC.sound.setVolume(this.value/100)">
+      <input type="range" class="sc-range" id="volSlider" min="0" max="100" value="40">
       <span class="vol-label" id="volLabel">40%</span>
     </div>
     <div class="vol-row" style="margin-top:6px">
       <span class="vol-label">Fade out timer</span>
-      <input type="range" class="sc-range" id="fadeSlider"
-             min="0" max="60" value="0"
-             oninput="SC.sound.setFade(this.value)">
+      <input type="range" class="sc-range" id="fadeSlider" min="0" max="60" value="0">
       <span class="vol-label" id="fadeLabel">Off</span>
     </div>
   </div>
 </div>
 
-<!-- Keyboard Shortcuts -->
 <div class="sc-overlay" id="kbOverlay">
   <div class="sc-modal">
     <button class="modal-close" onclick="SC.modals.close('kbOverlay')">✕</button>
@@ -201,7 +153,6 @@
   </div>
 </div>
 
-<!-- Pomodoro Settings -->
 <div class="sc-overlay" id="pomOverlay">
   <div class="sc-modal">
     <button class="modal-close" onclick="SC.modals.close('pomOverlay')">✕</button>
@@ -218,10 +169,8 @@
   </div>
 </div>
 
-<!-- Keyboard hint -->
 <div id="kbHint">Press ? for shortcuts</div>
 
-<!-- app.js last so DOM is ready -->
-<script src="app.js"></script>
+<script type="module" src="src/main.ts"></script>
 </body>
 </html>
