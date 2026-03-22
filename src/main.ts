@@ -9,6 +9,22 @@ import * as Pom from './pomodoro';
 import * as Log from './focuslog';
 import { resize, buildParticles, drawBg, runTransition, setBreathing } from './renderer';
 
+// ── Clock mode ────────────────────────────────────────────────────────
+export type ClockMode = 'digital' | 'analogue' | 'flip' | 'word' | 'minimal' | 'segment';
+let clockMode: ClockMode = (localStorage.getItem('sc_clock_mode') as ClockMode) || 'digital';
+function setClockMode(m: ClockMode) {
+  clockMode = m;
+  localStorage.setItem('sc_clock_mode', m);
+  updateClockModeDOM();
+}
+function updateClockModeDOM() {
+  const cb = document.getElementById('clock-block-wrap');
+  if (cb) cb.dataset.mode = clockMode;
+  document.querySelectorAll('.clock-mode-btn').forEach(b => {
+    (b as HTMLElement).classList.toggle('active', (b as HTMLElement).dataset.mode === clockMode);
+  });
+}
+
 // ── SVG Logos ─────────────────────────────────────────────────────────
 const LOGOS: Record<string, string> = {
   supernatural: `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#1a0800"/><path d="M6 17L16 5L26 17" stroke="#e05500" stroke-width="1.5" fill="none"/><path d="M10 17L16 9L22 17" stroke="#ff9944" stroke-width="1" fill="none" opacity=".6"/><circle cx="16" cy="14" r="2" fill="#e05500" opacity=".8"/></svg>`,
@@ -100,6 +116,7 @@ DOM.btnReset.addEventListener('click', resetTimer);
 
 // ── Privacy toggle ────────────────────────────────────────────────────
 let privacyMode = localStorage.getItem('sc_privacy') === '1';
+let breathingBreakEnabled = localStorage.getItem('sc_breathing_break') !== '0'; // on by default
 function isPrivacyMode() { return privacyMode; }
 function togglePrivacy() {
   privacyMode = !privacyMode;
@@ -216,19 +233,29 @@ function renderFrame(ts: number) {
   requestAnimationFrame(renderFrame);
   const dt = Math.min((ts - lastTs) / 1000, 0.05); lastTs = ts;
   drawBg(dt, currentTheme);
+  Sound.tickSpatial(ts / 1000);
 
   const now = new Date(Date.now() + clockOffset);
   const ms = now.getMilliseconds(), sec = now.getSeconds(), min = now.getMinutes(), hr = now.getHours();
   const hr12 = hr % 12 || 12;
-
   const hrStr = p2(hr12), minStr = p2(min), secStr = p2(sec);
-  tickDigit(DOM.digitHr,  hrStr);
-  tickDigit(DOM.digitMin, minStr);
-  tickDigit(DOM.digitSec, secStr);
-  DOM.ampmDis.textContent = hr >= 12 ? 'PM' : 'AM';
-  DOM.secMs.textContent = '.' + p3(ms);
-  DOM.timeDis.textContent = `${hrStr}:${minStr}:${secStr}`;
 
+  // Route to correct clock renderer
+  switch (clockMode) {
+    case 'analogue':  renderAnalogue(hr, min, sec, ms);  break;
+    case 'flip':      renderFlip(hrStr, minStr, secStr); break;
+    case 'word':      renderWord(hr, min);               break;
+    case 'minimal':   renderMinimal(hr12, hr);           break;
+    case 'segment':   renderSegment(hrStr, minStr, secStr); break;
+    default:
+      tickDigit(DOM.digitHr, hrStr);
+      tickDigit(DOM.digitMin, minStr);
+      tickDigit(DOM.digitSec, secStr);
+      DOM.ampmDis.textContent = hr >= 12 ? 'PM' : 'AM';
+      DOM.secMs.textContent = '.' + p3(ms);
+  }
+
+  DOM.timeDis.textContent = `${hrStr}:${minStr}:${secStr}`;
   const dp = ((hr * 3600 + min * 60 + sec) * 1000 + ms) / 864e5 * 100;
   DOM.pFill.style.width = dp.toFixed(4) + '%';
 
@@ -262,6 +289,218 @@ function renderFrame(ts: number) {
       if (qKey !== lastQKey) { lastQKey = qKey; DOM.quoteText.style.opacity = '0'; setTimeout(() => { DOM.quoteText.textContent = `"${qs[qi]}"`; DOM.quoteText.style.opacity = '.38'; }, 400); }
     }
   }
+}
+
+// ── Clock renderers ───────────────────────────────────────────────────
+
+// ANALOGUE — SVG hands drawn into #analogueClock canvas element
+function renderAnalogue(hr: number, min: number, sec: number, ms: number) {
+  const el = document.getElementById('analogueClock') as HTMLCanvasElement | null;
+  if (!el) return;
+  const size = el.width; const cx = size / 2, cy = size / 2, R = size / 2 - 4;
+  const ctx2 = el.getContext('2d')!;
+  ctx2.clearRect(0, 0, size, size);
+  const acc = currentTheme.accent;
+
+  // Dial face
+  ctx2.beginPath(); ctx2.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx2.strokeStyle = acc + '30'; ctx2.lineWidth = 1.5; ctx2.stroke();
+
+  // Hour ticks
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const inner = i % 3 === 0 ? R * 0.82 : R * 0.88;
+    ctx2.beginPath();
+    ctx2.moveTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner);
+    ctx2.lineTo(cx + Math.cos(a) * R,     cy + Math.sin(a) * R);
+    ctx2.strokeStyle = acc + (i % 3 === 0 ? 'cc' : '55');
+    ctx2.lineWidth = i % 3 === 0 ? 2 : 1;
+    ctx2.stroke();
+  }
+
+  // Smooth second hand — interpolate with ms
+  const secAngle = ((sec + ms / 1000) / 60) * Math.PI * 2 - Math.PI / 2;
+  const minAngle = ((min + sec / 60) / 60) * Math.PI * 2 - Math.PI / 2;
+  const hrAngle  = (((hr % 12) + min / 60) / 12) * Math.PI * 2 - Math.PI / 2;
+
+  const drawHand = (angle: number, length: number, width: number, color: string) => {
+    ctx2.beginPath();
+    ctx2.moveTo(cx - Math.cos(angle) * R * 0.12, cy - Math.sin(angle) * R * 0.12);
+    ctx2.lineTo(cx + Math.cos(angle) * length,   cy + Math.sin(angle) * length);
+    ctx2.strokeStyle = color; ctx2.lineWidth = width;
+    ctx2.lineCap = 'round'; ctx2.stroke();
+  };
+
+  drawHand(hrAngle,  R * 0.55, 3.5, currentTheme.text);
+  drawHand(minAngle, R * 0.78, 2.2, currentTheme.text);
+  drawHand(secAngle, R * 0.88, 1.2, acc);
+
+  // Centre dot
+  ctx2.beginPath(); ctx2.arc(cx, cy, 4, 0, Math.PI * 2);
+  ctx2.fillStyle = acc; ctx2.fill();
+}
+
+// FLIP — CSS 3D card flip per digit group
+let flipPrev = { hr: '', min: '', sec: '' };
+function renderFlip(hr: string, min: string, sec: string) {
+  const update = (id: string, val: string, prev: string) => {
+    const el = document.getElementById(id);
+    if (!el || val === prev) return;
+    const top = el.querySelector<HTMLElement>('.flip-top');
+    const bot = el.querySelector<HTMLElement>('.flip-bot');
+    const topBack = el.querySelector<HTMLElement>('.flip-top-back');
+    if (!top || !bot || !topBack) return;
+    top.textContent = prev;
+    bot.textContent = val;
+    topBack.textContent = val;
+    el.classList.remove('flipping');
+    void el.offsetWidth;
+    el.classList.add('flipping');
+  };
+  update('flipHr',  hr,  flipPrev.hr);
+  update('flipMin', min, flipPrev.min);
+  update('flipSec', sec, flipPrev.sec);
+  flipPrev = { hr, min, sec };
+}
+
+// WORD CLOCK — 10×11 letter grid, lit words
+const WORD_GRID = [
+  'ITLISASTIME',
+  'ACQUARTERDC',
+  'TWENTYFIVEX',
+  'HALFSTENFTO',
+  'PASTERUNINE',
+  'ONESIXTHREE',
+  'FOURFIVETWO',
+  'EIGHTELEVEN',
+  'SEVENTWELVE',
+  'TENSEOCLOCK',
+];
+// Word positions [row, colStart, colEnd] (inclusive)
+const WORDS: Record<string, [number,number,number][]> = {
+  IT:       [[0,0,1]], IS:      [[0,3,4]], A:   [[0,5,5]],
+  QUARTER:  [[1,2,8]], TWENTY:  [[2,0,5]], FIVE:[[2,6,9]],
+  HALF:     [[3,0,3]], TEN:     [[3,5,7]], TO:  [[3,9,10]],
+  PAST:     [[4,0,3]],
+  ONE:      [[5,0,2]], SIX:     [[5,3,5]], THREE:[[5,6,10]],
+  FOUR:     [[6,0,3]], FIVE2:   [[6,4,7]], TWO: [[6,8,10]],
+  EIGHT:    [[7,0,4]], ELEVEN:  [[7,5,10]],
+  SEVEN:    [[8,0,4]], TWELVE:  [[8,5,10]],
+  TEN2:     [[9,0,2]], OCLOCK:  [[9,4,9]],
+};
+const HOUR_WORDS = ['TWELVE','ONE','TWO','THREE','FOUR','FIVE2','SIX','SEVEN','EIGHT','NINE','TEN2','ELEVEN'];
+
+function getWordClockWords(hr: number, min: number): Set<string> {
+  const lit = new Set<string>(['IT','IS']);
+  const m5 = Math.round(min / 5) * 5;
+  if      (m5 === 0)  { lit.add('OCLOCK'); }
+  else if (m5 === 5)  { lit.add('FIVE');  lit.add('PAST'); }
+  else if (m5 === 10) { lit.add('TEN');   lit.add('PAST'); }
+  else if (m5 === 15) { lit.add('A'); lit.add('QUARTER'); lit.add('PAST'); }
+  else if (m5 === 20) { lit.add('TWENTY'); lit.add('PAST'); }
+  else if (m5 === 25) { lit.add('TWENTY'); lit.add('FIVE'); lit.add('PAST'); }
+  else if (m5 === 30) { lit.add('HALF'); lit.add('PAST'); }
+  else if (m5 === 35) { lit.add('TWENTY'); lit.add('FIVE'); lit.add('TO'); }
+  else if (m5 === 40) { lit.add('TWENTY'); lit.add('TO'); }
+  else if (m5 === 45) { lit.add('A'); lit.add('QUARTER'); lit.add('TO'); }
+  else if (m5 === 50) { lit.add('TEN'); lit.add('TO'); }
+  else if (m5 === 55) { lit.add('FIVE'); lit.add('TO'); }
+  const hIdx = (m5 >= 35 ? (hr % 12) + 1 : hr % 12) % 12;
+  lit.add(HOUR_WORDS[hIdx]);
+  return lit;
+}
+
+let wordPrevKey = '';
+function renderWord(hr: number, min: number) {
+  const key = `${hr}:${Math.floor(min / 5)}`;
+  if (key === wordPrevKey) return;
+  wordPrevKey = key;
+  const lit = getWordClockWords(hr, min);
+  const el = document.getElementById('wordClockGrid');
+  if (!el) return;
+  el.innerHTML = '';
+  WORD_GRID.forEach((row, ri) => {
+    [...row].forEach((ch, ci) => {
+      const span = document.createElement('span');
+      span.textContent = ch;
+      span.className = 'wc-char';
+      // Check if this char is part of a lit word
+      let isLit = false;
+      for (const [word, positions] of Object.entries(WORDS)) {
+        if (!lit.has(word)) continue;
+        for (const [r, cs, ce] of positions) {
+          if (r === ri && ci >= cs && ci <= ce) { isLit = true; break; }
+        }
+        if (isLit) break;
+      }
+      span.classList.toggle('wc-lit', isLit);
+      el.appendChild(span);
+    });
+  });
+}
+
+// MINIMAL — just the hour, enormous
+function renderMinimal(hr12: number, hr: number) {
+  const el = document.getElementById('minimalHr');
+  const ap = document.getElementById('minimalAP');
+  if (el) el.textContent = String(hr12);
+  if (ap) ap.textContent = hr >= 12 ? 'PM' : 'AM';
+}
+
+// SEGMENT — 7-segment style per digit
+const SEG_PATHS: Record<string, number[]> = {
+  // Which of 7 segments [top,topR,botR,bot,botL,topL,mid] are ON per digit
+  '0':[1,1,1,1,1,1,0], '1':[0,1,1,0,0,0,0], '2':[1,1,0,1,1,0,1],
+  '3':[1,1,1,1,0,0,1], '4':[0,1,1,0,0,1,1], '5':[1,0,1,1,0,1,1],
+  '6':[1,0,1,1,1,1,1], '7':[1,1,1,0,0,0,0], '8':[1,1,1,1,1,1,1],
+  '9':[1,1,1,1,0,1,1],
+};
+function drawSegDigit(ctx2: CanvasRenderingContext2D, digit: string, x: number, y: number, w: number, h: number, color: string, dimColor: string) {
+  const segs = SEG_PATHS[digit] ?? SEG_PATHS['8'];
+  const t = 4, g = 3; // thickness, gap
+  const iw = w - t * 2 - g * 2, ih = (h - t * 3 - g * 4) / 2;
+  // top, topR, botR, bot, botL, topL, mid
+  const drawSeg = (on: number, draw: () => void) => {
+    ctx2.fillStyle = on ? color : dimColor; draw();
+  };
+  // top
+  drawSeg(segs[0], () => { ctx2.fillRect(x + t + g, y, iw, t); });
+  // topR
+  drawSeg(segs[1], () => { ctx2.fillRect(x + w - t, y + t + g, t, ih); });
+  // botR
+  drawSeg(segs[2], () => { ctx2.fillRect(x + w - t, y + t * 2 + g * 3 + ih, t, ih); });
+  // bot
+  drawSeg(segs[3], () => { ctx2.fillRect(x + t + g, y + h - t, iw, t); });
+  // botL
+  drawSeg(segs[4], () => { ctx2.fillRect(x, y + t * 2 + g * 3 + ih, t, ih); });
+  // topL
+  drawSeg(segs[5], () => { ctx2.fillRect(x, y + t + g, t, ih); });
+  // mid
+  drawSeg(segs[6], () => { ctx2.fillRect(x + t + g, y + t + g * 3 + ih, iw, t); });
+}
+
+function renderSegment(hr: string, min: string, sec: string) {
+  const el = document.getElementById('segmentClock') as HTMLCanvasElement | null;
+  if (!el) return;
+  const ctx2 = el.getContext('2d')!;
+  ctx2.clearRect(0, 0, el.width, el.height);
+  const acc = currentTheme.accent;
+  const dim = acc + '18';
+  const dw = 42, dh = 80, gap = 12, colonW = 18;
+  const totalW = 6 * dw + 5 * gap + 2 * colonW;
+  let ox = (el.width - totalW) / 2, oy = (el.height - dh) / 2;
+  const digits = [hr[0], hr[1], min[0], min[1], sec[0], sec[1]];
+  digits.forEach((d, i) => {
+    if (i === 2 || i === 4) {
+      // Colon
+      ctx2.fillStyle = Math.floor(Date.now() / 500) % 2 === 0 ? acc : dim;
+      ctx2.beginPath(); ctx2.arc(ox + colonW / 2, oy + dh * 0.33, 3, 0, Math.PI * 2); ctx2.fill();
+      ctx2.beginPath(); ctx2.arc(ox + colonW / 2, oy + dh * 0.67, 3, 0, Math.PI * 2); ctx2.fill();
+      ox += colonW + gap;
+    }
+    drawSegDigit(ctx2, d, ox, oy, dw, dh, acc, dim);
+    ox += dw + gap;
+  });
 }
 
 // ── Theme panel ────────────────────────────────────────────────────────
@@ -316,11 +555,13 @@ function buildPanel() {
      ['btnKb',         '⌨ Keys',       () => openModal('kbOverlay')],
      ['btnPrivacy',    '🔒 Privacy',    togglePrivacy],
      ['btnFocusLock',  '🔐 Focus Lock', toggleFocusLock],
+     ['btnSettings',   '⚙️ Settings',   openSettings],
   ] as [string, string, () => void][]).forEach(([id, label, action]) => {
     const b = document.createElement('button');
     b.className = 'feat-btn'; b.id = id; b.textContent = label;
-    if (id === 'btnPrivacy'   && privacyMode)    b.classList.add('on');
+    if (id === 'btnPrivacy'   && privacyMode)      b.classList.add('on');
     if (id === 'btnFocusLock' && focusLockEnabled) b.classList.add('on');
+    if (id === 'btnSettings'  && Sound.isSpatialEnabled()) b.classList.add('on');
     b.addEventListener('click', action);
     featBar.appendChild(b);
   });
@@ -481,11 +722,12 @@ Pom.init({
       setBreathing(false); // end any breathing
     } else {
       Sound.adaptOnBreak();
-      setBreathing(true);  // start box breathing on break
-      // Auto-stop breathing after break duration
-      const s = Pom.getSettings();
-      const dur = txt.includes('Long') ? s.longBreakMins : s.breakMins;
-      setTimeout(() => setBreathing(false), dur * 60_000);
+      if (breathingBreakEnabled) {
+        setBreathing(true);
+        const s = Pom.getSettings();
+        const dur = txt.includes('Long') ? s.longBreakMins : s.breakMins;
+        setTimeout(() => setBreathing(false), dur * 60_000);
+      }
     }
   },
 });
@@ -643,30 +885,7 @@ function buildColorRows() {
     const raw = draft[f.key];
     const hex = (raw.startsWith('rgba')||raw.startsWith('rgb')) ? rgbaToHex(raw) : raw;
     const row = document.createElement('div'); row.className = 'color-row';
-
-    const labelSpan = document.createElement('span');
-    labelSpan.className = 'color-label';
-    labelSpan.textContent = f.label;
-
-    const pickerWrap = document.createElement('div');
-    pickerWrap.className = 'color-picker-wrap';
-
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.value = hex;
-    input.dataset.key = f.key;
-
-    pickerWrap.appendChild(input);
-
-    const hexSpan = document.createElement('span');
-    hexSpan.className = 'color-hex';
-    hexSpan.id = `hex_${f.key}`;
-    hexSpan.textContent = hex;
-
-    row.appendChild(labelSpan);
-    row.appendChild(pickerWrap);
-    row.appendChild(hexSpan);
-
+    row.innerHTML = `<span class="color-label">${f.label}</span><div class="color-picker-wrap"><input type="color" value="${hex}" data-key="${f.key}"></div><span class="color-hex" id="hex_${f.key}">${hex}</span>`;
     container.appendChild(row);
   });
   container.querySelectorAll<HTMLInputElement>('input[type=color]').forEach(inp => {
@@ -708,6 +927,95 @@ function renderSavedSwatches() {
 function openThemeBuilder() { buildColorRows(); openModal('themeBuilderOverlay'); }
 
 (window as any).SC = { ...(window as any).SC, themeBuilder: { preview: previewCustomTheme, save: saveCustomTheme, reset: () => applyTheme(currentTheme, true), openBuilder: openThemeBuilder } };
+
+// ── Settings modal ────────────────────────────────────────────────────
+function openSettings() { buildSettingsUI(); openModal('settingsOverlay'); }
+
+function buildSettingsUI() {
+  const el = $('settingsContent');
+  if (!el) return;
+
+  const clockModes: { mode: ClockMode; label: string; icon: string; desc: string }[] = [
+    { mode: 'digital',  label: 'Digital',   icon: '🔢', desc: 'Classic digit display' },
+    { mode: 'analogue', label: 'Analogue',  icon: '🕐', desc: 'Smooth sweep hands' },
+    { mode: 'flip',     label: 'Flip',      icon: '📅', desc: '3D card flip' },
+    { mode: 'word',     label: 'Word',      icon: '📝', desc: '"It is half past"' },
+    { mode: 'minimal',  label: 'Minimal',   icon: '○',  desc: 'Hour only, huge' },
+    { mode: 'segment',  label: 'Segment',   icon: '📟', desc: 'LED 7-segment' },
+  ];
+
+  el.innerHTML = `
+    <div class="settings-section">
+      <div class="settings-section-title">Clock Style</div>
+      <div class="clock-mode-grid" id="clockModeGrid"></div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Audio</div>
+      <div class="settings-row">
+        <div class="settings-row-info">
+          <span class="settings-row-label">3D Spatial Audio</span>
+          <span class="settings-row-desc">Ambient sounds pan left/right — requires headphones</span>
+        </div>
+        <button class="settings-toggle ${Sound.isSpatialEnabled() ? 'on' : ''}" id="toggleSpatial"></button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-info">
+          <span class="settings-row-label">Box Breathing on Break</span>
+          <span class="settings-row-desc">Guided breathing overlay during Pomodoro breaks</span>
+        </div>
+        <button class="settings-toggle ${breathingBreakEnabled ? 'on' : ''}" id="toggleBreathing"></button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Focus</div>
+      <div class="settings-row">
+        <div class="settings-row-info">
+          <span class="settings-row-label">Focus Lock Delay</span>
+          <span class="settings-row-desc">3-second delay before opening panels during Pomodoro</span>
+        </div>
+        <button class="settings-toggle ${focusLockEnabled ? 'on' : ''}" id="toggleFocusLockS"></button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-title">Privacy</div>
+      <div class="settings-row">
+        <div class="settings-row-info">
+          <span class="settings-row-label">Privacy Mode</span>
+          <span class="settings-row-desc">Disable weather & time sync — local clock only</span>
+        </div>
+        <button class="settings-toggle ${privacyMode ? 'on' : ''}" id="togglePrivacyS"></button>
+      </div>
+    </div>
+  `;
+
+  // Clock mode grid
+  const grid = el.querySelector<HTMLElement>('#clockModeGrid')!;
+  clockModes.forEach(({ mode, label, icon, desc }) => {
+    const btn = document.createElement('button');
+    btn.className = 'clock-mode-btn' + (clockMode === mode ? ' active' : '');
+    btn.dataset.mode = mode;
+    btn.innerHTML = `<span class="cmb-icon">${icon}</span><span class="cmb-label">${label}</span><span class="cmb-desc">${desc}</span>`;
+    btn.addEventListener('click', () => {
+      setClockMode(mode);
+      updateClockCanvas();
+      el.querySelectorAll('.clock-mode-btn').forEach(b => b.classList.toggle('active', (b as HTMLElement).dataset.mode === mode));
+    });
+    grid.appendChild(btn);
+  });
+
+  // Toggle handlers
+  const makeToggle = (id: string, onToggle: () => void) => {
+    el.querySelector<HTMLElement>(`#${id}`)?.addEventListener('click', e => {
+      const btn = e.currentTarget as HTMLElement;
+      btn.classList.toggle('on');
+      onToggle();
+    });
+  };
+  makeToggle('toggleSpatial',     () => { Sound.setSpatial(!Sound.isSpatialEnabled()); });
+  makeToggle('toggleBreathing',   () => { breathingBreakEnabled = !breathingBreakEnabled; localStorage.setItem('sc_breathing_break', breathingBreakEnabled ? '1' : '0'); });
+  makeToggle('toggleFocusLockS',  () => toggleFocusLock());
+  makeToggle('togglePrivacyS',    () => togglePrivacy());
+}
 
 function updatePanelHeight() {
   const panel = $('themePanel');
@@ -763,6 +1071,64 @@ function rotateInfo() {
   }, 420);
 }
 
+// ── Clock canvas/DOM manager ──────────────────────────────────────────
+function updateClockCanvas() {
+  const block = document.getElementById('clock-block-wrap');
+  if (!block) return;
+  block.dataset.mode = clockMode;
+
+  // Remove all existing alt clock elements
+  ['analogueClock','flipClockWrap','wordClockGrid','minimalClockWrap','segmentClock'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  });
+
+  // Show/hide digital clock row
+  const digitalRow = document.querySelector<HTMLElement>('.clock-row');
+  if (digitalRow) digitalRow.style.display = (clockMode === 'digital') ? '' : 'none';
+  const ampmStack = document.querySelector<HTMLElement>('.ampm-stack');
+  if (ampmStack) ampmStack.style.display = (clockMode === 'digital') ? '' : 'none';
+
+  if (clockMode === 'analogue') {
+    const canvas = document.createElement('canvas');
+    canvas.id = 'analogueClock';
+    const sz = Math.min(Math.min(window.innerWidth * 0.65, window.innerHeight * 0.38), 340);
+    canvas.width = canvas.height = sz;
+    block.appendChild(canvas);
+
+  } else if (clockMode === 'flip') {
+    const wrap = document.createElement('div');
+    wrap.id = 'flipClockWrap'; wrap.className = 'flip-clock-wrap';
+    ['Hr','Min','Sec'].forEach((part, i) => {
+      if (i > 0) { const sep = document.createElement('span'); sep.className = 'flip-sep'; sep.textContent = ':'; wrap.appendChild(sep); }
+      const card = document.createElement('div');
+      card.id = `flip${part}`; card.className = 'flip-card';
+      card.innerHTML = `<div class="flip-top">00</div><div class="flip-bot">00</div><div class="flip-top-back">00</div>`;
+      wrap.appendChild(card);
+    });
+    block.appendChild(wrap);
+
+  } else if (clockMode === 'word') {
+    const grid = document.createElement('div');
+    grid.id = 'wordClockGrid'; grid.className = 'word-clock-grid';
+    block.appendChild(grid);
+    wordPrevKey = ''; // force redraw
+
+  } else if (clockMode === 'minimal') {
+    const wrap = document.createElement('div');
+    wrap.id = 'minimalClockWrap'; wrap.className = 'minimal-clock-wrap';
+    wrap.innerHTML = `<span id="minimalHr" class="minimal-hr">--</span><span id="minimalAP" class="minimal-ap">AM</span>`;
+    block.appendChild(wrap);
+
+  } else if (clockMode === 'segment') {
+    const canvas = document.createElement('canvas');
+    canvas.id = 'segmentClock';
+    canvas.width = Math.min(window.innerWidth * 0.88, 520);
+    canvas.height = 110;
+    block.appendChild(canvas);
+  }
+}
+
 function startInfoStrip() {
   if (DOM.infoLabel) DOM.infoLabel.textContent = INFO_ITEMS[0]();
   setInterval(rotateInfo, 6000);
@@ -782,6 +1148,7 @@ function init() {
   window.addEventListener('resize', () => { resize(); updatePanelHeight(); });
   buildPanel();
   updatePanelHeight();
+  updateClockCanvas();
   startInfoStrip();
 
   const kbBtn = $('btnKbShortcuts');

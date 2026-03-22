@@ -125,6 +125,7 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   mercedes(dt,t)    { drawF1Bg(t,'mercedes'); },
   mclaren(dt,t)     { drawF1Bg(t,'mclaren'); },
   astonmartin(dt,t) { drawF1Bg(t,'astonmartin'); },
+  gameoflife(dt,t)  { drawGameOfLife(dt, t); },
 };
 
 // ── Background animations ─────────────────────────────────────────────
@@ -258,6 +259,80 @@ function drawCommonRoom(t: Theme) {
     c.fillStyle = `rgba(255,${140 + (i%40)*2},20,${alpha})`; c.globalAlpha = alpha; c.fill();
   }
   c.globalAlpha = 1;
+}
+
+// ── Conway's Game of Life ─────────────────────────────────────────────
+const GOL_CELL = 8; // px per cell — keeps GPU load low
+let golCols = 0, golRows = 0;
+let golGrid: Uint8Array = new Uint8Array(0);
+let golNext: Uint8Array = new Uint8Array(0);
+let golLastTick = 0;
+let golAccTheme = '';
+
+function golResize(t: Theme) {
+  golCols = Math.ceil(W / GOL_CELL) + 2;
+  golRows = Math.ceil(H / GOL_CELL) + 2;
+  const size = golCols * golRows;
+  golGrid = new Uint8Array(size);
+  golNext = new Uint8Array(size);
+  // Random seed ~28% density
+  for (let i = 0; i < size; i++) golGrid[i] = Math.random() < 0.28 ? 1 : 0;
+  golAccTheme = t.id;
+}
+
+function golStep() {
+  const { golGrid: g, golNext: n, golCols: C, golRows: R } = { golGrid, golNext, golCols, golRows };
+  for (let r = 0; r < R; r++) {
+    for (let col = 0; col < C; col++) {
+      const i = r * C + col;
+      let nb = 0;
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const nr = (r + dr + R) % R, nc = (col + dc + C) % C;
+          nb += g[nr * C + nc];
+        }
+      }
+      const alive = g[i];
+      n[i] = (alive && (nb === 2 || nb === 3)) || (!alive && nb === 3) ? 1 : 0;
+    }
+  }
+  // Swap buffers
+  const tmp = golGrid; golGrid = golNext; golNext = tmp;
+}
+
+function drawGameOfLife(dt: number, t: Theme) {
+  // (Re)init if theme changed or dimensions changed
+  if (golAccTheme !== t.id || golGrid.length !== (Math.ceil(W/GOL_CELL)+2) * (Math.ceil(H/GOL_CELL)+2)) {
+    golResize(t);
+  }
+  // Evolve every 110ms — fast enough to feel alive, slow enough to read patterns
+  golLastTick += dt;
+  if (golLastTick > 0.11) { golStep(); golLastTick = 0; }
+
+  // Draw — parse accent hex into rgb for fast rgba construction
+  const acc = t.accent; // e.g. '#6ee7b7' or 'rgba(...)'
+  let r = 110, g2 = 231, b = 183;
+  if (acc.startsWith('#') && acc.length >= 7) {
+    r = parseInt(acc.slice(1,3),16);
+    g2 = parseInt(acc.slice(3,5),16);
+    b = parseInt(acc.slice(5,7),16);
+  }
+
+  const cellSz = GOL_CELL - 1; // 1px gap between cells
+  for (let row = 0; row < golRows; row++) {
+    for (let col = 0; col < golCols; col++) {
+      if (!golGrid[row * golCols + col]) continue;
+      const px = col * GOL_CELL, py = row * GOL_CELL;
+      c.fillStyle = `rgba(${r},${g2},${b},0.55)`;
+      c.fillRect(px, py, cellSz, cellSz);
+    }
+  }
+  // Soft vignette to blend edges
+  const vg = c.createRadialGradient(W/2,H/2,W*0.2,W/2,H/2,W*0.7);
+  vg.addColorStop(0,'transparent');
+  vg.addColorStop(1,`rgba(0,0,0,0.55)`);
+  c.fillStyle = vg; c.fillRect(0,0,W,H);
 }
 
 function drawMediaBg(t: Theme) {

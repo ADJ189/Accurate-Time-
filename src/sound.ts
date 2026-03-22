@@ -176,6 +176,7 @@ export function playTrack(id: string) {
     }
   });
   trackNodes[id] = { nodes: made.nodes, gain: g };
+  if (spatialEnabled) attachPanner(id, g);
   onTrackChange?.();
   if (fadeMinutes > 0) { clearTimeout(fadeTimer); fadeTimer = window.setTimeout(fadeAll, fadeMinutes * 60_000); }
 }
@@ -183,6 +184,7 @@ export function playTrack(id: string) {
 export function stopTrack(id: string) {
   if (!trackNodes[id]) return;
   const t = trackNodes[id];
+  detachPanner(id, t.gain);
   t.nodes.forEach(n => { try { (n as AudioScheduledSourceNode).stop(); } catch {} try { n.disconnect(); } catch {} });
   try { t.gain.disconnect(); } catch {}
   delete trackNodes[id];
@@ -200,6 +202,67 @@ export function getTrackVolume(id: string) { return trackVols[id] ?? .8; }
 export function setMasterVolume(v: number) { masterVol = v; if (masterGain) masterGain.gain.value = v; }
 export function getMasterVolume() { return masterVol; }
 export function setFade(v: number) { fadeMinutes = v; }
+
+// ── Spatial 3D Audio ──────────────────────────────────────────────────
+let spatialEnabled = localStorage.getItem('sc_spatial') === '1';
+const spatialPanners: Record<string, PannerNode> = {};
+const spatialLFOs: Record<string, number> = {}; // per-track phase offset
+
+export function isSpatialEnabled() { return spatialEnabled; }
+
+export function setSpatial(v: boolean) {
+  spatialEnabled = v;
+  localStorage.setItem('sc_spatial', v ? '1' : '0');
+  // Rebuild active tracks to apply/remove spatial routing
+  const active = Object.keys(trackNodes);
+  active.forEach(id => {
+    const nodes = trackNodes[id];
+    if (!nodes) return;
+    if (v) {
+      attachPanner(id, nodes.gain);
+    } else {
+      detachPanner(id, nodes.gain);
+    }
+  });
+}
+
+function attachPanner(id: string, gainNode: GainNode) {
+  if (spatialPanners[id] || !ctx) return;
+  const panner = ctx.createPanner();
+  panner.panningModel = 'equalpower'; // cheaper, no HRTF overhead
+  panner.setPosition(0, 0, -1);
+  // Reroute: gainNode → panner → analyser
+  try { gainNode.disconnect(analyser!); } catch {}
+  gainNode.connect(panner);
+  panner.connect(analyser!);
+  spatialPanners[id] = panner;
+  spatialLFOs[id] = Math.random() * Math.PI * 2; // random phase
+}
+
+function detachPanner(id: string, gainNode: GainNode) {
+  const p = spatialPanners[id];
+  if (!p) return;
+  try { gainNode.disconnect(p); p.disconnect(); } catch {}
+  gainNode.connect(analyser!);
+  delete spatialPanners[id];
+}
+
+// Called from main render loop ~every frame to animate panner positions
+export function tickSpatial(now: number) {
+  if (!spatialEnabled) return;
+  Object.keys(spatialPanners).forEach(id => {
+    const panner = spatialPanners[id];
+    if (!panner) return;
+    // Different speeds per track for natural feel
+    const speeds: Record<string, number> = {
+      rain: 0.06, brown: 0.03, forest: 0.08, cafe: 0.14, ocean: 0.05, fire: 0.04,
+    };
+    const speed = speeds[id] ?? 0.07;
+    const phase = now * speed + (spatialLFOs[id] ?? 0);
+    // Pan x oscillates -3..+3 (metres in 3D space), y/z fixed
+    panner.setPosition(Math.sin(phase) * 3, 0, -1);
+  });
+}
 
 // ── Binaural Beats ────────────────────────────────────────────────────
 export function playBinaural(presetId: string) {
