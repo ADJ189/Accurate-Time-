@@ -9,38 +9,83 @@ export const SOUNDS: SoundDef[] = [
   { id: 'fire',   name: 'Fireplace',   icon: '🔥', desc: 'Crackling flames'  },
 ];
 
+export interface BinauralPreset {
+  id: string; name: string; icon: string;
+  desc: string; carrier: number; beat: number;
+}
+export const BINAURAL_PRESETS: BinauralPreset[] = [
+  { id: 'gamma',  name: 'Deep Focus',  icon: '🧠', desc: 'Gamma 40Hz · Peak concentration',    carrier: 200, beat: 40 },
+  { id: 'beta',   name: 'Alert',       icon: '⚡', desc: 'Beta 18Hz · Active thinking',         carrier: 200, beat: 18 },
+  { id: 'alpha',  name: 'Calm Focus',  icon: '🌊', desc: 'Alpha 10Hz · Relaxed awareness',      carrier: 200, beat: 10 },
+  { id: 'theta',  name: 'Flow State',  icon: '✨', desc: 'Theta 6Hz · Creative flow',           carrier: 200, beat: 6  },
+  { id: 'delta',  name: 'Rest',        icon: '🌙', desc: 'Delta 2Hz · Deep rest & recovery',    carrier: 200, beat: 2  },
+];
+
 let ctx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
+let analyser: AnalyserNode | null = null;
+let analyserData: Uint8Array<ArrayBuffer> | null = null;
 
 // Per-track state
 const trackNodes: Record<string, { nodes: AudioNode[]; gain: GainNode }> = {};
 const trackVols: Record<string, number> = {};
 SOUNDS.forEach(s => { trackVols[s.id] = 0.8; });
 
+// Binaural state
+let binauralNodes: { left: OscillatorNode; right: OscillatorNode; merger: ChannelMergerNode; gain: GainNode } | null = null;
+export let binauralPresetId: string | null = null;
+
 let masterVol  = 0.7;
 let fadeMinutes = 0;
 let fadeTimer  = 0;
 
-// Callback so the UI can re-render when track state changes
 let onTrackChange: (() => void) | null = null;
 export function setTrackChangeHandler(fn: () => void) { onTrackChange = fn; }
 
 function ensureCtx() {
   if (!ctx) {
     ctx = new AudioContext();
+
+    // Insert analyser between tracks and master
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.8;
+    analyserData = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+
     masterGain = ctx.createGain();
     masterGain.gain.value = masterVol;
+
+    // Chain: individual gains → analyser → masterGain → destination
+    analyser.connect(masterGain);
     masterGain.connect(ctx.destination);
   }
   if (ctx.state === 'suspended') ctx.resume();
+}
+
+// ── Analyser export (for audio-reactive canvas) ────────────────────────
+export function getAudioLevel(): number {
+  if (!analyser || !analyserData) return 0;
+  analyser.getByteFrequencyData(analyserData);
+  let sum = 0;
+  for (let i = 0; i < analyserData.length; i++) sum += analyserData[i];
+  return sum / (analyserData.length * 255); // 0..1
+}
+
+export function getBassLevel(): number {
+  if (!analyser || !analyserData) return 0;
+  analyser.getByteFrequencyData(analyserData);
+  // Bass = first ~8 bins (0–200Hz approx)
+  let sum = 0;
+  const bins = Math.min(8, analyserData.length);
+  for (let i = 0; i < bins; i++) sum += analyserData[i];
+  return sum / (bins * 255);
 }
 
 const makeNoiseBuf = (size: number, fn: (d: Float32Array) => void): AudioBufferSourceNode => {
   const buf = ctx!.createBuffer(1, size, ctx!.sampleRate);
   fn(buf.getChannelData(0));
   const src = ctx!.createBufferSource();
-  src.buffer = buf;
-  src.loop = true;
+  src.buffer = buf; src.loop = true;
   return src;
 };
 
@@ -73,7 +118,7 @@ const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] }> = {
     [880, 1320, 1760, 2200].forEach((fr, i) => {
       const o = ctx!.createOscillator(); const og = ctx!.createGain();
       o.type = 'sine'; o.frequency.value = fr; og.gain.value = .015 / (i + 1);
-      o.connect(og); og.connect(masterGain!); o.start(); oscs.push(o);
+      o.connect(og); og.connect(analyser!); o.start(); oscs.push(o);
     });
     return { out: g, nodes: [src, ...oscs] };
   },
@@ -123,8 +168,13 @@ export function playTrack(id: string) {
   ensureCtx();
   const made = MAKERS[id]();
   const g = ctx!.createGain(); g.gain.value = trackVols[id] ?? .8;
-  made.out.connect(g); g.connect(masterGain!);
-  made.nodes.forEach(n => { if ('start' in n && typeof (n as AudioScheduledSourceNode).start === 'function' && !(n as any)._started) { (n as AudioScheduledSourceNode).start(); (n as any)._started = true; } });
+  // Route through analyser
+  made.out.connect(g); g.connect(analyser!);
+  made.nodes.forEach(n => {
+    if ('start' in n && typeof (n as AudioScheduledSourceNode).start === 'function' && !(n as any)._started) {
+      (n as AudioScheduledSourceNode).start(); (n as any)._started = true;
+    }
+  });
   trackNodes[id] = { nodes: made.nodes, gain: g };
   onTrackChange?.();
   if (fadeMinutes > 0) { clearTimeout(fadeTimer); fadeTimer = window.setTimeout(fadeAll, fadeMinutes * 60_000); }
@@ -140,38 +190,76 @@ export function stopTrack(id: string) {
 }
 
 export function toggleTrack(id: string) { trackNodes[id] ? stopTrack(id) : playTrack(id); }
-
 export function isPlaying(id: string) { return !!trackNodes[id]; }
 
 export function setTrackVolume(id: string, v: number) {
   trackVols[id] = v;
   if (trackNodes[id]) trackNodes[id].gain.gain.value = v;
 }
-
 export function getTrackVolume(id: string) { return trackVols[id] ?? .8; }
-
 export function setMasterVolume(v: number) { masterVol = v; if (masterGain) masterGain.gain.value = v; }
 export function getMasterVolume() { return masterVol; }
-
 export function setFade(v: number) { fadeMinutes = v; }
 
+// ── Binaural Beats ────────────────────────────────────────────────────
+export function playBinaural(presetId: string) {
+  stopBinaural();
+  ensureCtx();
+  const preset = BINAURAL_PRESETS.find(p => p.id === presetId);
+  if (!preset) return;
+
+  // Two oscillators, hard-panned L/R
+  const merger = ctx!.createChannelMerger(2);
+  const gain = ctx!.createGain();
+  gain.gain.value = 0.18; // binaural should be subtle
+
+  const left  = ctx!.createOscillator();
+  const right = ctx!.createOscillator();
+  left.type  = right.type  = 'sine';
+  left.frequency.value  = preset.carrier;
+  right.frequency.value = preset.carrier + preset.beat;
+
+  // Pan left → channel 0, right → channel 1
+  const leftGain  = ctx!.createGain(); leftGain.gain.value  = 1;
+  const rightGain = ctx!.createGain(); rightGain.gain.value = 1;
+
+  left.connect(leftGain);   leftGain.connect(merger, 0, 0);
+  right.connect(rightGain); rightGain.connect(merger, 0, 1);
+
+  merger.connect(gain);
+  gain.connect(masterGain!); // bypass analyser so it doesn't skew levels
+
+  left.start(); right.start();
+  binauralNodes = { left, right, merger, gain };
+  binauralPresetId = presetId;
+  onTrackChange?.();
+}
+
+export function stopBinaural() {
+  if (!binauralNodes) return;
+  try { binauralNodes.left.stop();  } catch {}
+  try { binauralNodes.right.stop(); } catch {}
+  try { binauralNodes.gain.disconnect(); binauralNodes.merger.disconnect(); } catch {}
+  binauralNodes = null;
+  binauralPresetId = null;
+  onTrackChange?.();
+}
+
+export function toggleBinaural(presetId: string) {
+  binauralPresetId === presetId ? stopBinaural() : playBinaural(presetId);
+}
+
 // ── Adaptive ambient audio ────────────────────────────────────────────
-// Called by Pomodoro on phase transitions
 let adaptiveDuckTimer = 0;
 export function adaptOnWorkStart() {
   if (!masterGain) return;
-  // Duck master by 22% for 8 seconds, then restore
   const orig = masterGain.gain.value;
-  const ducked = orig * 0.78;
-  masterGain.gain.value = ducked;
+  masterGain.gain.value = orig * 0.78;
   clearTimeout(adaptiveDuckTimer);
-  adaptiveDuckTimer = window.setTimeout(() => {
-    if (masterGain) masterGain.gain.value = orig;
-  }, 8000);
+  adaptiveDuckTimer = window.setTimeout(() => { if (masterGain) masterGain.gain.value = orig; }, 8000);
 }
 
 export function adaptOnWorkNearEnd() {
-  // Boost fire crackle slightly if it's playing (last 2 mins)
   if (trackNodes['fire']) {
     const cur = trackNodes['fire'].gain.gain.value;
     trackNodes['fire'].gain.gain.value = Math.min(1, cur * 1.18);
@@ -179,20 +267,14 @@ export function adaptOnWorkNearEnd() {
 }
 
 export function adaptOnBreak() {
-  // Restore master to full on break
   clearTimeout(adaptiveDuckTimer);
   if (masterGain) masterGain.gain.value = masterVol;
-  // Restore fire if boosted
   if (trackNodes['fire']) trackNodes['fire'].gain.gain.value = trackVols['fire'] ?? 0.8;
 }
 
-// Common Room: auto-start rain + fire if nothing is playing
 export function autoStartCommonRoom() {
   const anyPlaying = SOUNDS.some(s => isPlaying(s.id));
-  if (!anyPlaying) {
-    playTrack('rain');
-    playTrack('fire');
-  }
+  if (!anyPlaying) { playTrack('rain'); playTrack('fire'); }
 }
 
 function fadeAll() {
@@ -216,7 +298,7 @@ export function playChime() {
   }, delay));
 }
 
-// Legacy single-track API kept for keyboard shortcut 'M' that just opens modal
+// Legacy compat
 export const currentId: string | null = null;
 export function stop() { SOUNDS.forEach(s => stopTrack(s.id)); }
 export function play(id: string) { playTrack(id); }

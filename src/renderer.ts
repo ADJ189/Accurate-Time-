@@ -1,5 +1,7 @@
 import type { Theme } from './types';
 import { rnd, rndpm, easeIO, MAT_CHARS } from './utils';
+import { getAudioLevel, getBassLevel } from './sound';
+import { getCircadianWarmth, getSunTimes } from './weather';
 
 // ── Particle pool (SoA Float32Array) ────────────────────────────────────
 const PSTRIDE = 6; // x, y, vx, vy, size, alpha
@@ -15,6 +17,17 @@ const tCanvas  = document.getElementById('transCanvas') as HTMLCanvasElement;
 const c  = bgCanvas.getContext('2d')!;
 const tc = tCanvas.getContext('2d')!;
 let transitioning = false;
+
+// ── Breathing mode ────────────────────────────────────────────────────
+let breathingActive = false;
+let breathingStart  = 0;
+const BREATH_PHASE_SEC = 4; // 4s per phase (inhale/hold/exhale/hold)
+
+export function setBreathing(active: boolean) {
+  breathingActive = active;
+  breathingStart  = active ? performance.now() / 1000 : 0;
+}
+export function isBreathing() { return breathingActive; }
 
 export function resize() {
   W = bgCanvas.width  = tCanvas.width  = window.innerWidth;
@@ -44,6 +57,42 @@ export function drawBg(dt: number, theme: Theme) {
   gr.addColorStop(0, bg[0]); gr.addColorStop(0.5, bg[1] ?? bg[0]); gr.addColorStop(1, bg[2] ?? bg[0]);
   c.fillStyle = gr; c.fillRect(0, 0, W, H);
   (DRAW[bt] ?? drawParticles)(dt, theme);
+
+  // ── Circadian warm overlay ───────────────────────────────────────────
+  const st = getSunTimes();
+  if (st) {
+    const warmth = getCircadianWarmth(st);
+    if (warmth > 0.01) {
+      // Amber-tinted overlay, max ~18% opacity at full warmth
+      c.fillStyle = `rgba(200,100,20,${warmth * 0.18})`;
+      c.fillRect(0, 0, W, H);
+    }
+  }
+
+  // ── Audio-reactive bloom/grain ───────────────────────────────────────
+  const audioLvl = getAudioLevel();
+  const bassLvl  = getBassLevel();
+  if (audioLvl > 0.01) {
+    // Pulse a radial bloom from centre in accent colour
+    const bloomR = Math.min(W, H) * (0.4 + bassLvl * 0.3);
+    const bloomA = audioLvl * 0.12;
+    const bg2 = c.createRadialGradient(W * 0.5, H * 0.5, 0, W * 0.5, H * 0.5, bloomR);
+    bg2.addColorStop(0, `${theme.accent}${Math.round(bloomA * 255).toString(16).padStart(2,'0')}`);
+    bg2.addColorStop(1, 'transparent');
+    c.fillStyle = bg2; c.fillRect(0, 0, W, H);
+
+    // Bass makes grain layer visible via CSS var (updated each frame)
+    const grainEl = document.getElementById('grain');
+    if (grainEl && theme.grain) {
+      const currentOpacity = parseFloat(grainEl.style.opacity || '0');
+      const targetOpacity  = Math.min(0.45, 0.25 + bassLvl * 0.35);
+      // Smooth it
+      grainEl.style.opacity = String(currentOpacity + (targetOpacity - currentOpacity) * 0.15);
+    }
+  }
+
+  // ── Box breathing overlay ─────────────────────────────────────────────
+  if (breathingActive) drawBreathing();
 }
 
 // ── Per-theme draw functions ──────────────────────────────────────────
@@ -407,6 +456,60 @@ function drawF1Symbol(teamId: string) {
     },
   };
   fns[teamId]?.();
+}
+
+// ── Box Breathing Overlay ─────────────────────────────────────────────
+function drawBreathing() {
+  const now   = performance.now() / 1000;
+  const elapsed = now - breathingStart;
+  const phase = Math.floor(elapsed / BREATH_PHASE_SEC) % 4;
+  // 0=inhale 1=hold 2=exhale 3=hold
+  const phaseT = (elapsed % BREATH_PHASE_SEC) / BREATH_PHASE_SEC; // 0..1 within phase
+
+  // Scale factor: inhale→expand, hold→full, exhale→contract, hold→contracted
+  let scale: number;
+  if      (phase === 0) scale = easeIO(phaseT);          // 0→1
+  else if (phase === 1) scale = 1;                        // hold full
+  else if (phase === 2) scale = 1 - easeIO(phaseT);       // 1→0
+  else                  scale = 0;                        // hold contracted
+
+  const cx = W * 0.5, cy = H * 0.5;
+  const minR = Math.min(W, H) * 0.08;
+  const maxR = Math.min(W, H) * 0.22;
+  const r    = minR + (maxR - minR) * scale;
+
+  // Dark backdrop that dims the rest of the UI during breathing
+  c.fillStyle = `rgba(0,0,0,${0.55 + scale * 0.1})`;
+  c.fillRect(0, 0, W, H);
+
+  // Outer glow rings — 3 rings that fade out
+  for (let i = 2; i >= 0; i--) {
+    const ringR = r + i * 18 * (1 - scale * 0.3);
+    const ringA = (0.12 - i * 0.035) * scale;
+    c.beginPath(); c.arc(cx, cy, ringR, 0, Math.PI * 2);
+    c.strokeStyle = `rgba(120,200,255,${ringA})`; c.lineWidth = 1.5; c.stroke();
+  }
+
+  // Main breathing circle
+  const grad = c.createRadialGradient(cx, cy, 0, cx, cy, r);
+  grad.addColorStop(0,   `rgba(180,230,255,${0.22 + scale * 0.08})`);
+  grad.addColorStop(0.7, `rgba(80,160,220,${0.12 + scale * 0.06})`);
+  grad.addColorStop(1,   `rgba(40,100,180,0)`);
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2);
+  c.fillStyle = grad; c.fill();
+
+  // Phase label
+  const labels = ['Inhale', 'Hold', 'Exhale', 'Hold'];
+  const countDown = Math.ceil(BREATH_PHASE_SEC - (elapsed % BREATH_PHASE_SEC));
+  c.save();
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = `rgba(200,235,255,${0.7 + scale * 0.2})`;
+  c.font = `300 ${Math.round(Math.min(W, H) * 0.028)}px Inter, sans-serif`;
+  c.fillText(labels[phase], cx, cy);
+  c.font = `200 ${Math.round(Math.min(W, H) * 0.018)}px Inter, sans-serif`;
+  c.fillStyle = `rgba(160,210,255,0.5)`;
+  c.fillText(String(countDown), cx, cy + Math.min(W, H) * 0.036);
+  c.restore();
 }
 
 // ── Transitions ───────────────────────────────────────────────────────

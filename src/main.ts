@@ -7,7 +7,7 @@ import { initWeather, stopWeather } from './weather';
 import * as Sound from './sound';
 import * as Pom from './pomodoro';
 import * as Log from './focuslog';
-import { resize, buildParticles, drawBg, runTransition } from './renderer';
+import { resize, buildParticles, drawBg, runTransition, setBreathing } from './renderer';
 
 // ── SVG Logos ─────────────────────────────────────────────────────────
 const LOGOS: Record<string, string> = {
@@ -116,6 +116,13 @@ function togglePrivacy() {
     syncTime();
     initWeather($('weatherIcon'), $('weatherText'), $('weatherPill'), isPrivacyMode);
   }
+}
+
+function toggleFocusLock() {
+  focusLockEnabled = !focusLockEnabled;
+  localStorage.setItem('sc_focus_lock', focusLockEnabled ? '1' : '0');
+  const btn = document.getElementById('btnFocusLock');
+  if (btn) btn.classList.toggle('on', focusLockEnabled);
 }
 
 // ── Current theme ──────────────────────────────────────────────────────
@@ -302,16 +309,18 @@ function buildPanel() {
                    makeRow('Movies',   THEMES_BY_CAT.movie, makeCard));
 
   // Feature bar
-  ([ ['btnSound',   '🎵 Sound',   () => { buildSoundUI(); openModal('soundOverlay'); }],
-     ['btnKiosk',   '⛶ Kiosk',   toggleKiosk],
-     ['btnPresent', '📺 Present', togglePresent],
-     ['btnThemeBuilder','🎨 Custom', openThemeBuilder],
-     ['btnKb',      '⌨ Keys',    () => openModal('kbOverlay')],
-     ['btnPrivacy', '🔒 Privacy', togglePrivacy],
+  ([ ['btnSound',      '🎵 Sound',      () => { buildSoundUI(); openModal('soundOverlay'); }],
+     ['btnKiosk',      '⛶ Kiosk',      toggleKiosk],
+     ['btnPresent',    '📺 Present',    togglePresent],
+     ['btnThemeBuilder','🎨 Custom',    openThemeBuilder],
+     ['btnKb',         '⌨ Keys',       () => openModal('kbOverlay')],
+     ['btnPrivacy',    '🔒 Privacy',    togglePrivacy],
+     ['btnFocusLock',  '🔐 Focus Lock', toggleFocusLock],
   ] as [string, string, () => void][]).forEach(([id, label, action]) => {
     const b = document.createElement('button');
     b.className = 'feat-btn'; b.id = id; b.textContent = label;
-    if (id === 'btnPrivacy' && privacyMode) b.classList.add('on');
+    if (id === 'btnPrivacy'   && privacyMode)    b.classList.add('on');
+    if (id === 'btnFocusLock' && focusLockEnabled) b.classList.add('on');
     b.addEventListener('click', action);
     featBar.appendChild(b);
   });
@@ -396,18 +405,64 @@ function togglePresent() {
   updateRevealBtn();
 }
 
+// ── Focus Lock Delay ──────────────────────────────────────────────────
+// When Pomodoro work is active, intercept distracting UI with a 3s delay
+let focusLockEnabled = localStorage.getItem('sc_focus_lock') === '1';
+let focusLockTimer: number | null = null;
+let focusLockBar: HTMLElement | null = null;
+
+function isFocusLocked(): boolean {
+  return focusLockEnabled && Pom.isActive() && sessionRunning;
+}
+
+function focusLockIntercept(action: () => void): void {
+  if (!isFocusLocked()) { action(); return; }
+
+  // Already counting down — cancel it (double-click = immediate)
+  if (focusLockTimer !== null) {
+    clearTimeout(focusLockTimer);
+    focusLockTimer = null;
+    if (focusLockBar) { focusLockBar.remove(); focusLockBar = null; }
+    action();
+    return;
+  }
+
+  // Create progress bar overlay
+  const bar = document.createElement('div');
+  bar.className = 'focus-lock-bar';
+  bar.innerHTML = `<div class="focus-lock-fill"></div><span class="focus-lock-label">Stay focused… click again to open</span>`;
+  document.body.appendChild(bar);
+  focusLockBar = bar;
+
+  // Animate fill
+  requestAnimationFrame(() => {
+    const fill = bar.querySelector<HTMLElement>('.focus-lock-fill');
+    if (fill) { fill.style.transition = 'width 3s linear'; fill.style.width = '100%'; }
+  });
+
+  focusLockTimer = window.setTimeout(() => {
+    if (focusLockBar) { focusLockBar.remove(); focusLockBar = null; }
+    focusLockTimer = null;
+    action();
+  }, 3000);
+}
+
 // THEMES reveal button
 $('themesRevealBtn').addEventListener('click', () => {
   if (kioskOn) { toggleKiosk(); return; }
   if (presentOn) { togglePresent(); return; }
-  DOM.themePanel.classList.remove('collapsed');
-  updateRevealBtn();
+  focusLockIntercept(() => {
+    DOM.themePanel.classList.remove('collapsed');
+    updateRevealBtn();
+  });
 });
 
 // Hook panel toggle to also update reveal button
 $('panelToggle').onclick = () => {
-  DOM.themePanel.classList.toggle('collapsed');
-  updateRevealBtn();
+  focusLockIntercept(() => {
+    DOM.themePanel.classList.toggle('collapsed');
+    updateRevealBtn();
+  });
 };
 
 // ── Pomodoro UI ────────────────────────────────────────────────────────
@@ -421,9 +476,17 @@ Pom.init({
   label:     DOM.sessionLabel,
   onPhase: txt => {
     DOM.pomPill.textContent = txt;
-    // Adaptive audio: duck on work start, restore on break
-    if (txt.includes('Work')) Sound.adaptOnWorkStart();
-    else Sound.adaptOnBreak();
+    if (txt.includes('Work')) {
+      Sound.adaptOnWorkStart();
+      setBreathing(false); // end any breathing
+    } else {
+      Sound.adaptOnBreak();
+      setBreathing(true);  // start box breathing on break
+      // Auto-stop breathing after break duration
+      const s = Pom.getSettings();
+      const dur = txt.includes('Long') ? s.longBreakMins : s.breakMins;
+      setTimeout(() => setBreathing(false), dur * 60_000);
+    }
   },
 });
 
@@ -459,6 +522,8 @@ function buildPomUI() {
 // ── Sound UI ───────────────────────────────────────────────────────────
 function buildSoundUI() {
   const container = $('soundGrid'); container.innerHTML = '';
+
+  // Ambient tracks
   Sound.SOUNDS.forEach(s => {
     const active = Sound.isPlaying(s.id);
     const trackVol = Math.round(Sound.getTrackVolume(s.id) * 100);
@@ -488,9 +553,35 @@ function buildSoundUI() {
     });
     container.appendChild(track);
   });
+
+  // Binaural beats section
+  const binHeader = document.createElement('div');
+  binHeader.className = 'sound-section-header';
+  binHeader.innerHTML = `
+    <span class="sound-section-title">🧠 Binaural Beats</span>
+    <span class="sound-section-note">Requires headphones</span>
+  `;
+  container.appendChild(binHeader);
+
+  Sound.BINAURAL_PRESETS.forEach(p => {
+    const active = Sound.binauralPresetId === p.id;
+    const track = document.createElement('div');
+    track.className = 'sound-track binaural-track' + (active ? ' active' : '');
+    track.innerHTML = `
+      <div class="sound-track-icon">${p.icon}</div>
+      <div class="sound-track-info">
+        <div class="sound-track-name">${p.name}</div>
+        <div class="sound-track-desc">${p.desc}</div>
+      </div>
+      <button class="track-toggle${active ? ' on' : ''}" data-id="${p.id}" title="${active ? 'Stop' : 'Play'}"></button>
+    `;
+    track.querySelector<HTMLButtonElement>('.track-toggle')!.addEventListener('click', e => {
+      Sound.toggleBinaural((e.currentTarget as HTMLButtonElement).dataset.id!);
+    });
+    container.appendChild(track);
+  });
 }
 
-// Re-render tracks whenever a track starts/stops
 Sound.setTrackChangeHandler(buildSoundUI);
 
 ($('volSlider') as HTMLInputElement).value = String(Math.round(Sound.getMasterVolume() * 100));

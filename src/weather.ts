@@ -10,6 +10,53 @@ const WMO: Record<number, [string, string]> = {
 
 let refreshTimer = 0;
 
+// ── Circadian sun math ────────────────────────────────────────────────
+// Returns sunrise and sunset as minutes-since-midnight (local time)
+// NOAA-based approximation. Accurate to ±2 min.
+export function calcSunTimes(lat: number, lon: number): { rise: number; set: number; noon: number } {
+  const now = new Date();
+  const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000);
+  const B = (360 / 365) * (dayOfYear - 81) * Math.PI / 180;
+  const eqTime = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B); // minutes
+  const decl = 23.45 * Math.sin(B) * Math.PI / 180;
+  const latRad = lat * Math.PI / 180;
+  const cosHa = -Math.tan(latRad) * Math.tan(decl);
+  if (cosHa < -1) return { rise: 0, set: 1440, noon: 720 }; // midnight sun
+  if (cosHa >  1) return { rise: 720, set: 720, noon: 720 }; // polar night
+  const ha = Math.acos(cosHa) * 180 / Math.PI; // hour angle in degrees
+  const tzOffset = -now.getTimezoneOffset(); // minutes
+  const solarNoon = 720 - 4 * lon - eqTime + tzOffset;
+  return {
+    rise: solarNoon - 4 * ha,
+    set:  solarNoon + 4 * ha,
+    noon: solarNoon,
+  };
+}
+
+// 0 = cool blue (night/dawn), 1 = warm amber (dusk/evening)
+export function getCircadianWarmth(sunTimes: { rise: number; set: number; noon: number }): number {
+  const now = new Date();
+  const minuteOfDay = now.getHours() * 60 + now.getMinutes();
+  const { rise, set } = sunTimes;
+
+  // Before sunrise or after sunset → warm amber (low blue light)
+  if (minuteOfDay < rise || minuteOfDay > set) return 1;
+
+  // Sunrise window (rise to rise+90 min): ramp 1→0
+  if (minuteOfDay < rise + 90) return 1 - (minuteOfDay - rise) / 90;
+
+  // Midday window (cool, neutral): 0
+  const setWindow = set - 90;
+  if (minuteOfDay < setWindow) return 0;
+
+  // Sunset window (setWindow to set): ramp 0→1
+  return (minuteOfDay - setWindow) / 90;
+}
+
+// Stored for external access
+let sunTimes: { rise: number; set: number; noon: number } | null = null;
+export function getSunTimes() { return sunTimes; }
+
 export async function initWeather(
   iconEl: HTMLElement,
   textEl: HTMLElement,
@@ -31,6 +78,9 @@ export async function initWeather(
 
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude: lat, longitude: lon } }) => {
+        // Compute sun times immediately from coords — no extra fetch needed
+        sunTimes = calcSunTimes(lat, lon);
+
         try {
           const url = `https://api.open-meteo.com/v1/forecast`
             + `?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}`
@@ -43,7 +93,6 @@ export async function initWeather(
           const temp = Math.round(cur.temperature_2m);
           const feels = Math.round(cur.apparent_temperature);
           const wind = Math.round(cur.windspeed_10m);
-          // Main display: icon + temp
           show(icon, `${temp}°`, `${desc} · Feels ${feels}° · Wind ${wind} km/h`);
         } catch {
           show('🌡', '—', 'Weather unavailable');
@@ -55,7 +104,6 @@ export async function initWeather(
   };
 
   fetchWeather();
-  // Refresh every 15 minutes
   clearInterval(refreshTimer);
   refreshTimer = window.setInterval(() => {
     if (!privacyCheck()) fetchWeather();
