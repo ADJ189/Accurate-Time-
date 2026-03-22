@@ -46,9 +46,12 @@ const LOGOS: Record<string, string> = {
   mercedes:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#00d2be"/><text x="16" y="13" text-anchor="middle" fill="#fff" font-size="5" font-family="Arial Black,sans-serif" font-weight="900" letter-spacing=".5">AMG</text><path d="M16 5 L19 9 L16 8 L13 9 Z" fill="white" opacity=".9"/></svg>`,
   mclaren:      `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#ff8000"/><path d="M3 11 Q16 4 29 11 Q16 18 3 11Z" fill="#c86000" opacity=".7"/><text x="16" y="13" text-anchor="middle" fill="white" font-size="5.5" font-family="Arial Black,sans-serif" font-weight="900">MCL</text></svg>`,
   astonmartin:  `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#006f62"/><path d="M8 14 Q16 6 24 14" stroke="#cedc00" stroke-width="1.5" fill="none"/><text x="16" y="19" text-anchor="middle" fill="#cedc00" font-size="3.5" font-family="Arial,sans-serif" font-weight="700" letter-spacing=".5">ASTON MARTIN</text></svg>`,
-  literary:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0d0a06"/><path d="M8 5h16v13H8z" stroke="#c8a870" stroke-width="1" fill="none" opacity=".7"/><path d="M10 9h12M10 12h9M10 15h7" stroke="#c8a870" stroke-width=".7" opacity=".5"/></svg>`,
+  severance:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000408"/><rect x="2" y="9" width="28" height="4" rx=".5" fill="#0088cc" opacity=".15"/><text x="16" y="12.5" text-anchor="middle" fill="#0088cc" font-size="5.5" font-family="'Josefin Sans',Arial,sans-serif" font-weight="300" letter-spacing="3" opacity=".9">LUMON</text><line x1="2" y1="16" x2="30" y2="16" stroke="#0088cc" stroke-width=".4" opacity=".3"/></svg>`,
   blueprint:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#040d1a"/><line x1="4" y1="4" x2="28" y2="4" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="4" y1="11" x2="28" y2="11" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="4" y1="18" x2="28" y2="18" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="4" y1="4" x2="4" y2="18" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="16" y1="4" x2="16" y2="18" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="28" y1="4" x2="28" y2="18" stroke="#00cfff" stroke-width=".6" opacity=".4"/><circle cx="16" cy="11" r="4" stroke="#00cfff" stroke-width="1" fill="none" opacity=".9"/><line x1="12" y1="11" x2="20" y2="11" stroke="#00cfff" stroke-width=".7" opacity=".7"/><line x1="16" y1="7" x2="16" y2="15" stroke="#00cfff" stroke-width=".7" opacity=".7"/></svg>`,
   commonroom:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0d0603"/><path d="M6 18 Q10 8 16 12 Q22 8 26 18" stroke="#e07030" stroke-width="1.2" fill="rgba(200,60,10,.3)"/><circle cx="16" cy="10" r="2.5" fill="#e8a040" opacity=".8"/><path d="M13 14 Q16 10 19 14" stroke="#ff8020" stroke-width=".8" fill="none" opacity=".6"/></svg>`,
+  smpte:        `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0d0d0d"/><rect x="2" y="14" width="28" height="5" rx=".5" fill="#222"/><rect x="14" y="11" width="2" height="9" fill="#e94560" opacity=".9"/><line x1="2" y1="14" x2="30" y2="14" stroke="#444" stroke-width=".4"/><text x="16" y="9" text-anchor="middle" fill="#e94560" font-size="4" font-family="monospace" opacity=".8">TIMELINE</text></svg>`,
+  terminal:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000a00"/><text x="4" y="9" fill="#00ff41" font-size="4.5" font-family="monospace" opacity=".7">0f3a 88c1</text><text x="4" y="16" fill="#00ff41" font-size="4.5" font-family="monospace" opacity=".4">b72d 0044</text><rect x="25" y="11" width="2.5" height="5" fill="#00ff41" opacity=".9"/></svg>`,
+  gameoflife:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#050a05"/><rect x="5" y="5" width="2" height="2" fill="#00e87a" opacity=".8"/><rect x="9" y="5" width="2" height="2" fill="#00e87a" opacity=".8"/><rect x="7" y="7" width="2" height="2" fill="#00e87a" opacity=".8"/><rect x="5" y="9" width="2" height="2" fill="#00e87a" opacity=".5"/><rect x="7" y="9" width="2" height="2" fill="#00e87a" opacity=".8"/><rect x="17" y="6" width="2" height="2" fill="#00e87a" opacity=".7"/><rect x="19" y="8" width="2" height="2" fill="#00e87a" opacity=".7"/><rect x="15" y="8" width="2" height="2" fill="#00e87a" opacity=".7"/><rect x="15" y="10" width="2" height="2" fill="#00e87a" opacity=".5"/><rect x="17" y="10" width="2" height="2" fill="#00e87a" opacity=".7"/></svg>`,
 };
 
 // ── Cached DOM refs ────────────────────────────────────────────────────
@@ -519,6 +522,21 @@ function renderSegment(hr: string, min: string, sec: string) {
   });
 }
 
+// Generate a tiny canvas logo for themes without a LOGOS entry (safe — no user data)
+function makeFallbackLogo(t: Theme): string {
+  const cv = document.createElement('canvas'); cv.width = 32; cv.height = 22;
+  const cx2 = cv.getContext('2d')!;
+  cx2.fillStyle = t.baseBg[0]; cx2.fillRect(0,0,32,22);
+  cx2.fillStyle = t.accent; cx2.font = 'bold 8px system-ui';
+  cx2.textAlign = 'center'; cx2.textBaseline = 'middle';
+  cx2.fillText(t.name.slice(0,2).toUpperCase(), 16, 11);
+  const img = document.createElement('img');
+  img.src = cv.toDataURL(); img.style.cssText = 'width:32px;height:22px;display:block';
+  const wrap = document.createElement('div');
+  wrap.appendChild(img);
+  return wrap.innerHTML; // returns only <img src="data:..."> — safe data URL, no user content
+}
+
 // ── Theme panel ────────────────────────────────────────────────────────
 let activePanelTab = 'nat';
 
@@ -540,7 +558,9 @@ function buildPanel() {
     const btn = document.createElement('button');
     btn.className = 'panel-tab' + (id === activePanelTab ? ' active' : '');
     btn.dataset.tab = id;
-    btn.innerHTML = `<span class="tab-icon">${icon}</span><span class="tab-label">${label}</span>`;
+    const iconEl = document.createElement('span'); iconEl.className = 'tab-icon'; iconEl.textContent = icon;
+    const lblEl  = document.createElement('span'); lblEl.className  = 'tab-label'; lblEl.textContent  = label;
+    btn.append(iconEl, lblEl);
     btn.addEventListener('click', () => switchPanelTab(id));
     tabs.appendChild(btn);
   });
@@ -564,7 +584,7 @@ function buildPanel() {
     card.dataset.id = t.id;
     card.addEventListener('click', () => applyTheme(t));
     const logo = document.createElement('div'); logo.className = 'media-logo';
-    logo.innerHTML = LOGOS[t.id] ?? `<svg viewBox="0 0 32 22"><rect width="32" height="22" fill="${t.baseBg[0]}"/><text x="16" y="14" text-anchor="middle" fill="${t.accent}" font-size="8" font-weight="700">${t.name.slice(0,2).toUpperCase()}</text></svg>`;
+    logo.innerHTML = LOGOS[t.id] ?? makeFallbackLogo(t);
     const nm = document.createElement('div'); nm.className = 'media-name'; nm.textContent = t.name;
     const sb = document.createElement('div'); sb.className = 'media-sub'; sb.style.color = t.accent; sb.textContent = t.sub ?? '';
     const txt = document.createElement('div'); txt.className = 'media-card-text'; txt.append(nm, sb);
@@ -618,7 +638,6 @@ function buildPanel() {
   Object.values(contents).forEach(c => panelRows.appendChild(c));
 
   // ── Feature bar ───────────────────────────────────────────────────────
-  const tokenBadge = coinHTML(Shop.getTokens());
   ([ ['btnSound',       '🎵 Sound',      () => { buildSoundUI(); openModal('soundOverlay'); }],
      ['btnKiosk',       '⛶ Kiosk',      toggleKiosk],
      ['btnPresent',     '📺 Present',    togglePresent],
@@ -633,7 +652,12 @@ function buildPanel() {
   ] as [string, string, () => void][]).forEach(([id, label, action]) => {
     const b = document.createElement('button');
     b.className = 'feat-btn'; b.id = id;
-    b.innerHTML = id === 'btnShop' ? `🛒 Shop ${tokenBadge}` : label;
+    if (id === 'btnShop') {
+      b.textContent = '🛒 Shop ';
+      b.appendChild(createCoinEl(Shop.getTokens()));
+    } else {
+      b.textContent = label;
+    }
     if (id === 'btnPrivacy'   && privacyMode)      b.classList.add('on');
     if (id === 'btnFocusLock' && focusLockEnabled) b.classList.add('on');
     b.addEventListener('click', action);
@@ -850,65 +874,67 @@ function buildPomUI() {
 }
 
 // ── Sound UI ───────────────────────────────────────────────────────────
+function makeSoundTrack(
+  id: string, icon: string, name: string, desc: string,
+  active: boolean, vol: number, isBinaural = false
+): HTMLDivElement {
+  const track = document.createElement('div');
+  track.className = ['sound-track', isBinaural ? 'binaural-track' : '', active ? 'active' : ''].filter(Boolean).join(' ');
+
+  const iconEl = document.createElement('div'); iconEl.className = 'sound-track-icon';
+  iconEl.textContent = icon;
+
+  const info = document.createElement('div'); info.className = 'sound-track-info';
+  const nm = document.createElement('div'); nm.className = 'sound-track-name'; nm.textContent = name;
+  const ds = document.createElement('div'); ds.className = 'sound-track-desc';  ds.textContent = desc;
+  info.append(nm, ds);
+
+  const toggle = document.createElement('button');
+  toggle.className = 'track-toggle' + (active ? ' on' : '');
+  toggle.dataset.id = id;
+  toggle.title = active ? 'Stop' : 'Play';
+
+  if (!isBinaural) {
+    const volWrap = document.createElement('div'); volWrap.className = 'sound-track-vol';
+    const slider = document.createElement('input') as HTMLInputElement;
+    slider.type = 'range'; slider.className = 'track-vol-slider';
+    slider.min = '0'; slider.max = '100'; slider.value = String(vol);
+    slider.dataset.id = id;
+    const pct = document.createElement('span'); pct.className = 'sound-vol-pct';
+    pct.id = 'tvp_' + id; pct.textContent = vol + '%';
+    slider.addEventListener('input', e => {
+      const v = +(e.target as HTMLInputElement).value / 100;
+      Sound.setTrackVolume(id, v);
+      pct.textContent = Math.round(v * 100) + '%';
+    });
+    volWrap.append(slider, pct);
+    track.append(iconEl, info, volWrap, toggle);
+    toggle.addEventListener('click', () => Sound.toggleTrack(id));
+  } else {
+    track.append(iconEl, info, toggle);
+    toggle.addEventListener('click', () => Sound.toggleBinaural(id));
+  }
+
+  return track;
+}
+
 function buildSoundUI() {
   const container = $('soundGrid'); container.innerHTML = '';
 
-  // Ambient tracks
   Sound.SOUNDS.forEach(s => {
-    const active = Sound.isPlaying(s.id);
-    const trackVol = Math.round(Sound.getTrackVolume(s.id) * 100);
-    const track = document.createElement('div');
-    track.className = 'sound-track' + (active ? ' active' : '');
-    track.innerHTML = `
-      <div class="sound-track-icon">${s.icon}</div>
-      <div class="sound-track-info">
-        <div class="sound-track-name">${s.name}</div>
-        <div class="sound-track-desc">${s.desc ?? ''}</div>
-      </div>
-      <div class="sound-track-vol">
-        <input type="range" class="track-vol-slider" min="0" max="100" value="${trackVol}" data-id="${s.id}">
-        <span class="sound-vol-pct" id="tvp_${s.id}">${trackVol}%</span>
-      </div>
-      <button class="track-toggle${active ? ' on' : ''}" data-id="${s.id}" title="${active ? 'Stop' : 'Play'}"></button>
-    `;
-    track.querySelector<HTMLInputElement>('.track-vol-slider')!.addEventListener('input', e => {
-      const el = e.target as HTMLInputElement;
-      const v = +el.value / 100;
-      Sound.setTrackVolume(el.dataset.id!, v);
-      const lbl = document.getElementById('tvp_' + el.dataset.id);
-      if (lbl) lbl.textContent = Math.round(v * 100) + '%';
-    });
-    track.querySelector<HTMLButtonElement>('.track-toggle')!.addEventListener('click', e => {
-      Sound.toggleTrack((e.currentTarget as HTMLButtonElement).dataset.id!);
-    });
-    container.appendChild(track);
+    const vol = Math.round(Sound.getTrackVolume(s.id) * 100);
+    container.appendChild(makeSoundTrack(s.id, s.icon, s.name, s.desc ?? '', Sound.isPlaying(s.id), vol));
   });
 
-  // Binaural beats section
-  const binHeader = document.createElement('div');
-  binHeader.className = 'sound-section-header';
-  binHeader.innerHTML = `
-    <span class="sound-section-title">🧠 Binaural Beats</span>
-    <span class="sound-section-note">Requires headphones</span>
-  `;
+  // Binaural section header
+  const binHeader = document.createElement('div'); binHeader.className = 'sound-section-header';
+  const binTitle = document.createElement('span'); binTitle.className = 'sound-section-title'; binTitle.textContent = '🧠 Binaural Beats';
+  const binNote  = document.createElement('span'); binNote.className  = 'sound-section-note';  binNote.textContent  = 'Requires headphones';
+  binHeader.append(binTitle, binNote);
   container.appendChild(binHeader);
 
   Sound.BINAURAL_PRESETS.forEach(p => {
-    const active = Sound.binauralPresetId === p.id;
-    const track = document.createElement('div');
-    track.className = 'sound-track binaural-track' + (active ? ' active' : '');
-    track.innerHTML = `
-      <div class="sound-track-icon">${p.icon}</div>
-      <div class="sound-track-info">
-        <div class="sound-track-name">${p.name}</div>
-        <div class="sound-track-desc">${p.desc}</div>
-      </div>
-      <button class="track-toggle${active ? ' on' : ''}" data-id="${p.id}" title="${active ? 'Stop' : 'Play'}"></button>
-    `;
-    track.querySelector<HTMLButtonElement>('.track-toggle')!.addEventListener('click', e => {
-      Sound.toggleBinaural((e.currentTarget as HTMLButtonElement).dataset.id!);
-    });
-    container.appendChild(track);
+    container.appendChild(makeSoundTrack(p.id, p.icon, p.name, p.desc, Sound.binauralPresetId === p.id, 100, true));
   });
 }
 
@@ -1018,7 +1044,12 @@ function renderSavedSwatches() {
   const row = $('savedThemeRow'); if (!row) return;
   const saved: {id:string; name:string; draft:typeof draft}[] = JSON.parse(localStorage.getItem('sc_custom_themes')||'[]');
   row.innerHTML = '';
-  if (!saved.length) { row.innerHTML = '<span style="font-size:.65rem;opacity:.3;color:var(--clr-text)">No saved themes yet</span>'; return; }
+  if (!saved.length) {
+    const msg = document.createElement('span');
+    msg.style.cssText = 'font-size:.65rem;opacity:.3;color:var(--clr-text)';
+    msg.textContent = 'No saved themes yet';
+    row.appendChild(msg); return;
+  }
   saved.forEach(item => {
     const sw = document.createElement('div'); sw.className = 'saved-swatch'; sw.style.background = item.draft.accent; sw.title = item.name;
     sw.onclick = () => { draft = {...item.draft}; previewCustomTheme(); buildColorRows(); };
@@ -1036,87 +1067,77 @@ function openSettings() { buildSettingsUI(); openModal('settingsOverlay'); }
 function buildSettingsUI() {
   const el = $('settingsContent');
   if (!el) return;
+  el.innerHTML = '';
 
   const clockModes: { mode: ClockMode; label: string; icon: string; desc: string }[] = [
-    { mode: 'digital',  label: 'Digital',   icon: '🔢', desc: 'Classic digit display' },
-    { mode: 'analogue', label: 'Analogue',  icon: '🕐', desc: 'Smooth sweep hands' },
-    { mode: 'flip',     label: 'Flip',      icon: '📅', desc: '3D card flip' },
-    { mode: 'word',     label: 'Word',      icon: '📝', desc: '"It is half past"' },
-    { mode: 'minimal',  label: 'Minimal',   icon: '○',  desc: 'Hour only, huge' },
-    { mode: 'segment',  label: 'Segment',   icon: '📟', desc: 'LED 7-segment' },
+    { mode: 'digital',  label: 'Digital',  icon: '🔢', desc: 'Classic digits'   },
+    { mode: 'analogue', label: 'Analogue', icon: '🕐', desc: 'Sweep hands'      },
+    { mode: 'flip',     label: 'Flip',     icon: '📅', desc: '3D card flip'     },
+    { mode: 'word',     label: 'Word',     icon: '📝', desc: 'It is half past'  },
+    { mode: 'minimal',  label: 'Minimal',  icon: '○',  desc: 'Hour only, huge'  },
+    { mode: 'segment',  label: 'Segment',  icon: '📟', desc: 'LED 7-segment'    },
   ];
 
-  el.innerHTML = `
-    <div class="settings-section">
-      <div class="settings-section-title">Clock Style</div>
-      <div class="clock-mode-grid" id="clockModeGrid"></div>
-    </div>
-    <div class="settings-section">
-      <div class="settings-section-title">Audio</div>
-      <div class="settings-row">
-        <div class="settings-row-info">
-          <span class="settings-row-label">3D Spatial Audio</span>
-          <span class="settings-row-desc">Ambient sounds pan left/right — requires headphones</span>
-        </div>
-        <button class="settings-toggle ${Sound.isSpatialEnabled() ? 'on' : ''}" id="toggleSpatial"></button>
-      </div>
-      <div class="settings-row">
-        <div class="settings-row-info">
-          <span class="settings-row-label">Box Breathing on Break</span>
-          <span class="settings-row-desc">Guided breathing overlay during Pomodoro breaks</span>
-        </div>
-        <button class="settings-toggle ${breathingBreakEnabled ? 'on' : ''}" id="toggleBreathing"></button>
-      </div>
-    </div>
-    <div class="settings-section">
-      <div class="settings-section-title">Focus</div>
-      <div class="settings-row">
-        <div class="settings-row-info">
-          <span class="settings-row-label">Focus Lock Delay</span>
-          <span class="settings-row-desc">3-second delay before opening panels during Pomodoro</span>
-        </div>
-        <button class="settings-toggle ${focusLockEnabled ? 'on' : ''}" id="toggleFocusLockS"></button>
-      </div>
-    </div>
-    <div class="settings-section">
-      <div class="settings-section-title">Privacy</div>
-      <div class="settings-row">
-        <div class="settings-row-info">
-          <span class="settings-row-label">Privacy Mode</span>
-          <span class="settings-row-desc">Disable weather & time sync — local clock only</span>
-        </div>
-        <button class="settings-toggle ${privacyMode ? 'on' : ''}" id="togglePrivacyS"></button>
-      </div>
-    </div>
-  `;
+  const makeSection = (title: string) => {
+    const s = document.createElement('div'); s.className = 'settings-section';
+    const h = document.createElement('div'); h.className = 'settings-section-title'; h.textContent = title;
+    s.appendChild(h); return s;
+  };
+  const makeRow = (lText: string, dText: string, btnId: string, on: boolean) => {
+    const row  = document.createElement('div'); row.className = 'settings-row';
+    const info = document.createElement('div'); info.className = 'settings-row-info';
+    const lbl  = document.createElement('span'); lbl.className = 'settings-row-label'; lbl.textContent = lText;
+    const dsc  = document.createElement('span'); dsc.className = 'settings-row-desc';  dsc.textContent = dText;
+    info.append(lbl, dsc);
+    const btn  = document.createElement('button'); btn.className = 'settings-toggle' + (on ? ' on' : ''); btn.id = btnId;
+    row.append(info, btn); return row;
+  };
 
-  // Clock mode grid
-  const grid = el.querySelector<HTMLElement>('#clockModeGrid')!;
+  // ── Clock section
+  const clockSec = makeSection('Clock Style');
+  const grid = document.createElement('div'); grid.className = 'clock-mode-grid';
   clockModes.forEach(({ mode, label, icon, desc }) => {
     const btn = document.createElement('button');
     btn.className = 'clock-mode-btn' + (clockMode === mode ? ' active' : '');
     btn.dataset.mode = mode;
-    btn.innerHTML = `<span class="cmb-icon">${icon}</span><span class="cmb-label">${label}</span><span class="cmb-desc">${desc}</span>`;
+    const iEl = document.createElement('span'); iEl.className = 'cmb-icon';  iEl.textContent = icon;
+    const lEl = document.createElement('span'); lEl.className = 'cmb-label'; lEl.textContent = label;
+    const dEl = document.createElement('span'); dEl.className = 'cmb-desc';  dEl.textContent = desc;
+    btn.append(iEl, lEl, dEl);
     btn.addEventListener('click', () => {
-      setClockMode(mode);
-      updateClockCanvas();
-      el.querySelectorAll('.clock-mode-btn').forEach(b => b.classList.toggle('active', (b as HTMLElement).dataset.mode === mode));
+      setClockMode(mode); updateClockCanvas();
+      grid.querySelectorAll('.clock-mode-btn').forEach(b => b.classList.toggle('active', (b as HTMLElement).dataset.mode === mode));
     });
     grid.appendChild(btn);
   });
+  clockSec.appendChild(grid);
+  el.appendChild(clockSec);
 
-  // Toggle handlers
-  const makeToggle = (id: string, onToggle: () => void) => {
-    el.querySelector<HTMLElement>(`#${id}`)?.addEventListener('click', e => {
-      const btn = e.currentTarget as HTMLElement;
-      btn.classList.toggle('on');
-      onToggle();
+  // ── Audio section
+  const audioSec = makeSection('Audio');
+  audioSec.appendChild(makeRow('3D Spatial Audio', 'Ambient sounds pan left/right — requires headphones', 'toggleSpatial', Sound.isSpatialEnabled()));
+  audioSec.appendChild(makeRow('Box Breathing on Break', 'Guided breathing overlay during Pomodoro breaks', 'toggleBreathing', breathingBreakEnabled));
+  el.appendChild(audioSec);
+
+  // ── Focus section
+  const focusSec = makeSection('Focus');
+  focusSec.appendChild(makeRow('Focus Lock Delay', '3-second delay before opening panels during Pomodoro', 'toggleFocusLockS', focusLockEnabled));
+  el.appendChild(focusSec);
+
+  // ── Privacy section
+  const privSec = makeSection('Privacy');
+  privSec.appendChild(makeRow('Privacy Mode', 'Disable weather & time sync — local clock only', 'togglePrivacyS', privacyMode));
+  el.appendChild(privSec);
+
+  // Wire toggles
+  const wire = (id: string, fn: () => void) =>
+    el.querySelector<HTMLElement>('#' + id)?.addEventListener('click', e => {
+      (e.currentTarget as HTMLElement).classList.toggle('on'); fn();
     });
-  };
-  makeToggle('toggleSpatial',     () => { Sound.setSpatial(!Sound.isSpatialEnabled()); });
-  makeToggle('toggleBreathing',   () => { breathingBreakEnabled = !breathingBreakEnabled; localStorage.setItem('sc_breathing_break', breathingBreakEnabled ? '1' : '0'); });
-  makeToggle('toggleFocusLockS',  () => toggleFocusLock());
-  makeToggle('togglePrivacyS',    () => togglePrivacy());
+  wire('toggleSpatial',    () => Sound.setSpatial(!Sound.isSpatialEnabled()));
+  wire('toggleBreathing',  () => { breathingBreakEnabled = !breathingBreakEnabled; localStorage.setItem('sc_breathing_break', breathingBreakEnabled ? '1' : '0'); });
+  wire('toggleFocusLockS', () => toggleFocusLock());
+  wire('togglePrivacyS',   () => togglePrivacy());
 }
 
 // ── Shop SVG art (developer-authored, safe for innerHTML) ─────────────
@@ -1305,6 +1326,15 @@ const COIN_SVG = `<svg class="token-coin" viewBox="0 0 20 20" xmlns="http://www.
   <text x="10" y="13.5" text-anchor="middle" font-size="8" font-weight="700"
         fill="#8b5500" font-family="system-ui,sans-serif" opacity=".9">S</text>
 </svg>`;
+
+function createCoinEl(count: number): HTMLElement {
+  const wrap = document.createElement('span'); wrap.className = 'feat-tokens';
+  wrap.innerHTML = COIN_SVG; // developer-authored SVG constant — safe
+  const cnt = document.createElement('span'); cnt.className = 'token-count';
+  cnt.textContent = String(count);
+  wrap.appendChild(cnt);
+  return wrap;
+}
 
 function coinHTML(count: number): string {
   return `${COIN_SVG}<span class="token-count">${count}</span>`;
