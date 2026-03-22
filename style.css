@@ -75,6 +75,20 @@ body {
   display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0;
 }
 
+/* Topbar Themes button */
+.topbar-themes-btn {
+  display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+  background: var(--clr-btn-bg); color: var(--clr-btn-fg);
+  border: 1px solid rgba(255,255,255,.12); border-radius: 99px;
+  cursor: pointer; font-family: inherit; font-weight: 700;
+  font-size: .62rem; letter-spacing: .12em; text-transform: uppercase;
+  padding: 5px 12px 5px 10px;
+  transition: background .18s, transform .12s, box-shadow .18s, color .4s;
+  box-shadow: 0 2px 10px rgba(0,0,0,.2);
+}
+.topbar-themes-btn:hover  { transform: scale(1.05); box-shadow: 0 3px 14px rgba(0,0,0,.3); }
+.topbar-themes-btn:active { transform: scale(.96); }
+
 /* Weather pill */
 .topbar-pill {
   display: flex; align-items: center; gap: 5px; flex-shrink: 0;
@@ -821,6 +835,7 @@ body.light-theme .session-card       { background: rgba(0,0,0,.04); border-color
 body.light-theme .sync-pill          { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.07); }
 body.light-theme #focusInput         { background: rgba(0,0,0,.06); border-color: rgba(0,0,0,.12); }
 body.light-theme .btn-primary        { color: #fff; }
+body.light-theme .topbar-themes-btn { box-shadow: 0 2px 8px rgba(0,0,0,.12); border-color: rgba(0,0,0,.1); }
 body.light-theme .info-strip         { color: var(--clr-text); }
 body.light-theme .info-strip .info-dot { box-shadow: 0 0 4px var(--clr-accent); }
 /* ════════════════════════════════════════════════════════════
@@ -978,3 +993,104 @@ body.light-theme .settings-section-title { opacity: .7; }
 body.light-theme .settings-row { border-color: rgba(0,0,0,.07); }
 body.light-theme .clock-mode-btn { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.09); }
 body.light-theme .clock-mode-btn:hover { background: rgba(0,0,0,.09); }
+
+/* ════════════════════════════════════════════════════════════
+   QR HANDOFF
+════════════════════════════════════════════════════════════ */
+.qr-body {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 14px; padding: 0 22px 22px;
+}
+#qrCanvas {
+  border-radius: 12px; display: block;
+  box-shadow: 0 4px 24px rgba(0,0,0,.5);
+  image-rendering: pixelated;
+}
+.qr-label {
+  font-size: .74rem; font-weight: 500; color: var(--clr-text); opacity: .6;
+  text-align: center; max-width: 280px; line-height: 1.5;
+}
+.qr-url {
+  font-size: .58rem; font-family: var(--font-main); color: var(--clr-accent);
+  opacity: .55; text-align: center; word-break: break-all; max-width: 280px;
+}
+
+/* ════════════════════════════════════════════════════════════
+   ANIMEDORO THEATER MODE
+════════════════════════════════════════════════════════════ */
+.theater-overlay {
+  position: fixed; inset: 0; z-index: 800;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.92);
+  backdrop-filter: blur(20px);
+  opacity: 0; pointer-events: none;
+  transition: opacity .5s cubic-bezier(.16,1,.3,1);
+}
+.theater-overlay.visible { opacity: 1; pointer-events: all; }
+.theater-content {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  text-align: center; max-width: 420px; padding: 40px 24px;
+  transform: translateY(24px);
+  transition: transform .5s cubic-bezier(.16,1,.3,1);
+}
+.theater-overlay.visible .theater-content { transform: translateY(0); }
+.theater-icon  { font-size: 4rem; line-height: 1; }
+.theater-title {
+  font-size: clamp(1.4rem, 4vw, 2.4rem); font-weight: 800;
+  letter-spacing: -.02em; color: var(--clr-text);
+  font-family: var(--font-main);
+}
+.theater-subtitle {
+  font-size: 1rem; color: var(--clr-text); opacity: .75;
+}
+.theater-desc {
+  font-size: .82rem; color: var(--clr-text); opacity: .45;
+  line-height: 1.7; font-style: italic; max-width: 320px;
+}
+.theater-timer {
+  font-size: clamp(2.4rem, 8vw, 4.5rem); font-weight: 900;
+  font-family: var(--font-main); font-variant-numeric: tabular-nums;
+  color: var(--clr-accent); text-shadow: var(--glow);
+  letter-spacing: .04em;
+}
+.theater-actions { margin-top: 8px; }
+
+/* ════════════════════════════════════════════════════════════
+   TERMINAL THEME — Button overrides
+════════════════════════════════════════════════════════════ */
+body:has([data-theme="terminal"]) .btn,
+.terminal-btn-style .btn {
+  border-radius: 0;
+  font-family: 'Orbitron', monospace;
+  letter-spacing: .16em;
+}
+
+/* SMPTE seconds-ms display as frame counter */
+[data-theme-id="smpte"] .seconds-ms {
+  font-size: clamp(.85rem, 1.8vw, 1.4rem);
+  letter-spacing: .02em;
+  opacity: .65;
+}
+
+/* ════════════════════════════════════════════════════════════
+   SMPTE TIMELINE — Timeline strip UI (in main UI)
+════════════════════════════════════════════════════════════ */
+.smpte-strip {
+  width: min(480px, 90vw); height: 40px;
+  position: relative; border-radius: 6px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  overflow: visible;
+}
+.smpte-playhead {
+  position: absolute; top: -4px; bottom: -4px; width: 2px;
+  background: var(--clr-accent);
+  box-shadow: 0 0 8px var(--clr-accent);
+  transition: left .1s linear;
+  pointer-events: none;
+}
+.smpte-playhead::before {
+  content: ''; position: absolute; top: -6px; left: -5px;
+  border: 6px solid transparent;
+  border-top: 6px solid var(--clr-accent);
+}
