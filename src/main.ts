@@ -552,7 +552,35 @@ function buildColorRows() {
     const raw = draft[f.key];
     const hex = (raw.startsWith('rgba')||raw.startsWith('rgb')) ? rgbaToHex(raw) : raw;
     const row = document.createElement('div'); row.className = 'color-row';
-    row.innerHTML = `<span class="color-label">${f.label}</span><div class="color-picker-wrap"><input type="color" value="${hex}" data-key="${f.key}"></div><span class="color-hex" id="hex_${f.key}">${hex}</span>`;
+
+    // Label span
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'color-label';
+    labelSpan.textContent = f.label;
+
+    // Color picker wrapper and input
+    const pickerWrap = document.createElement('div');
+    pickerWrap.className = 'color-picker-wrap';
+
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.value = hex;
+    if (f.key) {
+      input.dataset.key = f.key;
+    }
+
+    pickerWrap.appendChild(input);
+
+    // Hex display span
+    const hexSpan = document.createElement('span');
+    hexSpan.className = 'color-hex';
+    hexSpan.id = `hex_${f.key}`;
+    hexSpan.textContent = hex;
+
+    row.appendChild(labelSpan);
+    row.appendChild(pickerWrap);
+    row.appendChild(hexSpan);
+
     container.appendChild(row);
   });
   container.querySelectorAll<HTMLInputElement>('input[type=color]').forEach(inp => {
