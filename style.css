@@ -697,6 +697,41 @@ kbd {
   color: var(--clr-text); opacity: .38; font-weight: 700;
 }
 
+/* ── Focus Lock Bar ── */
+.focus-lock-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 9999;
+  height: 3px; background: rgba(255,255,255,.08);
+  pointer-events: none;
+}
+.focus-lock-fill {
+  height: 100%; width: 0%; background: var(--clr-accent);
+  box-shadow: 0 0 8px var(--clr-accent);
+}
+.focus-lock-label {
+  position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%);
+  font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700;
+  color: var(--clr-text); opacity: .5; white-space: nowrap; pointer-events: none;
+}
+
+/* ── Focus Lock button ── */
+#btnFocusLock.on { background: rgba(251,191,36,.14); color: #fcd34d; border-color: rgba(251,191,36,.22); }
+
+/* ── Binaural section header ── */
+.sound-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 0 4px; margin-top: 6px;
+  border-top: 1px solid rgba(255,255,255,.07);
+}
+.sound-section-title {
+  font-size: .68rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--clr-text); opacity: .7;
+}
+.sound-section-note {
+  font-size: .58rem; font-weight: 500; color: var(--clr-accent); opacity: .7;
+  letter-spacing: .06em;
+}
+.binaural-track .sound-track-vol { display: none; } /* no per-track vol for binaural */
+
 /* ── Privacy mode button ── */
 #btnPrivacy.on { background: rgba(239,68,68,.14); color: #fca5a5; border-color: rgba(239,68,68,.22); }
 
