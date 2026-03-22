@@ -107,6 +107,8 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   lemon(dt, t)   { drawLemon(); },
   blueprint(dt,t){ drawBlueprint(t); },
   commonroom(dt,t){ drawCommonRoom(t); },
+  smpte(dt,t)    { drawSMPTE(t); },
+  terminal(dt,t) { drawTerminal(dt, t); },
   literary(dt,t) { drawLiterary(t); drawParticles(dt, t); },
   supernatural(dt,t){ drawMediaBg(t); drawSymbol('supernatural', t); },
   mentalist(dt,t)   { drawMediaBg(t); drawSymbol('mentalist', t); },
@@ -201,6 +203,125 @@ function drawLiterary(t: Theme) {
   const g = c.createRadialGradient(W/2, H*0.3, 0, W/2, H*0.5, W*0.6);
   g.addColorStop(0, t.accent + '14'); g.addColorStop(1, 'transparent');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
+}
+
+// ── SMPTE Timeline background ─────────────────────────────────────────
+function drawSMPTE(t: Theme) {
+  // Dark base already drawn; add track lanes
+  const laneH = 22, laneY = H * 0.72;
+  const trackColors = [t.accent, t.accent2, '#4488ff', '#ff8844', '#44ffaa'];
+
+  // Track header area
+  c.fillStyle = 'rgba(255,255,255,.04)';
+  c.fillRect(0, laneY - 10, W, laneH * 5 + 20);
+
+  // Lane lines
+  for (let i = 0; i <= 5; i++) {
+    c.fillStyle = 'rgba(255,255,255,.07)';
+    c.fillRect(0, laneY + i * laneH, W, 1);
+  }
+
+  // Timecode ruler ticks at top of tracks
+  const marks = 24;
+  for (let m = 0; m <= marks; m++) {
+    const x = (m / marks) * W;
+    c.fillStyle = m % 6 === 0 ? 'rgba(255,255,255,.35)' : 'rgba(255,255,255,.12)';
+    c.fillRect(x, laneY - 10, 1, m % 6 === 0 ? 10 : 5);
+    if (m % 6 === 0) {
+      const hrs = Math.floor(m / marks * 24);
+      c.font = '9px monospace'; c.fillStyle = 'rgba(255,255,255,.28)';
+      c.textAlign = 'center'; c.fillText(`${String(hrs).padStart(2,'0')}:00`, x, laneY - 14);
+    }
+  }
+  c.textAlign = 'left';
+
+  // Playhead — moves with day progress
+  const now = new Date();
+  const dayPct = (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400;
+  const phX = dayPct * W;
+  // Playhead line
+  c.fillStyle = t.accent;
+  c.fillRect(phX - 1, laneY - 14, 2, laneH * 5 + 14);
+  // Playhead head
+  c.beginPath();
+  c.moveTo(phX - 7, laneY - 14);
+  c.lineTo(phX + 7, laneY - 14);
+  c.lineTo(phX + 7, laneY - 6);
+  c.lineTo(phX, laneY);
+  c.lineTo(phX - 7, laneY - 6);
+  c.closePath();
+  c.fillStyle = t.accent; c.fill();
+
+  // Focus log clips from localStorage
+  try {
+    const entries = JSON.parse(localStorage.getItem('sc_focus_log') || '[]');
+    const today = new Date().toDateString();
+    entries.filter((e: {date:string;time:number;dur:number;task:string}) => e.date === today).forEach((e: {time:number;dur:number;task:string}, idx: number) => {
+      const d = new Date(e.time);
+      const startPct = (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400;
+      const durPct = Math.min(e.dur / 86400000, 0.15);
+      const lane = idx % 4;
+      const clipX = startPct * W;
+      const clipW = Math.max(durPct * W, 6);
+      c.fillStyle = trackColors[lane % trackColors.length] + 'cc';
+      c.fillRect(clipX, laneY + lane * laneH + 2, clipW, laneH - 4);
+      c.fillStyle = 'rgba(0,0,0,.6)';
+      c.font = '9px Inter, sans-serif';
+      if (clipW > 30) c.fillText(e.task.slice(0, 12), clipX + 4, laneY + lane * laneH + 14);
+    });
+  } catch {}
+
+  // Subtle glow above tracks
+  const tg = c.createLinearGradient(0, laneY - 40, 0, laneY);
+  tg.addColorStop(0, 'transparent');
+  tg.addColorStop(1, t.accent + '12');
+  c.fillStyle = tg; c.fillRect(0, laneY - 40, W, 40);
+}
+
+// ── Air-Gapped Terminal background ────────────────────────────────────
+const TERMINAL_LINES: string[] = [];
+let termLastTick = 0;
+const HEX_CHARS = '0123456789ABCDEF';
+function termGenLine(): string {
+  const addr = Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase().padStart(4,'0');
+  const bytes = Array.from({length: 16}, () => HEX_CHARS[Math.floor(Math.random()*16)] + HEX_CHARS[Math.floor(Math.random()*16)]).join(' ');
+  const ascii = Array.from({length: 16}, () => {
+    const c2 = Math.floor(Math.random() * 94) + 33;
+    return String.fromCharCode(c2);
+  }).join('');
+  return `${addr}  ${bytes}  |${ascii}|`;
+}
+
+function drawTerminal(dt: number, t: Theme) {
+  // Scroll new hex lines
+  termLastTick += dt;
+  if (termLastTick > 0.08) {
+    termLastTick = 0;
+    TERMINAL_LINES.unshift(termGenLine());
+    const maxLines = Math.ceil(H / 16) + 2;
+    if (TERMINAL_LINES.length > maxLines) TERMINAL_LINES.length = maxLines;
+  }
+
+  // Draw hex lines
+  c.font = `${Math.max(10, Math.min(13, W / 80))}px monospace`;
+  c.textAlign = 'left';
+  TERMINAL_LINES.forEach((line, i) => {
+    const alpha = Math.max(0, 1 - i / TERMINAL_LINES.length) * 0.35;
+    c.fillStyle = `rgba(0,255,65,${alpha})`;
+    c.fillText(line, 16, H * 0.88 - i * 16);
+  });
+
+  // CRT curve vignette
+  const vg = c.createRadialGradient(W/2, H/2, Math.min(W,H)*0.3, W/2, H/2, Math.max(W,H)*0.75);
+  vg.addColorStop(0, 'transparent');
+  vg.addColorStop(1, 'rgba(0,0,0,0.72)');
+  c.fillStyle = vg; c.fillRect(0, 0, W, H);
+
+  // Scanline-style horizontal bars (supplement CSS scanlines)
+  c.globalAlpha = 0.04;
+  c.fillStyle = '#000';
+  for (let y = 0; y < H; y += 4) { c.fillRect(0, y, W, 2); }
+  c.globalAlpha = 1;
 }
 
 function drawBlueprint(t: Theme) {

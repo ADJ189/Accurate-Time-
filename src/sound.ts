@@ -114,13 +114,19 @@ const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] }> = {
     const f = ctx!.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = 2;
     const g = ctx!.createGain(); g.gain.value = .3;
     src.connect(f); f.connect(g);
+    // Oscillators feed into a merger gain, not directly to analyser
+    const oscGain = ctx!.createGain(); oscGain.gain.value = 1;
     const oscs: OscillatorNode[] = [];
     [880, 1320, 1760, 2200].forEach((fr, i) => {
       const o = ctx!.createOscillator(); const og = ctx!.createGain();
       o.type = 'sine'; o.frequency.value = fr; og.gain.value = .015 / (i + 1);
-      o.connect(og); og.connect(analyser!); o.start(); oscs.push(o);
+      o.connect(og); og.connect(oscGain);
+      oscs.push(o); // do NOT start here — playTrack starts all nodes
     });
-    return { out: g, nodes: [src, ...oscs] };
+    // Merge noise + oscillators into single output
+    const out = ctx!.createGain(); out.gain.value = 1;
+    g.connect(out); oscGain.connect(out);
+    return { out, nodes: [src, ...oscs] };
   },
   cafe() {
     const merger = ctx!.createGain(); merger.gain.value = 1;
@@ -130,7 +136,8 @@ const MAKERS: Record<string, () => { out: AudioNode; nodes: AudioNode[] }> = {
       const f = ctx!.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 400 + i * 120; f.Q.value = 1.5;
       const g = ctx!.createGain(); g.gain.value = .012 / (i + 1);
       src.connect(f); f.connect(g); g.connect(merger);
-      src.start(0, i * .5); nodes.push(src);
+      // Do NOT call src.start() here — playTrack will start all nodes uniformly
+      nodes.push(src);
     }
     return { out: merger, nodes };
   },

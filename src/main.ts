@@ -8,6 +8,7 @@ import * as Sound from './sound';
 import * as Pom from './pomodoro';
 import * as Log from './focuslog';
 import { resize, buildParticles, drawBg, runTransition, setBreathing } from './renderer';
+import { drawQR } from './qr';
 
 // ── Clock mode ────────────────────────────────────────────────────────
 export type ClockMode = 'digital' | 'analogue' | 'flip' | 'word' | 'minimal' | 'segment';
@@ -200,6 +201,8 @@ function applyTheme(theme: Theme, instant = false) {
     localStorage.setItem('sc_last_theme', theme.id);
     // Common Room: auto-start rain + fire
     if (theme.id === 'commonroom') setTimeout(() => Sound.autoStartCommonRoom(), 400);
+    // Rebuild clock canvas so font/colours update for current theme
+    updateClockCanvas();
   };
 
   if (instant || !theme.isMedia) { doApply(); if (!instant) flashTheme(); return; }
@@ -253,6 +256,16 @@ function renderFrame(ts: number) {
       tickDigit(DOM.digitSec, secStr);
       DOM.ampmDis.textContent = hr >= 12 ? 'PM' : 'AM';
       DOM.secMs.textContent = '.' + p3(ms);
+  }
+
+  // SMPTE: override seconds-ms display with frame counter
+  if (currentTheme.id === 'smpte' && clockMode === 'digital') {
+    const frame = Math.floor(ms / (1000 / 24)) % 24;
+    DOM.secMs.textContent = ':' + p2(frame);
+  }
+  // Terminal: show 24hr time
+  if (currentTheme.id === 'terminal' && clockMode === 'digital') {
+    tickDigit(DOM.digitHr, p2(hr));
   }
 
   DOM.timeDis.textContent = `${hrStr}:${minStr}:${secStr}`;
@@ -555,6 +568,8 @@ function buildPanel() {
      ['btnKb',         '⌨ Keys',       () => openModal('kbOverlay')],
      ['btnPrivacy',    '🔒 Privacy',    togglePrivacy],
      ['btnFocusLock',  '🔐 Focus Lock', toggleFocusLock],
+     ['btnQR',         '📱 Handoff',    openQRHandoff],
+     ['btnAnimedoro',  '🎬 Animedoro',  () => { startAnimedoro(); openModal('pomOverlay'); }],
      ['btnSettings',   '⚙️ Settings',   openSettings],
   ] as [string, string, () => void][]).forEach(([id, label, action]) => {
     const b = document.createElement('button');
@@ -719,14 +734,19 @@ Pom.init({
     DOM.pomPill.textContent = txt;
     if (txt.includes('Work')) {
       Sound.adaptOnWorkStart();
-      setBreathing(false); // end any breathing
+      setBreathing(false);
     } else {
       Sound.adaptOnBreak();
-      if (breathingBreakEnabled) {
+      if (breathingBreakEnabled && !animedoroActive) {
         setBreathing(true);
         const s = Pom.getSettings();
         const dur = txt.includes('Long') ? s.longBreakMins : s.breakMins;
         setTimeout(() => setBreathing(false), dur * 60_000);
+      }
+      if (animedoroActive) {
+        const s = Pom.getSettings();
+        const dur = txt.includes('Long') ? s.longBreakMins : s.breakMins;
+        triggerTheaterMode(dur);
       }
     }
   },
@@ -1017,6 +1037,117 @@ function buildSettingsUI() {
   makeToggle('togglePrivacyS',    () => togglePrivacy());
 }
 
+// ── QR Handoff ────────────────────────────────────────────────────────
+function openQRHandoff() {
+  const canvas = $<HTMLCanvasElement>('qrCanvas');
+  const label  = $('qrLabel');
+  const urlEl  = $('qrUrl');
+  if (!canvas) return;
+
+  // Build state URL
+  const state: Record<string, string> = {
+    theme: currentTheme.id,
+    clock: clockMode,
+  };
+  if (sessionRunning) {
+    state.ses = '1';
+    state.elapsed = String(Math.round(performance.now() - sessionStart));
+  }
+  if (Pom.isActive()) {
+    state.pom = '1';
+    const s = Pom.getSettings();
+    state.pw = String(s.workMins);
+    state.pb = String(s.breakMins);
+  }
+  if (DOM.focusInput.value.trim()) {
+    state.task = DOM.focusInput.value.trim().slice(0, 30);
+  }
+
+  const params = new URLSearchParams(state).toString();
+  const url = `${location.origin}${location.pathname}?${params}`;
+
+  if (urlEl) {
+    urlEl.textContent = url.length > 60 ? url.slice(0, 57) + '…' : url;
+  }
+
+  // Draw QR using theme colours
+  const fg = currentTheme.text;
+  const bg = currentTheme.baseBg[1] ?? currentTheme.baseBg[0];
+  drawQR(canvas, url, fg, bg);
+
+  if (label) label.textContent = url.length > 77
+    ? 'URL too long for QR — shorten task name'
+    : 'Scan to continue this session on another device';
+
+  openModal('qrOverlay');
+}
+
+// Read handoff state from URL on load
+function applyHandoffState() {
+  const p = new URLSearchParams(location.search);
+  if (!p.has('theme') && !p.has('ses')) return;
+  const themeId = p.get('theme');
+  if (themeId && THEME_BY_ID[themeId]) applyTheme(THEME_BY_ID[themeId], true);
+  const cm = p.get('clock') as ClockMode | null;
+  if (cm) { setClockMode(cm); updateClockCanvas(); }
+  const task = p.get('task');
+  if (task) { DOM.focusInput.value = task; }
+  if (p.get('ses') === '1') {
+    const elapsed = parseInt(p.get('elapsed') ?? '0');
+    sessionElapsed = elapsed;
+    setTimeout(() => DOM.btnStart.click(), 800); // auto-resume
+  }
+  // Clean URL
+  history.replaceState({}, '', location.pathname);
+}
+
+// ── Animedoro mode ────────────────────────────────────────────────────
+let animedoroActive = false;
+let theaterTimer: number | null = null;
+let theaterRemainMs = 20 * 60_000;
+
+function startAnimedoro() {
+  // 50 min work / 20 min theater break variant
+  Pom.updateSettings({ workMins: 50, breakMins: 20 });
+  animedoroActive = true;
+  if (!Pom.isActive()) {
+    Pom.toggle();
+    buildPomUI();
+  }
+}
+
+function triggerTheaterMode(breakMins: number) {
+  const overlay = document.getElementById('theaterOverlay');
+  const timerEl = document.getElementById('theaterTimer');
+  const minEl   = document.getElementById('theaterMinutes');
+  if (!overlay) return;
+
+  theaterRemainMs = breakMins * 60_000;
+  if (minEl) minEl.textContent = String(breakMins);
+  overlay.classList.add('visible');
+
+  const tick = () => {
+    theaterRemainMs -= 1000;
+    if (timerEl) {
+      const m = Math.floor(theaterRemainMs / 60000);
+      const s = Math.floor((theaterRemainMs % 60000) / 1000);
+      timerEl.textContent = `${p2(m)}:${p2(s)}`;
+    }
+    if (theaterRemainMs <= 0) {
+      overlay.classList.remove('visible');
+      if (theaterTimer) clearInterval(theaterTimer);
+    }
+  };
+  if (theaterTimer) clearInterval(theaterTimer);
+  theaterTimer = window.setInterval(tick, 1000);
+
+  const skipBtn = document.getElementById('theaterSkip');
+  if (skipBtn) skipBtn.onclick = () => {
+    overlay.classList.remove('visible');
+    if (theaterTimer) clearInterval(theaterTimer);
+  };
+}
+
 function updatePanelHeight() {
   const panel = $('themePanel');
   if (!panel) return;
@@ -1154,8 +1285,20 @@ function init() {
   const kbBtn = $('btnKbShortcuts');
   if (kbBtn) kbBtn.addEventListener('click', () => openModal('kbOverlay'));
 
+  // Topbar Themes button — toggles panel open/closed
+  const topbarThemesBtn = $('topbarThemesBtn');
+  if (topbarThemesBtn) {
+    topbarThemesBtn.addEventListener('click', () => {
+      focusLockIntercept(() => {
+        DOM.themePanel.classList.toggle('collapsed');
+        updateRevealBtn();
+      });
+    });
+  }
+
   const lastId = localStorage.getItem('sc_last_theme');
   applyTheme(lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0], true);
+  applyHandoffState();
   requestAnimationFrame(ts => { lastTs = ts; renderFrame(ts); });
 
   if (!privacyMode) {
