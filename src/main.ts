@@ -9,6 +9,7 @@ import * as Pom from './pomodoro';
 import * as Log from './focuslog';
 import { resize, buildParticles, drawBg, runTransition, setBreathing } from './renderer';
 import { drawQR } from './qr';
+import * as Shop from './shop';
 
 // ── Clock mode ────────────────────────────────────────────────────────
 export type ClockMode = 'digital' | 'analogue' | 'flip' | 'word' | 'minimal' | 'segment';
@@ -103,7 +104,9 @@ function pauseTimer() {
 }
 
 function resetTimer() {
-  Log.record(DOM.focusInput.value.trim(), sessionRunning ? performance.now() - sessionStart : sessionElapsed);
+  const dur = sessionRunning ? performance.now() - sessionStart : sessionElapsed;
+  Log.record(DOM.focusInput.value.trim(), dur);
+  if (dur > 60_000) awardTokens(Math.floor(dur / 60000)); // 1 token per 5 min
   sessionRunning = false; sessionStart = sessionElapsed = 0;
   DOM.btnStart.textContent = 'Start';
   DOM.sTmr.textContent = '00:00:00';
@@ -517,69 +520,131 @@ function renderSegment(hr: string, min: string, sec: string) {
 }
 
 // ── Theme panel ────────────────────────────────────────────────────────
+let activePanelTab = 'nat';
+
 function buildPanel() {
   const panelRows = $('themePanelRows'); panelRows.innerHTML = '';
-  const featBar   = $('featBar');       featBar.innerHTML = '';
+  const featBar   = $('featBar');       featBar.innerHTML   = '';
 
+  // ── Tab bar ──────────────────────────────────────────────────────────
+  const tabs = document.createElement('div');
+  tabs.className = 'panel-tabs';
+  const tabDefs: [string, string, string][] = [
+    ['nat',   '🌿', 'Natural'],
+    ['tv',    '📺', 'TV Shows'],
+    ['movie', '🎬', 'Movies'],
+    ['f1',    '🏎', 'F1 Teams'],
+  ];
+  const contents: Record<string, HTMLElement> = {};
+  tabDefs.forEach(([id, icon, label]) => {
+    const btn = document.createElement('button');
+    btn.className = 'panel-tab' + (id === activePanelTab ? ' active' : '');
+    btn.dataset.tab = id;
+    btn.innerHTML = `<span class="tab-icon">${icon}</span><span class="tab-label">${label}</span>`;
+    btn.addEventListener('click', () => switchPanelTab(id));
+    tabs.appendChild(btn);
+  });
+  panelRows.appendChild(tabs);
+
+  // ── Tab contents ──────────────────────────────────────────────────────
   const makeNatBtn = (t: Theme) => {
     const btn = document.createElement('button');
-    btn.className = 'nat-btn'; btn.dataset.id = t.id; btn.title = t.name;
+    btn.className = 'nat-btn' + (t.id === currentTheme.id ? ' active' : '');
+    btn.dataset.id = t.id; btn.title = t.name;
     btn.style.background = t.swatch ?? t.accent;
+    const tip = document.createElement('span'); tip.className = 'nat-tip'; tip.textContent = t.name;
+    btn.appendChild(tip);
     btn.addEventListener('click', () => applyTheme(t));
     return btn;
   };
 
   const makeCard = (t: Theme) => {
-    const card = document.createElement('button'); card.className = 'media-card'; card.dataset.id = t.id;
+    const card = document.createElement('button');
+    card.className = 'media-card' + (t.id === currentTheme.id ? ' active' : '');
+    card.dataset.id = t.id;
     card.addEventListener('click', () => applyTheme(t));
     const logo = document.createElement('div'); logo.className = 'media-logo';
     logo.innerHTML = LOGOS[t.id] ?? `<svg viewBox="0 0 32 22"><rect width="32" height="22" fill="${t.baseBg[0]}"/><text x="16" y="14" text-anchor="middle" fill="${t.accent}" font-size="8" font-weight="700">${t.name.slice(0,2).toUpperCase()}</text></svg>`;
     const nm = document.createElement('div'); nm.className = 'media-name'; nm.textContent = t.name;
     const sb = document.createElement('div'); sb.className = 'media-sub'; sb.style.color = t.accent; sb.textContent = t.sub ?? '';
-    const txt = document.createElement('div'); txt.append(nm, sb);
+    const txt = document.createElement('div'); txt.className = 'media-card-text'; txt.append(nm, sb);
+
+    // Shop badge — show item count for this theme
+    const shopItems = Shop.getItemsForTheme(t.id);
+    if (shopItems.length > 0) {
+      const owned = Shop.getOwned();
+      const ownedCount = shopItems.filter(i => owned.has(i.id)).length;
+      const badge = document.createElement('span');
+      badge.className = 'shop-badge';
+      badge.textContent = ownedCount > 0 ? `${ownedCount}/${shopItems.length}` : `${shopItems.length}`;
+      badge.title = 'Shop items';
+      txt.appendChild(badge);
+    }
+
     card.append(logo, txt); return card;
   };
 
-  const makeRow = (label: string, items: Theme[], fn: (t: Theme) => HTMLElement) => {
-    const row = document.createElement('div'); row.className = 'theme-row';
-    const lbl = document.createElement('span'); lbl.className = 'row-label'; lbl.textContent = label;
-    row.append(lbl, ...items.map(fn)); return row;
-  };
-  const divider = () => { const d = document.createElement('div'); d.className = 'row-divider'; return d; };
+  // Natural tab
+  const natContent = document.createElement('div');
+  natContent.className = 'tab-content' + (activePanelTab === 'nat' ? ' active' : '');
+  natContent.dataset.tab = 'nat';
 
-  const pureNat = THEMES_BY_CAT.nat.filter(t => t.id !== 'literary');
-  const litTheme = THEMES_BY_CAT.nat.find(t => t.id === 'literary');
+  const pureNat = THEMES_BY_CAT.nat.filter(t => !['literary'].includes(t.id));
+  const specialNat = THEMES_BY_CAT.nat.filter(t => ['literary'].includes(t.id));
 
-  panelRows.append(makeRow('Themes', pureNat, makeNatBtn), divider());
-  if (litTheme) {
-    const lr = document.createElement('div'); lr.className = 'theme-row';
-    const ll = document.createElement('span'); ll.className = 'row-label'; ll.textContent = 'Literary';
-    lr.append(ll, makeCard(litTheme)); panelRows.append(lr, divider());
+  const natGrid = document.createElement('div'); natGrid.className = 'nat-grid';
+  pureNat.forEach(t => natGrid.appendChild(makeNatBtn(t)));
+  natContent.appendChild(natGrid);
+
+  if (specialNat.length) {
+    const specLabel = document.createElement('div'); specLabel.className = 'tab-sub-label'; specLabel.textContent = 'Special';
+    const specRow = document.createElement('div'); specRow.className = 'media-grid';
+    specialNat.forEach(t => specRow.appendChild(makeCard(t)));
+    natContent.append(specLabel, specRow);
   }
-  panelRows.append(makeRow('F1 Teams', THEMES_BY_CAT.f1, makeCard), divider(),
-                   makeRow('TV Shows', THEMES_BY_CAT.tv, makeCard), divider(),
-                   makeRow('Movies',   THEMES_BY_CAT.movie, makeCard));
+  contents['nat'] = natContent;
 
-  // Feature bar
-  ([ ['btnSound',      '🎵 Sound',      () => { buildSoundUI(); openModal('soundOverlay'); }],
-     ['btnKiosk',      '⛶ Kiosk',      toggleKiosk],
-     ['btnPresent',    '📺 Present',    togglePresent],
-     ['btnThemeBuilder','🎨 Custom',    openThemeBuilder],
-     ['btnKb',         '⌨ Keys',       () => openModal('kbOverlay')],
-     ['btnPrivacy',    '🔒 Privacy',    togglePrivacy],
-     ['btnFocusLock',  '🔐 Focus Lock', toggleFocusLock],
-     ['btnQR',         '📱 Handoff',    openQRHandoff],
-     ['btnAnimedoro',  '🎬 Animedoro',  () => { startAnimedoro(); openModal('pomOverlay'); }],
-     ['btnSettings',   '⚙️ Settings',   openSettings],
+  // TV, Movie, F1 tabs
+  (['tv','movie','f1'] as const).forEach(cat => {
+    const content = document.createElement('div');
+    content.className = 'tab-content' + (activePanelTab === cat ? ' active' : '');
+    content.dataset.tab = cat;
+    const grid = document.createElement('div'); grid.className = 'media-grid';
+    THEMES_BY_CAT[cat].forEach(t => grid.appendChild(makeCard(t)));
+    content.appendChild(grid);
+    contents[cat] = content;
+  });
+
+  Object.values(contents).forEach(c => panelRows.appendChild(c));
+
+  // ── Feature bar ───────────────────────────────────────────────────────
+  const tokenBadge = `<span class="feat-tokens">🪙 ${Shop.getTokens()}</span>`;
+  ([ ['btnSound',       '🎵 Sound',      () => { buildSoundUI(); openModal('soundOverlay'); }],
+     ['btnKiosk',       '⛶ Kiosk',      toggleKiosk],
+     ['btnPresent',     '📺 Present',    togglePresent],
+     ['btnThemeBuilder','🎨 Custom',     openThemeBuilder],
+     ['btnKb',          '⌨ Keys',       () => openModal('kbOverlay')],
+     ['btnPrivacy',     '🔒 Privacy',   togglePrivacy],
+     ['btnFocusLock',   '🔐 Focus Lock',toggleFocusLock],
+     ['btnQR',          '📱 Handoff',   openQRHandoff],
+     ['btnAnimedoro',   '🎬 Animedoro', () => { startAnimedoro(); openModal('pomOverlay'); }],
+     ['btnShop',        '🛒 Shop',      openShop],
+     ['btnSettings',    '⚙️ Settings',  openSettings],
   ] as [string, string, () => void][]).forEach(([id, label, action]) => {
     const b = document.createElement('button');
-    b.className = 'feat-btn'; b.id = id; b.textContent = label;
+    b.className = 'feat-btn'; b.id = id;
+    b.innerHTML = id === 'btnShop' ? `🛒 Shop ${tokenBadge}` : label;
     if (id === 'btnPrivacy'   && privacyMode)      b.classList.add('on');
     if (id === 'btnFocusLock' && focusLockEnabled) b.classList.add('on');
-    if (id === 'btnSettings'  && Sound.isSpatialEnabled()) b.classList.add('on');
     b.addEventListener('click', action);
     featBar.appendChild(b);
   });
+}
+
+function switchPanelTab(id: string) {
+  activePanelTab = id;
+  document.querySelectorAll<HTMLElement>('.panel-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
+  document.querySelectorAll<HTMLElement>('.tab-content').forEach(c => c.classList.toggle('active', c.dataset.tab === id));
 }
 
 // ── Modals ─────────────────────────────────────────────────────────────
@@ -736,6 +801,8 @@ Pom.init({
       Sound.adaptOnWorkStart();
       setBreathing(false);
     } else {
+      // Work phase just ended → award tokens
+      awardTokens(Pom.getSettings().workMins);
       Sound.adaptOnBreak();
       if (breathingBreakEnabled && !animedoroActive) {
         setBreathing(true);
@@ -1035,6 +1102,115 @@ function buildSettingsUI() {
   makeToggle('toggleBreathing',   () => { breathingBreakEnabled = !breathingBreakEnabled; localStorage.setItem('sc_breathing_break', breathingBreakEnabled ? '1' : '0'); });
   makeToggle('toggleFocusLockS',  () => toggleFocusLock());
   makeToggle('togglePrivacyS',    () => togglePrivacy());
+}
+
+// ── Token Shop UI ─────────────────────────────────────────────────────
+let shopTab = 'tv';
+
+function openShop() { buildShopUI(); openModal('shopOverlay'); }
+
+function buildShopUI(tab?: string) {
+  if (tab) shopTab = tab;
+  const grid    = $('shopGrid');
+  const tabsEl  = $('shopTabs');
+  const tokenEl = $('shopTokenDisplay');
+  if (!grid || !tabsEl) return;
+  if (tokenEl) tokenEl.textContent = `🪙 ${Shop.getTokens()}`;
+
+  // Shop tab bar
+  const shopTabDefs: [string, string][] = [
+    ['tv','📺 TV'], ['movie','🎬 Movies'], ['f1','🏎 F1'], ['nat','🌿 Special'],
+  ];
+  tabsEl.innerHTML = '';
+  shopTabDefs.forEach(([id, label]) => {
+    const b = document.createElement('button');
+    b.className = 'shop-tab-btn' + (shopTab === id ? ' active' : '');
+    b.textContent = label; b.dataset.tab = id;
+    b.addEventListener('click', () => buildShopUI(id));
+    tabsEl.appendChild(b);
+  });
+
+  // Items for this tab's themes
+  const catThemes = shopTab === 'nat'
+    ? THEMES_BY_CAT.nat.map(t => t.id)
+    : THEMES_BY_CAT[shopTab as 'tv'|'movie'|'f1'].map(t => t.id);
+
+  const items = Shop.SHOP_ITEMS.filter(i => catThemes.includes(i.themeId));
+  const owned = Shop.getOwned();
+  const equipped = Shop.getEquipped();
+
+  grid.innerHTML = '';
+  if (items.length === 0) {
+    grid.innerHTML = '<p class="shop-empty">No items in this category yet.</p>'; return;
+  }
+
+  // Group by theme
+  const byTheme = new Map<string, typeof items>();
+  items.forEach(item => {
+    if (!byTheme.has(item.themeId)) byTheme.set(item.themeId, []);
+    byTheme.get(item.themeId)!.push(item);
+  });
+
+  byTheme.forEach((themeItems, themeId) => {
+    const theme = THEME_BY_ID[themeId];
+    if (!theme) return;
+
+    const section = document.createElement('div'); section.className = 'shop-section';
+    const header = document.createElement('div'); header.className = 'shop-section-header';
+    header.style.borderColor = theme.accent + '44';
+    header.innerHTML = `<span class="shop-section-name" style="color:${theme.accent}">${theme.name}</span>`;
+    section.appendChild(header);
+
+    const itemsGrid = document.createElement('div'); itemsGrid.className = 'shop-items-grid';
+    themeItems.forEach(item => {
+      const isOwned = owned.has(item.id);
+      const isEquipped = equipped.has(item.id);
+      const card = document.createElement('div');
+      card.className = `shop-item${isOwned ? ' owned' : ''}${isEquipped ? ' equipped' : ''}`;
+      card.innerHTML = `
+        <div class="shop-item-icon">${item.icon}</div>
+        <div class="shop-item-info">
+          <div class="shop-item-name">${item.name}</div>
+          <div class="shop-item-desc">${item.desc}</div>
+        </div>
+        <div class="shop-item-action">
+          ${isOwned
+            ? `<button class="shop-equip-btn${isEquipped ? ' on' : ''}" data-id="${item.id}">${isEquipped ? '✓ On' : 'Equip'}</button>`
+            : `<button class="shop-buy-btn" data-id="${item.id}" data-cost="${item.cost}" ${Shop.getTokens() < item.cost ? 'disabled' : ''}>
+                 <span class="shop-cost">🪙 ${item.cost}</span>
+               </button>`
+          }
+        </div>
+      `;
+      card.querySelector<HTMLButtonElement>('.shop-buy-btn')?.addEventListener('click', () => {
+        const result = Shop.buyItem(item.id);
+        if (result === 'ok') { buildShopUI(); buildPanel(); }
+        else if (result === 'poor') {
+          card.classList.add('shake'); setTimeout(() => card.classList.remove('shake'), 500);
+        }
+      });
+      card.querySelector<HTMLButtonElement>('.shop-equip-btn')?.addEventListener('click', () => {
+        Shop.toggleEquip(item.id); buildShopUI();
+      });
+      itemsGrid.appendChild(card);
+    });
+    section.appendChild(itemsGrid);
+    grid.appendChild(section);
+  });
+}
+
+// Award tokens on session events
+function awardTokens(minutes: number) {
+  const tokens = Math.max(1, Math.floor(minutes / 5));
+  Shop.addTokens(tokens);
+  // Refresh shop token display if open
+  const tokenEl = $('shopTokenDisplay');
+  if (tokenEl) tokenEl.textContent = `🪙 ${Shop.getTokens()}`;
+  // Flash token count on feat bar
+  const shopBtn = $('btnShop');
+  if (shopBtn) {
+    shopBtn.innerHTML = `🛒 Shop <span class="feat-tokens">🪙 ${Shop.getTokens()}</span>`;
+  }
 }
 
 // ── QR Handoff ────────────────────────────────────────────────────────
