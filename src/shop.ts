@@ -52,7 +52,12 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id:'st_walkie',   themeId:'strangerthings', name:'Walkie-Talkie',     desc:'Code: Ghostbusters',                        cost:35,  icon:'📻', type:'cosmetic' },
   { id:'st_dnd',      themeId:'strangerthings', name:'D&D Handbook',      desc:'The Demogorgon is just the beginning',      cost:20,  icon:'🎲', type:'cosmetic' },
 
-  // ── Movies ──
+  // ── Severance ──
+  { id:'sv_finger',  themeId:'severance', name:'Finger Trap',        desc:'"It helps me not to think about it"',         cost:20,  icon:'🪢', type:'cosmetic' },
+  { id:'sv_waffle',  themeId:'severance', name:'Waffle Party',        desc:'The reward you have been working toward',    cost:15,  icon:'🧇', type:'cosmetic' },
+  { id:'sv_goat',    themeId:'severance', name:'Baby Goat',           desc:'Milchick approved',                          cost:35,  icon:'🐐', type:'cosmetic' },
+  { id:'sv_handbook',themeId:'severance', name:'Employee Handbook',   desc:'Lumon Industries. Rule 1: Obey.',            cost:40,  icon:'📋', type:'cosmetic' },
+  { id:'sv_eyeball', themeId:'severance', name:"Kier's Portrait",     desc:'"Beloved founder. Chosen one."',             cost:60,  icon:'👁', type:'badge'    },
   { id:'in_watch',    themeId:'interstellar', name:'Cooper\'s Watch',     desc:'Love transcends dimensions',                cost:75,  icon:'⌚', type:'cosmetic' },
   { id:'in_bookshelf',themeId:'interstellar', name:'The Bookshelf',       desc:'Gravity as a message',                      cost:40,  icon:'📚', type:'cosmetic' },
   { id:'du_crysknife',themeId:'dune', name:'Crysknife',                   desc:'Forged from a Maker\'s tooth',              cost:60,  icon:'🗡', type:'cosmetic' },

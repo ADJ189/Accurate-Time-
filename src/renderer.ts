@@ -107,7 +107,7 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   lemon(dt, t)   { drawLemon(); },
   blueprint(dt,t){ drawBlueprint(t); },
   commonroom(dt,t){ drawCommonRoom(t); },
-  smpte(dt,t)    { drawSMPTE(t); },
+  severance(dt,t) { drawSeverance(dt, t); },
   terminal(dt,t) { drawTerminal(dt, t); },
   literary(dt,t) { drawLiterary(t); drawParticles(dt, t); },
   supernatural(dt,t){ drawMediaBg(t); drawSymbol('supernatural', t); },
@@ -203,6 +203,70 @@ function drawLiterary(t: Theme) {
   const g = c.createRadialGradient(W/2, H*0.3, 0, W/2, H*0.5, W*0.6);
   g.addColorStop(0, t.accent + '14'); g.addColorStop(1, 'transparent');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
+}
+
+// ── Severance — Lumon Industries ──────────────────────────────────────
+const SEV_NUMBERS: string[] = [];
+let sevLastTick = 0;
+const SEV_COLS = 30;
+
+function drawSeverance(dt: number, t: Theme) {
+  // Slowly scroll numbers up like the MDR refinement screen
+  sevLastTick += dt;
+  if (sevLastTick > 0.18) {
+    sevLastTick = 0;
+    SEV_NUMBERS.unshift(
+      Array.from({length: SEV_COLS}, () => Math.floor(Math.random() * 10)).join('  ')
+    );
+    if (SEV_NUMBERS.length > Math.ceil(H / 20) + 2) SEV_NUMBERS.length = Math.ceil(H / 20) + 2;
+  }
+
+  const fontSize = Math.max(11, Math.min(15, W / SEV_COLS));
+  c.font = `300 ${fontSize}px 'Josefin Sans', sans-serif`;
+  c.textAlign = 'center';
+
+  // Draw number grid fading from bottom
+  SEV_NUMBERS.forEach((line, i) => {
+    const y = H * 0.55 - i * (fontSize + 6);
+    if (y < 0 || y > H) return;
+    const fade = Math.max(0, 1 - i / SEV_NUMBERS.length);
+    // Some numbers "chosen" — brighter
+    const chars = line.split('');
+    let cx2 = (W - chars.length * (fontSize * 0.62)) / 2;
+    chars.forEach(ch => {
+      if (ch === ' ') { cx2 += fontSize * 0.3; return; }
+      const bright = Math.random() < 0.03; // 3% chance bright
+      c.fillStyle = bright
+        ? `rgba(0,200,255,${fade * 0.85})`
+        : `rgba(0,100,180,${fade * 0.22})`;
+      c.fillText(ch, cx2, y);
+      cx2 += fontSize * 0.62;
+    });
+  });
+
+  // The "selected" cluster — a few numbers brighter in a small region near centre
+  c.font = `400 ${fontSize + 2}px 'Josefin Sans', sans-serif`;
+  const selX = W * 0.5 + Math.sin(tick * 0.4) * W * 0.08;
+  const selY = H * 0.44 + Math.cos(tick * 0.3) * H * 0.04;
+  for (let i = 0; i < 12; i++) {
+    const ox = (i % 4 - 1.5) * (fontSize + 4);
+    const oy = (Math.floor(i / 4) - 1) * (fontSize + 6);
+    c.fillStyle = `rgba(0,180,255,${0.6 + Math.sin(tick * 1.2 + i) * 0.3})`;
+    c.fillText(String(Math.floor(Math.random() * 10)), selX + ox, selY + oy);
+  }
+
+  // Lumon logo-esque horizontal line
+  c.globalAlpha = 0.12;
+  c.fillStyle = t.accent;
+  c.fillRect(W * 0.3, H * 0.62, W * 0.4, 1);
+  c.globalAlpha = 1;
+
+  // Soft centre glow
+  const grd = c.createRadialGradient(W/2, H*0.45, 0, W/2, H*0.45, W*0.35);
+  grd.addColorStop(0, `${t.accent}0a`);
+  grd.addColorStop(1, 'transparent');
+  c.fillStyle = grd; c.fillRect(0, 0, W, H);
+  c.textAlign = 'left';
 }
 
 // ── SMPTE Timeline background ─────────────────────────────────────────

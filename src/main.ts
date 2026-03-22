@@ -618,7 +618,7 @@ function buildPanel() {
   Object.values(contents).forEach(c => panelRows.appendChild(c));
 
   // ── Feature bar ───────────────────────────────────────────────────────
-  const tokenBadge = `<span class="feat-tokens">🪙 ${Shop.getTokens()}</span>`;
+  const tokenBadge = coinHTML(Shop.getTokens());
   ([ ['btnSound',       '🎵 Sound',      () => { buildSoundUI(); openModal('soundOverlay'); }],
      ['btnKiosk',       '⛶ Kiosk',      toggleKiosk],
      ['btnPresent',     '📺 Present',    togglePresent],
@@ -751,14 +751,15 @@ function focusLockIntercept(action: () => void): void {
   // Create progress bar overlay
   const bar = document.createElement('div');
   bar.className = 'focus-lock-bar';
-  bar.innerHTML = `<div class="focus-lock-fill"></div><span class="focus-lock-label">Stay focused… click again to open</span>`;
+  const fill = document.createElement('div'); fill.className = 'focus-lock-fill';
+  const lbl  = document.createElement('span'); lbl.className = 'focus-lock-label';
+  lbl.textContent = 'Stay focused… click again to open';
+  bar.append(fill, lbl);
   document.body.appendChild(bar);
   focusLockBar = bar;
 
-  // Animate fill
   requestAnimationFrame(() => {
-    const fill = bar.querySelector<HTMLElement>('.focus-lock-fill');
-    if (fill) { fill.style.transition = 'width 3s linear'; fill.style.width = '100%'; }
+    fill.style.transition = 'width 3s linear'; fill.style.width = '100%';
   });
 
   focusLockTimer = window.setTimeout(() => {
@@ -969,17 +970,31 @@ function buildColorRows() {
   const container = $('colorRows'); if (!container) return;
   container.innerHTML = '';
   THEME_FIELDS.forEach(f => {
-    const raw = draft[f.key];
+    const raw = draft[f.key] ?? '#ffffff';
     const hex = (raw.startsWith('rgba')||raw.startsWith('rgb')) ? rgbaToHex(raw) : raw;
-    const row = document.createElement('div'); row.className = 'color-row';
-    row.innerHTML = `<span class="color-label">${f.label}</span><div class="color-picker-wrap"><input type="color" value="${hex}" data-key="${f.key}"></div><span class="color-hex" id="hex_${f.key}">${hex}</span>`;
+
+    const row   = document.createElement('div'); row.className = 'color-row';
+    const label = document.createElement('span'); label.className = 'color-label';
+    label.textContent = f.label;                          // ← textContent, not innerHTML
+
+    const wrap  = document.createElement('div'); wrap.className = 'color-picker-wrap';
+    const inp   = document.createElement('input') as HTMLInputElement;
+    inp.type = 'color'; inp.value = hex; inp.dataset.key = f.key;
+
+    const hexSpan = document.createElement('span');
+    hexSpan.className = 'color-hex'; hexSpan.id = 'hex_' + f.key;
+    hexSpan.textContent = hex;                            // ← textContent
+
+    wrap.appendChild(inp);
+    row.append(label, wrap, hexSpan);
     container.appendChild(row);
   });
   container.querySelectorAll<HTMLInputElement>('input[type=color]').forEach(inp => {
     inp.addEventListener('input', e => {
       const el = e.target as HTMLInputElement;
       draft[el.dataset.key!] = el.value;
-      ($('hex_'+el.dataset.key) as HTMLElement).textContent = el.value;
+      const hexEl = document.getElementById('hex_' + el.dataset.key);
+      if (hexEl) hexEl.textContent = el.value;
     });
   });
   renderSavedSwatches();
@@ -1104,6 +1119,55 @@ function buildSettingsUI() {
   makeToggle('togglePrivacyS',    () => togglePrivacy());
 }
 
+// ── Shop SVG art (developer-authored, safe for innerHTML) ─────────────
+const SHOP_SVG: Record<string, string> = {
+  // Supernatural
+  sn_colt: `<svg viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="14" width="34" height="6" rx="1.5" fill="#8B6914"/><rect x="34" y="13" width="12" height="8" rx="1" fill="#7a5c10"/><rect x="2" y="16" width="30" height="2" rx="1" fill="#c8a850" opacity=".4"/><rect x="8" y="20" width="20" height="9" rx="2" fill="#6b4d0e"/><circle cx="40" cy="17" r="2.5" fill="#3d2c06"/><rect x="35" y="8" width="3" height="5" rx="1" fill="#6b4d0e"/><rect x="1" y="15" width="5" height="4" rx="1" fill="#5a3e09"/></svg>`,
+  sn_impala: `<svg viewBox="0 0 48 28" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="12" width="44" height="10" rx="2" fill="#111"/><path d="M8 12 Q12 5 20 5 L32 5 Q38 5 42 12Z" fill="#111"/><rect x="4" y="19" width="8" height="4" rx="2" fill="#222"/><rect x="36" y="19" width="8" height="4" rx="2" fill="#222"/><rect x="12" y="7" width="10" height="5" rx="1" fill="#1a3a5c" opacity=".8"/><rect x="26" y="7" width="10" height="5" rx="1" fill="#1a3a5c" opacity=".8"/><rect x="2" y="14" width="6" height="4" rx="1" fill="#e8b800" opacity=".9"/><rect x="40" y="14" width="6" height="4" rx="1" fill="#e8b800" opacity=".9"/><rect x="6" y="21" width="3" height="1" rx=".5" fill="#c0c0c0"/><rect x="39" y="21" width="3" height="1" rx=".5" fill="#c0c0c0"/></svg>`,
+  sn_pentagram: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="14" stroke="#c84000" stroke-width="1.5" fill="none"/><polygon points="16,3 19.5,13 30,13 21.5,19 24.5,30 16,23.5 7.5,30 10.5,19 2,13 12.5,13" fill="none" stroke="#e05500" stroke-width="1.2" stroke-linejoin="round"/><circle cx="16" cy="16" r="3" fill="#e05500" opacity=".6"/></svg>`,
+
+  // Mentalist
+  mn_redj: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="13" fill="#8b0000"/><circle cx="10" cy="12" r="2.5" fill="#ff2200"/><circle cx="22" cy="12" r="2.5" fill="#ff2200"/><path d="M8 22 Q16 28 24 22" stroke="#ff2200" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`,
+  mn_card: `<svg viewBox="0 0 32 44" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="30" height="42" rx="3" fill="#f8f0e0" stroke="#ccc" stroke-width="1"/><text x="16" y="26" text-anchor="middle" font-size="20" fill="#cc1100">♠</text><text x="5" y="10" font-size="7" fill="#cc1100">A</text><text x="27" y="44" font-size="7" fill="#cc1100" transform="rotate(180,27,44)">A</text></svg>`,
+
+  // Breaking Bad
+  bb_hat: `<svg viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="24" cy="24" rx="22" ry="5" fill="#1a1a1a"/><path d="M6 24 Q6 8 24 8 Q42 8 42 24" fill="#0a0a0a"/><ellipse cx="24" cy="24" rx="22" ry="5" fill="none" stroke="#333" stroke-width="1"/></svg>`,
+  bb_crystal: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><polygon points="16,2 26,10 26,22 16,30 6,22 6,10" fill="#88ccff" opacity=".7" stroke="#5599ff" stroke-width="1"/><polygon points="16,2 26,10 16,14" fill="#aaddff" opacity=".5"/><polygon points="16,14 26,22 16,30 6,22" fill="#66aaee" opacity=".6"/><line x1="16" y1="2" x2="16" y2="30" stroke="white" stroke-width=".5" opacity=".4"/></svg>`,
+  bb_pizza: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 3 L30 28 Q16 30 2 28 Z" fill="#e8a820"/><path d="M16 3 L30 28 Q16 30 2 28 Z" fill="none" stroke="#c88010" stroke-width="1"/><circle cx="12" cy="20" r="2" fill="#cc2200"/><circle cx="20" cy="16" r="1.5" fill="#cc2200"/><circle cx="16" cy="24" r="1.5" fill="#cc2200"/><path d="M16 3 L30 28" stroke="#c88010" stroke-width=".8"/><path d="M16 3 L2 28" stroke="#c88010" stroke-width=".8"/></svg>`,
+
+  // Dark
+  dk_knot: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 4 C24 4 28 10 26 16 C24 22 18 24 16 24 C14 24 8 22 6 16 C4 10 8 4 16 4 Z" fill="none" stroke="#8888ff" stroke-width="2"/><path d="M10 16 C10 20 13 24 16 24 C19 24 22 20 22 16 C22 12 19 8 16 8 C13 8 10 12 10 16 Z" fill="none" stroke="#6666cc" stroke-width="1.5"/><circle cx="16" cy="16" r="2" fill="#aaaaff"/></svg>`,
+  dk_clock: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="13" stroke="#8888aa" stroke-width="1.5" fill="#0a0a14"/><circle cx="16" cy="16" r="1.5" fill="#aaaacc"/><line x1="16" y1="6" x2="16" y2="12" stroke="#aaaacc" stroke-width="1.5" stroke-linecap="round"/><line x1="16" y1="16" x2="22" y2="18" stroke="#888899" stroke-width="1.2" stroke-linecap="round"/><text x="16" y="26" text-anchor="middle" font-size="4.5" fill="#666688">33 YEARS</text></svg>`,
+
+  // Stranger Things
+  st_lights: `<svg viewBox="0 0 48 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 10 Q12 4 24 10 Q36 16 44 10" stroke="#555" stroke-width="1" fill="none"/>${[4,12,20,28,36,44].map((x,i)=>`<circle cx="${x}" cy="${i%2===0?8:12}" r="2.5" fill="${['#ff2200','#00cc00','#ffee00','#0088ff','#ff4400','#cc00cc'][i]}" opacity=".9"/>`).join('')}</svg>`,
+  st_eggo: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="26" height="26" rx="4" fill="#c8a020"/><line x1="16" y1="3" x2="16" y2="29" stroke="#a88010" stroke-width="1"/><line x1="3" y1="16" x2="29" y2="16" stroke="#a88010" stroke-width="1"/><rect x="5" y="5" width="10" height="10" rx="2" fill="#d4aa30" opacity=".5"/><rect x="17" y="5" width="10" height="10" rx="2" fill="#d4aa30" opacity=".5"/><rect x="5" y="17" width="10" height="10" rx="2" fill="#d4aa30" opacity=".5"/><rect x="17" y="17" width="10" height="10" rx="2" fill="#d4aa30" opacity=".5"/></svg>`,
+
+  // Movies — Interstellar
+  in_watch: `<svg viewBox="0 0 28 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="1" width="12" height="6" rx="2" fill="#333"/><rect x="8" y="33" width="12" height="6" rx="2" fill="#333"/><rect x="2" y="7" width="24" height="26" rx="5" fill="#222" stroke="#555" stroke-width="1"/><circle cx="14" cy="20" r="9" fill="#111" stroke="#444" stroke-width="1"/><line x1="14" y1="13" x2="14" y2="20" stroke="#888" stroke-width="1.2" stroke-linecap="round"/><line x1="14" y1="20" x2="19" y2="22" stroke="#666" stroke-width="1" stroke-linecap="round"/></svg>`,
+
+  // Dune
+  du_crysknife: `<svg viewBox="0 0 12 44" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 2 L9 20 L9 34 L6 42 L3 34 L3 20 Z" fill="#e8d8b0" stroke="#c8b880" stroke-width=".8"/><rect x="3" y="32" width="6" height="10" rx="1.5" fill="#8B6914"/><line x1="6" y1="4" x2="6" y2="32" stroke="white" stroke-width=".5" opacity=".3"/></svg>`,
+  du_spice: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="16" cy="20" rx="12" ry="8" fill="#c86420"/><ellipse cx="16" cy="18" rx="12" ry="8" fill="#d47830"/><ellipse cx="16" cy="16" rx="12" ry="8" fill="#e08840"/><ellipse cx="16" cy="14" rx="10" ry="5" fill="#e89040" opacity=".8"/><ellipse cx="16" cy="13" rx="6" ry="2.5" fill="#f0a050" opacity=".5"/></svg>`,
+
+  // Matrix
+  mx_pill: `<svg viewBox="0 0 32 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="14" height="14" rx="7" fill="#cc0000"/><rect x="17" y="1" width="14" height="14" rx="7" fill="#1a1a1a" stroke="#444" stroke-width="1"/><rect x="15" y="5" width="2" height="6" fill="#888"/></svg>`,
+
+  // Blade Runner
+  br_origami: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><polygon points="16,3 28,20 22,20 28,29 4,29 10,20 4,20" fill="#e8e0d0" stroke="#c8c0b0" stroke-width="1"/><line x1="16" y1="3" x2="16" y2="29" stroke="#c8c0b0" stroke-width=".8"/><line x1="4" y1="20" x2="28" y2="20" stroke="#c8c0b0" stroke-width=".8"/></svg>`,
+
+  // Inception
+  ic_totem: `<svg viewBox="0 0 20 36" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="10" cy="28" rx="8" ry="4" fill="#888" opacity=".3"/><path d="M4 28 L10 4 L16 28 Z" fill="#aaa" stroke="#888" stroke-width="1"/><ellipse cx="10" cy="28" rx="6" ry="3" fill="#999"/><line x1="10" y1="6" x2="10" y2="28" stroke="white" stroke-width=".6" opacity=".25"/></svg>`,
+
+  // Godfather
+  gf_offer: `<svg viewBox="0 0 32 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 14 C4 8 10 4 16 6 C22 4 28 8 28 14 C28 20 22 24 16 24 C10 24 4 20 4 14Z" fill="#1a0a00" stroke="#4a2000" stroke-width="1"/><path d="M10 14 L14 18 L22 10" stroke="#c8a060" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+
+  // F1
+  f1rb_trophy: `<svg viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="32" width="12" height="4" rx="1" fill="#c8a820"/><rect x="6" y="36" width="20" height="3" rx="1" fill="#a88810"/><path d="M8 4 L8 24 Q8 32 16 32 Q24 32 24 24 L24 4 Z" fill="#f0c020"/><path d="M8 12 L4 14 L4 20 Q4 24 8 24" fill="#e0b018" stroke="#c89010" stroke-width=".8"/><path d="M24 12 L28 14 L28 20 Q28 24 24 24" fill="#e0b018" stroke="#c89010" stroke-width=".8"/><ellipse cx="16" cy="4" rx="8" ry="2" fill="#f8d030"/></svg>`,
+  f1fe_horse: `<svg viewBox="0 0 28 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 28 C14 28 6 22 6 14 C6 8 10 4 14 4 C18 4 22 8 22 14 C22 22 14 28 14 28Z" fill="#ff2800"/><path d="M14 6 C14 6 10 10 10 14 L14 13 L18 14 C18 10 14 6 14 6Z" fill="#1a1a1a"/><path d="M12 14 L12 22 L14 24 L16 22 L16 14" fill="#1a1a1a" stroke="#ff2800" stroke-width=".5"/></svg>`,
+  f1mc_papaya: `<svg viewBox="0 0 32 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="4" width="30" height="12" rx="3" fill="#ff8000"/><path d="M1 10 L8 4 L8 16 Z" fill="#1a1a1a"/><text x="16" y="13" text-anchor="middle" font-size="7" font-weight="bold" fill="white">McLAREN</text></svg>`,
+};
+
 // ── Token Shop UI ─────────────────────────────────────────────────────
 let shopTab = 'tv';
 
@@ -1115,7 +1179,7 @@ function buildShopUI(tab?: string) {
   const tabsEl  = $('shopTabs');
   const tokenEl = $('shopTokenDisplay');
   if (!grid || !tabsEl) return;
-  if (tokenEl) tokenEl.textContent = `🪙 ${Shop.getTokens()}`;
+  if (tokenEl) tokenEl.innerHTML = coinHTML(Shop.getTokens());
 
   // Shop tab bar
   const shopTabDefs: [string, string][] = [
@@ -1130,18 +1194,20 @@ function buildShopUI(tab?: string) {
     tabsEl.appendChild(b);
   });
 
-  // Items for this tab's themes
   const catThemes = shopTab === 'nat'
     ? THEMES_BY_CAT.nat.map(t => t.id)
     : THEMES_BY_CAT[shopTab as 'tv'|'movie'|'f1'].map(t => t.id);
 
   const items = Shop.SHOP_ITEMS.filter(i => catThemes.includes(i.themeId));
-  const owned = Shop.getOwned();
+  const owned    = Shop.getOwned();
   const equipped = Shop.getEquipped();
 
   grid.innerHTML = '';
   if (items.length === 0) {
-    grid.innerHTML = '<p class="shop-empty">No items in this category yet.</p>'; return;
+    const empty = document.createElement('p');
+    empty.className = 'shop-empty';
+    empty.textContent = 'No items in this category yet.';
+    grid.appendChild(empty); return;
   }
 
   // Group by theme
@@ -1156,42 +1222,62 @@ function buildShopUI(tab?: string) {
     if (!theme) return;
 
     const section = document.createElement('div'); section.className = 'shop-section';
-    const header = document.createElement('div'); header.className = 'shop-section-header';
+    const header  = document.createElement('div'); header.className = 'shop-section-header';
     header.style.borderColor = theme.accent + '44';
-    header.innerHTML = `<span class="shop-section-name" style="color:${theme.accent}">${theme.name}</span>`;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'shop-section-name';
+    nameSpan.style.color = theme.accent;
+    nameSpan.textContent = theme.name;
+    header.appendChild(nameSpan);
     section.appendChild(header);
 
     const itemsGrid = document.createElement('div'); itemsGrid.className = 'shop-items-grid';
     themeItems.forEach(item => {
-      const isOwned = owned.has(item.id);
+      const isOwned    = owned.has(item.id);
       const isEquipped = equipped.has(item.id);
       const card = document.createElement('div');
-      card.className = `shop-item${isOwned ? ' owned' : ''}${isEquipped ? ' equipped' : ''}`;
-      card.innerHTML = `
-        <div class="shop-item-icon">${item.icon}</div>
-        <div class="shop-item-info">
-          <div class="shop-item-name">${item.name}</div>
-          <div class="shop-item-desc">${item.desc}</div>
-        </div>
-        <div class="shop-item-action">
-          ${isOwned
-            ? `<button class="shop-equip-btn${isEquipped ? ' on' : ''}" data-id="${item.id}">${isEquipped ? '✓ On' : 'Equip'}</button>`
-            : `<button class="shop-buy-btn" data-id="${item.id}" data-cost="${item.cost}" ${Shop.getTokens() < item.cost ? 'disabled' : ''}>
-                 <span class="shop-cost">🪙 ${item.cost}</span>
-               </button>`
+      card.className = ['shop-item', isOwned ? 'owned' : '', isEquipped ? 'equipped' : ''].filter(Boolean).join(' ');
+
+      // Icon — use SVG art if available, else emoji
+      const iconEl = document.createElement('div'); iconEl.className = 'shop-item-icon';
+      const svgArt = SHOP_SVG[item.id];
+      if (svgArt) iconEl.innerHTML = svgArt;        // SVG strings are developer-authored, safe
+      else        iconEl.textContent = item.icon;   // emoji fallback
+
+      const info = document.createElement('div'); info.className = 'shop-item-info';
+      const nameEl = document.createElement('div'); nameEl.className = 'shop-item-name';
+      nameEl.textContent = item.name;
+      const descEl = document.createElement('div'); descEl.className = 'shop-item-desc';
+      descEl.textContent = item.desc;
+      info.append(nameEl, descEl);
+
+      const action = document.createElement('div'); action.className = 'shop-item-action';
+
+      if (isOwned) {
+        const equipBtn = document.createElement('button');
+        equipBtn.className = 'shop-equip-btn' + (isEquipped ? ' on' : '');
+        equipBtn.textContent = isEquipped ? '✓ On' : 'Equip';
+        equipBtn.addEventListener('click', () => { Shop.toggleEquip(item.id); buildShopUI(); });
+        action.appendChild(equipBtn);
+      } else {
+        const buyBtn = document.createElement('button');
+        buyBtn.className = 'shop-buy-btn';
+        buyBtn.disabled = Shop.getTokens() < item.cost;
+        const costSpan = document.createElement('span');
+        costSpan.className = 'shop-cost';
+        costSpan.textContent = `🪙 ${item.cost}`;
+        buyBtn.appendChild(costSpan);
+        buyBtn.addEventListener('click', () => {
+          const result = Shop.buyItem(item.id);
+          if (result === 'ok') { buildShopUI(); buildPanel(); }
+          else if (result === 'poor') {
+            card.classList.add('shake'); setTimeout(() => card.classList.remove('shake'), 500);
           }
-        </div>
-      `;
-      card.querySelector<HTMLButtonElement>('.shop-buy-btn')?.addEventListener('click', () => {
-        const result = Shop.buyItem(item.id);
-        if (result === 'ok') { buildShopUI(); buildPanel(); }
-        else if (result === 'poor') {
-          card.classList.add('shake'); setTimeout(() => card.classList.remove('shake'), 500);
-        }
-      });
-      card.querySelector<HTMLButtonElement>('.shop-equip-btn')?.addEventListener('click', () => {
-        Shop.toggleEquip(item.id); buildShopUI();
-      });
+        });
+        action.appendChild(buyBtn);
+      }
+
+      card.append(iconEl, info, action);
       itemsGrid.appendChild(card);
     });
     section.appendChild(itemsGrid);
@@ -1199,18 +1285,49 @@ function buildShopUI(tab?: string) {
   });
 }
 
+// ── Coin SVG — Apple-style gold coin ────────────────────────────────
+const COIN_SVG = `<svg class="token-coin" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="coinGrad" cx="38%" cy="32%" r="65%">
+      <stop offset="0%"   stop-color="#ffe566"/>
+      <stop offset="45%"  stop-color="#f0b800"/>
+      <stop offset="100%" stop-color="#c88000"/>
+    </radialGradient>
+    <radialGradient id="coinShine" cx="35%" cy="28%" r="50%">
+      <stop offset="0%"   stop-color="white" stop-opacity=".45"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="10" cy="10" r="9.5" fill="#c88000"/>
+  <circle cx="10" cy="10" r="9"   fill="url(#coinGrad)"/>
+  <circle cx="10" cy="10" r="9"   fill="url(#coinShine)"/>
+  <circle cx="10" cy="10" r="7.2" fill="none" stroke="#c88000" stroke-width=".6" opacity=".4"/>
+  <text x="10" y="13.5" text-anchor="middle" font-size="8" font-weight="700"
+        fill="#8b5500" font-family="system-ui,sans-serif" opacity=".9">S</text>
+</svg>`;
+
+function coinHTML(count: number): string {
+  return `${COIN_SVG}<span class="token-count">${count}</span>`;
+}
+
 // Award tokens on session events
 function awardTokens(minutes: number) {
   const tokens = Math.max(1, Math.floor(minutes / 5));
   Shop.addTokens(tokens);
-  // Refresh shop token display if open
-  const tokenEl = $('shopTokenDisplay');
-  if (tokenEl) tokenEl.textContent = `🪙 ${Shop.getTokens()}`;
-  // Flash token count on feat bar
+
+  // Animate +N tokens above the shop button
   const shopBtn = $('btnShop');
   if (shopBtn) {
-    shopBtn.innerHTML = `🛒 Shop <span class="feat-tokens">🪙 ${Shop.getTokens()}</span>`;
+    shopBtn.innerHTML = `🛒 Shop ${coinHTML(Shop.getTokens())}`;
+    const pop = document.createElement('div');
+    pop.className = 'token-pop';
+    pop.textContent = `+${tokens}`;
+    shopBtn.appendChild(pop);
+    setTimeout(() => pop.remove(), 1200);
   }
+  // Update open shop if visible
+  const tokenEl = $('shopTokenDisplay');
+  if (tokenEl) tokenEl.innerHTML = coinHTML(Shop.getTokens());
 }
 
 // ── QR Handoff ────────────────────────────────────────────────────────
