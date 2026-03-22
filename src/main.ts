@@ -36,7 +36,10 @@ const LOGOS: Record<string, string> = {
 // ── Cached DOM refs ────────────────────────────────────────────────────
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const DOM = {
-  timeDis:        $('timeDis'),
+  digitHr:        $('digitHr'),
+  digitMin:       $('digitMin'),
+  digitSec:       $('digitSec'),
+  timeDis:        $('timeDis'),   // hidden, kept for compat
   ampmDis:        $('ampmDis'),
   secMs:          $('secMs'),
   dateDis:        $('dateDis'),
@@ -59,6 +62,8 @@ const DOM = {
   pomRingSvg:     document.getElementById('pomRingSvg') as unknown as SVGSVGElement,
   pomRingArc:     document.getElementById('pomRingArc') as unknown as SVGCircleElement,
   showBadge:      $('showBadge'),
+  infoLabel:      $('infoLabel'),
+  infoSlide:      $('infoSlide'),
 };
 
 // ── Session timer ──────────────────────────────────────────────────────
@@ -173,7 +178,7 @@ function applyTheme(theme: Theme, instant = false) {
     if (theme.id === 'commonroom') setTimeout(() => Sound.autoStartCommonRoom(), 400);
   };
 
-  if (instant || !theme.isMedia) { doApply(); return; }
+  if (instant || !theme.isMedia) { doApply(); if (!instant) flashTheme(); return; }
   runTransition(theme.transition ?? 'defaultFade', doApply);
 }
 
@@ -192,6 +197,14 @@ setSyncHandler(updateSyncDisplay);
 // ── Render loop ────────────────────────────────────────────────────────
 let lastTs = 0, lastSec = -1, lastQKey = '';
 
+function tickDigit(el: HTMLElement, val: string) {
+  if (el.textContent === val) return;
+  el.classList.remove('tick');
+  void (el as HTMLElement).offsetWidth;
+  el.textContent = val;
+  el.classList.add('tick');
+}
+
 function renderFrame(ts: number) {
   requestAnimationFrame(renderFrame);
   const dt = Math.min((ts - lastTs) / 1000, 0.05); lastTs = ts;
@@ -201,9 +214,13 @@ function renderFrame(ts: number) {
   const ms = now.getMilliseconds(), sec = now.getSeconds(), min = now.getMinutes(), hr = now.getHours();
   const hr12 = hr % 12 || 12;
 
-  DOM.timeDis.innerHTML = `${p2(hr12)}<span class="colon">:</span>${p2(min)}<span class="colon">:</span>${p2(sec)}`;
+  const hrStr = p2(hr12), minStr = p2(min), secStr = p2(sec);
+  tickDigit(DOM.digitHr,  hrStr);
+  tickDigit(DOM.digitMin, minStr);
+  tickDigit(DOM.digitSec, secStr);
   DOM.ampmDis.textContent = hr >= 12 ? 'PM' : 'AM';
   DOM.secMs.textContent = '.' + p3(ms);
+  DOM.timeDis.textContent = `${hrStr}:${minStr}:${secStr}`;
 
   const dp = ((hr * 3600 + min * 60 + sec) * 1000 + ms) / 864e5 * 100;
   DOM.pFill.style.width = dp.toFixed(4) + '%';
@@ -585,14 +602,74 @@ function updatePanelHeight() {
   document.documentElement.style.setProperty('--panel-h', h + 'px');
 }
 
+// ── Info strip rotator ────────────────────────────────────────────────
+const INFO_ITEMS = [
+  () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const diff = now.getTime() - start.getTime();
+    const dayOfYear = Math.floor(diff / 86400000);
+    const weekNum = Math.ceil(dayOfYear / 7);
+    return `Week ${weekNum} · Day ${dayOfYear} of ${now.getFullYear()}`;
+  },
+  () => {
+    const now = new Date();
+    const endOfYear = new Date(now.getFullYear(), 11, 31);
+    const daysLeft = Math.ceil((endOfYear.getTime() - now.getTime()) / 86400000);
+    return `${daysLeft} days left in ${now.getFullYear()}`;
+  },
+  () => {
+    const entries = (() => { try { return JSON.parse(localStorage.getItem('sc_focus_log') || '[]'); } catch { return []; } })();
+    const todayStr = new Date().toDateString();
+    const todayMins = entries.filter((e: {date:string;dur:number}) => e.date === todayStr).reduce((s: number, e: {dur:number}) => s + e.dur, 0) / 60000;
+    if (todayMins < 1) return 'Start your first focus session today';
+    const h = Math.floor(todayMins / 60), m = Math.floor(todayMins % 60);
+    return `${h > 0 ? h + 'h ' : ''}${m}m focused today`;
+  },
+  () => {
+    const now = new Date();
+    const pct = ((now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400 * 100).toFixed(1);
+    return `${pct}% of today complete`;
+  },
+];
+
+let infoIdx = 0;
+function rotateInfo() {
+  const slide = DOM.infoSlide;
+  const label = DOM.infoLabel;
+  if (!slide || !label) return;
+  slide.classList.add('leaving');
+  setTimeout(() => {
+    infoIdx = (infoIdx + 1) % INFO_ITEMS.length;
+    label.textContent = INFO_ITEMS[infoIdx]();
+    slide.classList.remove('leaving');
+    slide.style.animation = 'none';
+    void slide.offsetWidth;
+    slide.style.animation = '';
+  }, 420);
+}
+
+function startInfoStrip() {
+  if (DOM.infoLabel) DOM.infoLabel.textContent = INFO_ITEMS[0]();
+  setInterval(rotateInfo, 6000);
+}
+
+// ── Theme flash on switch ─────────────────────────────────────────────
+function flashTheme() {
+  document.body.classList.remove('theme-flash');
+  void document.body.offsetWidth;
+  document.body.classList.add('theme-flash');
+  setTimeout(() => document.body.classList.remove('theme-flash'), 500);
+}
+
 // ── Init ───────────────────────────────────────────────────────────────
 function init() {
   resize();
   window.addEventListener('resize', () => { resize(); updatePanelHeight(); });
   buildPanel();
   updatePanelHeight();
+  startInfoStrip();
 
-  // Topbar keyboard shortcut button
   const kbBtn = $('btnKbShortcuts');
   if (kbBtn) kbBtn.addEventListener('click', () => openModal('kbOverlay'));
 
@@ -604,7 +681,7 @@ function init() {
     syncTime();
     initWeather($('weatherIcon'), $('weatherText'), $('weatherPill'), isPrivacyMode);
   } else {
-    updateSyncDisplay('failed'); // show "Local clock" from the start
+    updateSyncDisplay('failed');
   }
 }
 
