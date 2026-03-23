@@ -4,7 +4,7 @@
 
 **The most feature-complete focus timer on the open web.**
 
-*48 animated themes · Easter eggs · Pomodoro · Binaural beats · Session intelligence · Token shop · PWA · Zero backend*
+*48+ animated themes · Easter eggs · Pomodoro · Binaural beats · Session intelligence · Token shop · PWA · Zero backend*
 
 [![Deploy](https://img.shields.io/github/actions/workflow/status/ADJ189/Accurate-Time-/deploy.yml?label=Deploy&style=flat-square)](https://github.com/ADJ189/Accurate-Time-/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
@@ -48,6 +48,9 @@ Literary Clock — 288 prose sentences, one for every 5-minute slot (00:00–23:
 
 ### F1 Teams
 Red Bull Racing · Scuderia Ferrari · Mercedes-AMG · McLaren · Aston Martin
+
+### Anime ⛩
+**One Piece** · **Attack on Titan** · **Death Note**
 
 ### Secret / Unlockable
 **8-BIT** (Konami Code) · **Phoenix** (100 sessions milestone) · **The Bear**
@@ -161,6 +164,10 @@ There are 8 hidden easter eggs. Discover them yourself — or read on.
 | `Esc` | Close panel / exit Hyperfocus |
 
 ---
+
+## Security
+
+Session Clock is CodeQL-verified — zero `innerHTML` injections of user-supplied data. All dynamic content uses `textContent`, developer-authored SVG constants, or canvas rendering. See the GitHub Security tab for the clean CodeQL report.
 
 ## Getting Started
 

@@ -1880,3 +1880,51 @@ body.theme-moonknight .digit-pair {
 /* Cyberpunk easter egg HTML panel */
 body.reduced-motion .digit-pair,
 body.reduced-motion .digit-pair { animation: none !important; }
+
+/* ═══════════════════════════════════════════════════════════
+   ANIME THEME CSS EFFECTS
+═══════════════════════════════════════════════════════════ */
+
+/* One Piece — gold straw-hat glow */
+body.theme-onepiece .digit-pair {
+  color: #fff8e6;
+  text-shadow:
+    0 0 20px rgba(255,204,0,.7),
+    0 0 45px rgba(255,180,0,.35),
+    0 0 80px rgba(0,61,143,.2);
+  animation: luffy-glow 3s ease-in-out infinite;
+}
+@keyframes luffy-glow {
+  0%,100% { text-shadow: 0 0 20px rgba(255,204,0,.7), 0 0 45px rgba(255,180,0,.35); }
+  50%     { text-shadow: 0 0 35px rgba(255,220,30,1),  0 0 70px rgba(255,200,0,.55), 0 0 110px rgba(0,61,143,.3); }
+}
+
+/* Attack on Titan — survey corps urgent flash */
+body.theme-attackontitan .digit-pair {
+  color: #f0e8d0;
+  text-shadow: 0 0 15px rgba(200,160,0,.5), 0 0 35px rgba(200,140,0,.2);
+  animation: aot-pulse 4s ease-in-out infinite;
+}
+@keyframes aot-pulse {
+  0%,85%,100% { text-shadow: 0 0 15px rgba(200,160,0,.5); opacity: 1; }
+  87% { text-shadow: 0 0 8px rgba(200,160,0,.3); opacity: .85; }
+  90% { text-shadow: 0 0 25px rgba(200,160,0,.8), 0 0 50px rgba(200,140,0,.4); opacity: 1; }
+  93% { text-shadow: 0 0 10px rgba(200,160,0,.4); opacity: .9; }
+}
+
+/* Death Note — purple Shinigami realm */
+body.theme-deathnote .digit-pair {
+  color: #f0d8f0;
+  text-shadow:
+    0 0 18px rgba(200,0,200,.6),
+    0 0 40px rgba(160,0,160,.3);
+  animation: kira-pulse 5s ease-in-out infinite;
+}
+@keyframes kira-pulse {
+  0%,100% { text-shadow: 0 0 18px rgba(200,0,200,.6), 0 0 40px rgba(160,0,160,.3); }
+  30%     { text-shadow: 0 0 28px rgba(220,0,220,.9), 0 0 60px rgba(180,0,180,.5), 0 0 90px rgba(100,0,100,.2); }
+  60%     { text-shadow: 0 0 12px rgba(160,0,160,.4), 0 0 30px rgba(120,0,120,.2); }
+}
+
+/* Anime tab active indicator */
+.panel-tab[data-tab="anime"].active { color: var(--clr-accent); }
