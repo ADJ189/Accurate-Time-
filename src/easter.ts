@@ -69,6 +69,16 @@ const KEYWORD_ACTIONS: Record<string, () => void> = {
   'fsociety':    () => { triggerThemeEasterEgg('mrrobot', '💻 fsociety — we are finally free.'); },
   'oppenheimer': () => { triggerThemeEasterEgg('oppenheimer', '☢️ Now I am become Death.'); },
   'thebear':     () => { triggerThemeEasterEgg('thebear', '🍳 Yes, chef!'); },
+  'nightcity':   () => { triggerThemeEasterEgg('cyberpunk', '🌆 Wake the f*** up, Samurai.'); },
+  'samurai':     () => { triggerCyberpunkGlitch(); },
+  'hal':         () => { triggerHALEasterEgg(); },
+  'daisy':       () => { triggerHALSong(); },
+  'dont try':    () => { triggerThemeEasterEgg('tenet', '⏪ Don\'t try to understand it.'); },
+  'tenet':       () => { triggerTenetReverse(); },
+  'dracarys':    () => { triggerThemeEasterEgg('dragonfire', '🐉 Dracarys.'); },
+  'targaryen':   () => { triggerThemeEasterEgg('dragonfire', '🐉 Fire and Blood.'); },
+  'khonshu':     () => { triggerThemeEasterEgg('moonknight', '🌙 The Moon\'s light reveals hidden truth.'); },
+  'moonknight':  () => { triggerThemeEasterEgg('moonknight', '🌙 I am the Fist of Khonshu.'); },
 };
 
 function setupKeywordDetector() {
@@ -91,6 +101,66 @@ function triggerThemeEasterEgg(themeId: string, msg: string) {
   _applyThemeById(themeId);
   _showToast(msg, 4000);
   flashScreen();
+}
+
+// ── Cyberpunk: full-screen RGB glitch ────────────────────────────────
+function triggerCyberpunkGlitch() {
+  _applyThemeById('cyberpunk');
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;pointer-events:none;';
+  document.body.appendChild(overlay);
+  let frame = 0;
+  const interval = setInterval(() => {
+    const lines = 8 + Math.floor(Math.random() * 12);
+    overlay.innerHTML = Array.from({length: lines}, () => {
+      const y = Math.random() * 100;
+      const h = Math.random() * 3 + 1;
+      const shift = (Math.random() - 0.5) * 30;
+      const col = Math.random() > 0.5 ? '#ff0090' : '#00eeff';
+      return `<div style="position:absolute;top:${y}%;left:${shift}px;right:${-shift}px;height:${h}px;background:${col};opacity:${0.15 + Math.random() * 0.2}"></div>`;
+    }).join('');
+    if (++frame > 18) { clearInterval(interval); overlay.remove(); }
+  }, 60);
+  _showToast('🌆 Wake the f*** up, Samurai.', 4000);
+}
+
+// ── HAL 9000: "I'm sorry Dave" overlay ──────────────────────────────
+function triggerHALEasterEgg() {
+  _applyThemeById('hal9000');
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.9);
+    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px;
+    animation:halFadeIn .8s ease forwards;cursor:pointer;
+  `;
+  const msg = document.createElement('div');
+  msg.style.cssText = `color:#cc0000;font-family:'Orbitron',monospace;font-size:clamp(1rem,3vw,2rem);font-weight:900;text-align:center;letter-spacing:.1em;text-shadow:0 0 30px #cc0000;`;
+  msg.textContent = "I'm sorry, Dave.";
+  const sub = document.createElement('div');
+  sub.style.cssText = `color:#cc000088;font-family:'Orbitron',monospace;font-size:clamp(.6rem,1.5vw,1rem);letter-spacing:.15em;`;
+  sub.textContent = "I'M AFRAID I CAN'T DO THAT.";
+  overlay.append(msg, sub);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', () => overlay.remove());
+  setTimeout(() => overlay.remove(), 5000);
+  _showToast('🔴 HAL 9000 activated. Click to dismiss.', 5500);
+}
+
+// ── HAL: sing Daisy ──────────────────────────────────────────────────
+function triggerHALSong() {
+  _applyThemeById('hal9000');
+  const lines = ['Daisy…', 'Daisy…', 'Give me your answer do…', 'I\'m half crazy…', 'All for the love of you…'];
+  let i = 0;
+  const show = () => { if (i < lines.length) { _showToast(`🔴 ${lines[i++]}`, 1800); setTimeout(show, 2000); } };
+  show();
+}
+
+// ── Tenet: reverse the clock display briefly ─────────────────────────
+function triggerTenetReverse() {
+  _applyThemeById('tenet');
+  document.body.classList.add('tenet-reverse');
+  _showToast('⏪ What\'s happened, happened.', 4000);
+  setTimeout(() => document.body.classList.remove('tenet-reverse'), 5000);
 }
 
 function flashScreen() {

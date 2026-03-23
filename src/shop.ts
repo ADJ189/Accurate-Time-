@@ -69,7 +69,37 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id:'gf_cannoli',  themeId:'godfather', name:'The Cannoli',             desc:'Leave the gun. Take the cannoli.',         cost:20,  icon:'🧁', type:'cosmetic' },
   { id:'gf_offer',    themeId:'godfather', name:'The Offer',               desc:'One he can\'t refuse',                     cost:80,  icon:'🤝', type:'cosmetic' },
 
-  // ── F1 Teams ──
+  // ── Cyberpunk 2077 ──
+  { id:'cp_shard',    themeId:'cyberpunk', name:'Neural Shard',           desc:'Slot it and find out',                      cost:40,  icon:'💾', type:'cosmetic' },
+  { id:'cp_jacket',   themeId:'cyberpunk', name:'Samurai Jacket',         desc:'Wake the f*** up',                          cost:70,  icon:'🧥', type:'cosmetic' },
+  { id:'cp_katana',   themeId:'cyberpunk', name:'Mantis Blade',           desc:'Hidden in the forearm',                     cost:60,  icon:'⚔️',type:'cosmetic' },
+  { id:'cp_ripperdoc',themeId:'cyberpunk', name:'Ripperdoc Token',        desc:'One free cyberware upgrade',                cost:85,  icon:'🔧', type:'badge'    },
+  { id:'cp_corpo',    themeId:'cyberpunk', name:'Arasaka Badge',          desc:'The corp never dies',                       cost:30,  icon:'🏢', type:'cosmetic' },
+
+  // ── 2001: A Space Odyssey ──
+  { id:'hal_eye',     themeId:'hal9000',   name:'HAL 9000 Lens',          desc:'"I\'m sorry, Dave."',                       cost:80,  icon:'🔴', type:'badge'    },
+  { id:'hal_bone',    themeId:'hal9000',   name:'Bone Tool',              desc:'The first weapon. Also the last.',          cost:25,  icon:'🦴', type:'cosmetic' },
+  { id:'hal_mono',    themeId:'hal9000',   name:'Monolith Slab',          desc:'Touch it. You know you want to.',           cost:60,  icon:'⬛', type:'cosmetic' },
+  { id:'hal_pod',     themeId:'hal9000',   name:'Discovery Pod',          desc:'EVA pod. Don\'t open the bay doors.',       cost:50,  icon:'🛸', type:'cosmetic' },
+
+  // ── Tenet ──
+  { id:'tn_invert',   themeId:'tenet',     name:'Inversion Device',       desc:'"Don\'t try to understand it."',            cost:75,  icon:'⏪', type:'cosmetic' },
+  { id:'tn_glove',    themeId:'tenet',     name:'Temporal Glove',         desc:'Catches inverted bullets',                  cost:50,  icon:'🧤', type:'cosmetic' },
+  { id:'tn_mask',     themeId:'tenet',     name:'Tenet Mask',             desc:'Ignorance is our ammunition',               cost:40,  icon:'🎭', type:'cosmetic' },
+  { id:'tn_alg',      themeId:'tenet',     name:'Algorithm Piece',        desc:'One of nine. Keep it safe.',                cost:90,  icon:'🧩', type:'badge'    },
+
+  // ── House of the Dragon ──
+  { id:'hd_egg',      themeId:'dragonfire',name:'Dragon Egg',             desc:'Keep it warm. Always warm.',                cost:65,  icon:'🥚', type:'cosmetic' },
+  { id:'hd_crown',    themeId:'dragonfire',name:'Iron Crown',             desc:'Heavy is the head',                         cost:90,  icon:'👑', type:'badge'    },
+  { id:'hd_sword',    themeId:'dragonfire',name:'Dark Sister',            desc:'Rhaenyra\'s blade',                         cost:70,  icon:'⚔️',type:'cosmetic' },
+  { id:'hd_scroll',   themeId:'dragonfire',name:'Valyrian Scroll',        desc:'The succession dispute, written in blood',  cost:35,  icon:'📜', type:'cosmetic' },
+  { id:'hd_scale',    themeId:'dragonfire',name:'Dragon Scale',           desc:'From Caraxes himself',                      cost:45,  icon:'🔶', type:'cosmetic' },
+
+  // ── Moon Knight ──
+  { id:'mk_scarab',   themeId:'moonknight',name:'Golden Scarab',          desc:'Khonshu\'s most sacred relic',              cost:80,  icon:'🪲', type:'badge'    },
+  { id:'mk_cape',     themeId:'moonknight',name:'Moon Knight Cape',       desc:'Made of moonbeams, Marc',                   cost:55,  icon:'🌙', type:'cosmetic' },
+  { id:'mk_ankh',     themeId:'moonknight',name:'Ankh Amulet',            desc:'Ancient Egyptian symbol of life',           cost:40,  icon:'☥', type:'cosmetic' },
+  { id:'mk_crescent', themeId:'moonknight',name:'Crescent Dart',          desc:'Thrown true by the Fist of Khonshu',        cost:35,  icon:'🌛', type:'cosmetic' },
   { id:'f1rb_trophy', themeId:'redbull',     name:'WCC Trophy',            desc:'World Constructors Champions',             cost:100, icon:'🏆', type:'badge'    },
   { id:'f1rb_helmet', themeId:'redbull',     name:'Max\'s Helmet',         desc:'Blue and red RB design',                  cost:60,  icon:'🪖', type:'cosmetic' },
   { id:'f1fe_horse',  themeId:'ferrari',     name:'Prancing Horse Pin',    desc:'Il Cavallino Rampante',                   cost:60,  icon:'🐎', type:'badge'    },

@@ -215,6 +215,11 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   thebear(dt,t)     { drawTheBear(dt, t); },
   '8bit'(dt,t)      { draw8Bit(dt, t); },
   phoenix(dt,t)     { drawPhoenix(dt, t); },
+  cyberpunk(dt,t)   { drawCyberpunk(dt, t); },
+  hal9000(dt,t)     { drawHAL9000(dt, t); },
+  tenet(dt,t)       { drawTenet(dt, t); },
+  dragonfire(dt,t)  { drawDragonFire(dt, t); },
+  moonknight(dt,t)  { drawMoonKnight(dt, t); },
 };
 
 // ── Background animations ─────────────────────────────────────────────
@@ -1110,6 +1115,389 @@ function drawInterstellar(dt: number, t: Theme) {
   c.fillStyle = cg; c.fillRect(0, 0, W, H);
 }
 
+// ── CYBERPUNK 2077 ─────────────────────────────────────────────────────
+// Rain streaks + neon city skyline silhouette + HUD grid
+interface CyberRainDrop { x: number; y: number; len: number; speed: number; alpha: number; col: string; }
+const cyberRain: CyberRainDrop[] = [];
+const CYBER_COLS = ['#ff0090','#00eeff','#ff0090','#ffffff','#00eeff'];
+let cyberRainInit = false;
+
+function initCyberRain() {
+  if (cyberRainInit) return; cyberRainInit = true;
+  for (let i = 0; i < 120; i++) {
+    cyberRain.push({
+      x: rnd(W), y: rnd(H), len: 40 + rnd(120), speed: 4 + rnd(12),
+      alpha: 0.15 + rnd(0.45),
+      col: CYBER_COLS[Math.floor(rnd(CYBER_COLS.length))]!,
+    });
+  }
+}
+
+function drawCyberpunk(dt: number, t: Theme) {
+  if (W === 0) return;
+  if (!cyberRainInit || cyberRain[0]?.y === undefined) { cyberRainInit = false; initCyberRain(); }
+
+  // Rain
+  if (shouldRenderFull()) {
+    cyberRain.forEach(d => {
+      d.y += d.speed;
+      if (d.y - d.len > H) { d.y = -d.len; d.x = rnd(W); }
+      const g = c.createLinearGradient(d.x, d.y - d.len, d.x, d.y);
+      g.addColorStop(0, 'transparent');
+      g.addColorStop(1, d.col + Math.round(d.alpha * 255).toString(16).padStart(2,'0'));
+      c.strokeStyle = g; c.lineWidth = 1.2;
+      c.beginPath(); c.moveTo(d.x, d.y - d.len); c.lineTo(d.x, d.y); c.stroke();
+    });
+  }
+
+  // City skyline silhouette
+  const skyH = H * 0.72;
+  c.fillStyle = 'rgba(0,0,0,.85)';
+  c.beginPath(); c.moveTo(0, H);
+  const bldW = W / 18;
+  for (let i = 0; i <= 18; i++) {
+    const bx = i * bldW;
+    const bh = skyH - (H * 0.1 + Math.sin(i * 1.7 + 2) * H * 0.08 + Math.cos(i * 3.1) * H * 0.06);
+    if (i === 0) { c.lineTo(bx, bh); } else {
+      c.lineTo(bx - bldW * 0.05, bh);
+      c.lineTo(bx - bldW * 0.05, bh - rnd(H * 0.04));
+      c.lineTo(bx + bldW * 0.95, bh - rnd(H * 0.04));
+      c.lineTo(bx + bldW * 0.95, bh);
+    }
+  }
+  c.lineTo(W, H); c.closePath(); c.fill();
+
+  // Neon window lights on buildings
+  if (shouldDrawGlow()) {
+    for (let i = 0; i < 40; i++) {
+      const wx = rnd(W); const wy = skyH + rnd(H - skyH);
+      if (wy < skyH + 5) continue;
+      const wc = CYBER_COLS[Math.floor(rnd(CYBER_COLS.length))]!;
+      c.fillStyle = wc + '88'; c.fillRect(wx, wy, 3 + rnd(6), 2 + rnd(4));
+    }
+
+    // HUD grid overlay — horizontal + vertical faint lines
+    c.strokeStyle = `rgba(0,238,255,${0.04 + Math.sin(tick * 0.4) * 0.01})`;
+    c.lineWidth = 0.5;
+    const gridSz = Math.floor(H / 14);
+    for (let y = 0; y < H; y += gridSz) {
+      c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke();
+    }
+    for (let x = 0; x < W; x += gridSz * 1.6) {
+      c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke();
+    }
+
+    // RGB colour aberration lines at random y positions
+    if (Math.random() < 0.04) {
+      const ay = rnd(H * 0.6);
+      c.fillStyle = 'rgba(255,0,144,.06)'; c.fillRect(2, ay, W, 2);
+      c.fillStyle = 'rgba(0,238,255,.06)'; c.fillRect(-2, ay + 1, W, 2);
+    }
+  }
+}
+
+// ── 2001: A SPACE ODYSSEY ─────────────────────────────────────────────
+// Starfield + HAL 9000 eye + monolith
+interface Star2001 { x: number; y: number; r: number; twinkle: number; }
+const stars2001: Star2001[] = [];
+let stars2001Init = false;
+
+function drawHAL9000(dt: number, t: Theme) {
+  if (!stars2001Init) {
+    stars2001Init = true;
+    for (let i = 0; i < 280; i++) {
+      stars2001.push({ x: rnd(W), y: rnd(H), r: rnd(1.5) + 0.2, twinkle: rnd(Math.PI * 2) });
+    }
+  }
+
+  // Starfield
+  c.fillStyle = '#ffffff';
+  stars2001.forEach(s => {
+    s.twinkle += dt * (0.4 + s.r * 0.3);
+    const a = 0.5 + Math.sin(s.twinkle) * 0.4;
+    c.globalAlpha = a;
+    c.beginPath(); c.arc(s.x, s.y, s.r, 0, Math.PI * 2); c.fill();
+  });
+  c.globalAlpha = 1;
+
+  // HAL 9000 eye — pulsing red circle at centre
+  if (shouldDrawGlow()) {
+    const cx = W * 0.5, cy = H * 0.42;
+    const baseR = Math.min(W, H) * 0.09;
+    const pulse = 0.85 + Math.sin(tick * 1.2) * 0.15;
+
+    // Outer glow rings
+    for (let i = 3; i > 0; i--) {
+      const rg = c.createRadialGradient(cx, cy, 0, cx, cy, baseR * pulse * (1 + i * 0.5));
+      rg.addColorStop(0, `rgba(200,0,0,${0.08 / i})`);
+      rg.addColorStop(1, 'transparent');
+      c.fillStyle = rg; c.fillRect(0, 0, W, H);
+    }
+    // Iris layers
+    const iris = c.createRadialGradient(cx, cy, 0, cx, cy, baseR * pulse);
+    iris.addColorStop(0, '#ff0000');
+    iris.addColorStop(0.3, '#cc0000');
+    iris.addColorStop(0.7, '#880000');
+    iris.addColorStop(1, '#330000');
+    c.fillStyle = iris;
+    c.beginPath(); c.arc(cx, cy, baseR * pulse, 0, Math.PI * 2); c.fill();
+
+    // Lens reflections
+    c.fillStyle = 'rgba(255,180,180,.12)';
+    c.beginPath(); c.arc(cx - baseR * 0.22, cy - baseR * 0.22, baseR * 0.18, 0, Math.PI * 2); c.fill();
+    c.fillStyle = 'rgba(255,180,180,.06)';
+    c.beginPath(); c.arc(cx + baseR * 0.3, cy + baseR * 0.3, baseR * 0.1, 0, Math.PI * 2); c.fill();
+
+    // Monolith silhouette at bottom
+    const mw = Math.min(W * 0.04, 40), mh = mw * 2.35;
+    const mx = W * 0.5 - mw / 2, my = H * 0.74;
+    c.fillStyle = 'rgba(0,0,0,.95)';
+    c.fillRect(mx, my, mw, mh);
+    // Thin gold edge on monolith
+    c.strokeStyle = 'rgba(255,220,100,.1)'; c.lineWidth = 0.5;
+    c.strokeRect(mx, my, mw, mh);
+  }
+}
+
+// ── TENET ─────────────────────────────────────────────────────────────
+// Time-reversed particles + entropy visual + palindrome clock
+interface TenetParticle { x: number; y: number; vx: number; vy: number; alpha: number; r: number; reversed: boolean; }
+const tenetParticles: TenetParticle[] = [];
+let tenetInit = false;
+
+function drawTenet(dt: number, t: Theme) {
+  if (!tenetInit) {
+    tenetInit = true;
+    for (let i = 0; i < 80; i++) {
+      const reversed = i < 40;
+      tenetParticles.push({
+        x: rnd(W), y: rnd(H),
+        vx: (reversed ? -1 : 1) * (0.3 + rnd(1.2)),
+        vy: (Math.random() - 0.5) * 0.8,
+        alpha: 0.3 + rnd(0.5),
+        r: 1 + rnd(2.5),
+        reversed,
+      });
+    }
+  }
+
+  if (!shouldRenderFull()) return;
+
+  tenetParticles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    // Wrap
+    if (p.x < -5) p.x = W + 5;
+    if (p.x > W + 5) p.x = -5;
+    if (p.y < -5) p.y = H + 5;
+    if (p.y > H + 5) p.y = -5;
+    // Forward = blue trail, reversed = orange trail
+    const col = p.reversed ? '#ff8800' : '#8888ff';
+    c.globalAlpha = p.alpha * 0.6;
+    c.fillStyle = col;
+    c.beginPath(); c.arc(p.x, p.y, p.r, 0, Math.PI * 2); c.fill();
+    // Short trail
+    c.globalAlpha = p.alpha * 0.2;
+    c.strokeStyle = col; c.lineWidth = p.r * 0.8;
+    c.beginPath();
+    c.moveTo(p.x - p.vx * 8, p.y - p.vy * 8);
+    c.lineTo(p.x, p.y);
+    c.stroke();
+  });
+  c.globalAlpha = 1;
+
+  // Dividing entropy line — blurred horizontal centre line
+  if (shouldDrawGlow()) {
+    const ey = H * 0.5 + Math.sin(tick * 0.15) * H * 0.06;
+    const lg = c.createLinearGradient(0, ey - 1, 0, ey + 1);
+    lg.addColorStop(0, 'rgba(140,140,255,.0)');
+    lg.addColorStop(0.5, `rgba(140,140,255,${0.15 + Math.sin(tick * 0.4) * 0.05})`);
+    lg.addColorStop(1, 'rgba(140,140,255,.0)');
+    c.fillStyle = lg; c.fillRect(0, ey - 20, W, 40);
+
+    // TENET palindrome watermark
+    c.font = `bold clamp(8px,1.2vw,14px) 'Josefin Sans',sans-serif`;
+    c.fillStyle = `rgba(200,200,255,${0.04 + Math.sin(tick * 0.3) * 0.02})`;
+    c.textAlign = 'center';
+    c.fillText('TENET', W / 2, H * 0.5 + 5);
+    c.textAlign = 'left';
+  }
+}
+
+// ── HOUSE OF THE DRAGON / GOT ─────────────────────────────────────────
+// Dragon fire particles + Targaryen sigil embers + smoke
+interface DragonFlame { x: number; y: number; vx: number; vy: number; size: number; alpha: number; col: string; }
+const dragonFlames: DragonFlame[] = [];
+const dragonSmoke: DragonFlame[] = [];
+let dragonTimer = 0;
+
+const FLAME_COLS = ['#ff2200','#ff6600','#ff9900','#ffcc00','#ff4400'];
+
+function drawDragonFire(dt: number, t: Theme) {
+  dragonTimer += dt;
+
+  // Spawn flames from upper area (dragon breathing from above)
+  if (dragonTimer > 0.025) {
+    dragonTimer = 0;
+    const spread = W * 0.55;
+    for (let i = 0; i < 4; i++) {
+      const fx = W * 0.225 + rnd(spread);
+      dragonFlames.push({
+        x: fx, y: H * 0.05 + rnd(H * 0.08),
+        vx: (Math.random() - 0.5) * 2.5,
+        vy: 1.2 + rnd(3.5),
+        size: 3 + rnd(10), alpha: 0.6 + rnd(0.4),
+        col: FLAME_COLS[Math.floor(rnd(FLAME_COLS.length))]!,
+      });
+    }
+    // Smoke from dying flames
+    if (dragonSmoke.length < 60) {
+      dragonSmoke.push({
+        x: W * 0.3 + rnd(W * 0.4), y: H * 0.4 + rnd(H * 0.15),
+        vx: (Math.random() - 0.5) * 0.8, vy: -(0.4 + rnd(0.8)),
+        size: 8 + rnd(25), alpha: 0.08 + rnd(0.08),
+        col: '#888888',
+      });
+    }
+  }
+
+  // Draw smoke first (behind flames)
+  for (let i = dragonSmoke.length - 1; i >= 0; i--) {
+    const s = dragonSmoke[i]!;
+    s.x += s.vx; s.y += s.vy; s.size += 0.4; s.alpha -= 0.001;
+    if (s.alpha <= 0) { dragonSmoke.splice(i, 1); continue; }
+    c.beginPath(); c.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    c.fillStyle = `rgba(80,80,80,${s.alpha})`; c.fill();
+  }
+
+  // Draw flames
+  for (let i = dragonFlames.length - 1; i >= 0; i--) {
+    const f = dragonFlames[i]!;
+    f.x += f.vx; f.y += f.vy;
+    f.vy += 0.06; // gravity pull
+    f.size *= 0.97; f.alpha -= 0.018;
+    if (f.alpha <= 0 || f.size < 0.5 || f.y > H * 0.88) { dragonFlames.splice(i, 1); continue; }
+    const hex = Math.round(f.alpha * 255).toString(16).padStart(2, '0');
+    c.beginPath(); c.arc(f.x, f.y, f.size, 0, Math.PI * 2);
+    c.fillStyle = f.col + hex; c.fill();
+  }
+  if (dragonFlames.length > 350) dragonFlames.splice(0, dragonFlames.length - 350);
+
+  // Targaryen three-headed dragon silhouette — drawn in embers glow
+  if (shouldDrawGlow()) {
+    const cx = W * 0.5, cy = H * 0.72;
+    const scale = Math.min(W, H) * 0.12;
+    const pulse = 0.4 + Math.sin(tick * 0.5) * 0.08;
+    c.fillStyle = `rgba(255,100,0,${pulse * 0.12})`;
+    // Simple dragon head silhouette: three arcs suggesting three heads
+    [-0.38, 0, 0.38].forEach((offset, i) => {
+      const hx = cx + offset * scale * 1.8;
+      const hy = cy - scale * (i === 1 ? 0.5 : 0.2);
+      c.beginPath(); c.arc(hx, hy, scale * 0.3, 0, Math.PI * 2); c.fill();
+      // Neck
+      c.beginPath();
+      c.moveTo(cx, cy);
+      c.quadraticCurveTo(cx + offset * scale, cy - scale * 0.3, hx, hy + scale * 0.2);
+      c.lineWidth = scale * 0.08; c.strokeStyle = `rgba(255,80,0,${pulse * 0.15})`; c.stroke();
+    });
+  }
+}
+
+// ── MOON KNIGHT ──────────────────────────────────────────────────────
+// Crescent moon + Egyptian scrolling hieroglyphs + silver sand particles
+interface MoonParticle { x: number; y: number; vx: number; vy: number; alpha: number; r: number; }
+const moonDust: MoonParticle[] = [];
+let moonDustInit = false;
+let moonPhase = 0;
+
+// Simple hieroglyph-like chars (using Unicode Egyptian block approximations)
+const HIERO = ['𓀀','𓀁','𓂀','𓂋','𓃭','𓄿','𓅓','𓇋','𓈖','𓉐','𓊹','𓋹','𓌳','𓍝','𓎛','𓏏','𓐍'];
+interface HieroChar { x: number; y: number; vy: number; char: string; alpha: number; }
+const hieroChars: HieroChar[] = [];
+let hieroTimer = 0;
+
+function drawMoonKnight(dt: number, t: Theme) {
+  if (!moonDustInit) {
+    moonDustInit = true;
+    for (let i = 0; i < 100; i++) {
+      moonDust.push({
+        x: rnd(W), y: rnd(H),
+        vx: (Math.random() - 0.5) * 0.5, vy: -(0.2 + rnd(0.6)),
+        alpha: 0.15 + rnd(0.4), r: 0.5 + rnd(1.5),
+      });
+    }
+  }
+
+  moonPhase += dt * 0.02;
+
+  // Silver sand/dust particles rising
+  if (shouldRenderFull()) {
+    moonDust.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.y < -5) { p.y = H + 5; p.x = rnd(W); }
+      c.globalAlpha = p.alpha;
+      c.fillStyle = '#c8d8ff';
+      c.beginPath(); c.arc(p.x, p.y, p.r, 0, Math.PI * 2); c.fill();
+    });
+    c.globalAlpha = 1;
+  }
+
+  // Hieroglyphs scrolling up on left side
+  hieroTimer += dt;
+  if (hieroTimer > 0.3 && hieroChars.length < 24) {
+    hieroTimer = 0;
+    hieroChars.push({
+      x: W * 0.06 + rnd(W * 0.08),
+      y: H + 20,
+      vy: -(0.4 + rnd(0.6)),
+      char: HIERO[Math.floor(rnd(HIERO.length))]!,
+      alpha: 0.18 + rnd(0.18),
+    });
+  }
+  c.font = `clamp(14px,2.2vw,22px) serif`;
+  c.fillStyle = t.accent2; // gold
+  for (let i = hieroChars.length - 1; i >= 0; i--) {
+    const h = hieroChars[i]!;
+    h.y += h.vy; h.alpha -= 0.001;
+    if (h.y < -30 || h.alpha <= 0) { hieroChars.splice(i, 1); continue; }
+    c.globalAlpha = h.alpha;
+    c.fillText(h.char, h.x, h.y);
+  }
+  c.globalAlpha = 1;
+
+  // Crescent moon
+  if (shouldDrawGlow()) {
+    const mx = W * 0.78, my = H * 0.18;
+    const mr = Math.min(W, H) * 0.1;
+    const crescent = 0.35 + Math.abs(Math.sin(moonPhase)) * 0.2; // phase shift
+
+    // Moon glow
+    const mg = c.createRadialGradient(mx, my, 0, mx, my, mr * 2.5);
+    mg.addColorStop(0, 'rgba(200,220,255,.08)');
+    mg.addColorStop(1, 'transparent');
+    c.fillStyle = mg; c.fillRect(0, 0, W, H);
+
+    // Full moon circle
+    c.fillStyle = '#c8d8ff';
+    c.beginPath(); c.arc(mx, my, mr, 0, Math.PI * 2); c.fill();
+
+    // Crescent cutout (shadow)
+    c.fillStyle = t.baseBg[0];
+    c.beginPath(); c.arc(mx + mr * crescent * 0.9, my, mr * 0.88, 0, Math.PI * 2); c.fill();
+
+    // Khonshu ankh symbol below moon (very faint)
+    c.strokeStyle = `rgba(200,216,255,${0.06 + Math.sin(tick * 0.4) * 0.02})`;
+    c.lineWidth = 1.5;
+    const ax = mx, ay = my + mr * 1.8, ah = mr * 0.55;
+    // Vertical line
+    c.beginPath(); c.moveTo(ax, ay - ah * 0.5); c.lineTo(ax, ay + ah); c.stroke();
+    // Horizontal line
+    c.beginPath(); c.moveTo(ax - ah * 0.35, ay - ah * 0.1); c.lineTo(ax + ah * 0.35, ay - ah * 0.1); c.stroke();
+    // Loop top
+    c.beginPath(); c.arc(ax, ay - ah * 0.22, ah * 0.28, 0, Math.PI * 2); c.stroke();
+  }
+}
+
 // ── Transitions ───────────────────────────────────────────────────────
 export function runTransition(type: string, cb: () => void) {
   if (transitioning) { cb(); return; }
@@ -1201,5 +1589,27 @@ const TRANS: Record<string, (cb: () => void) => void> = {
     // Mr Robot glitch transition
     let p=0,called=false;
     const go=()=>{p+=.025;const lines=Math.floor(8+p*12);tc.fillStyle=`rgba(0,0,0,${Math.min(.9,p*1.4)})`;tc.fillRect(0,0,W,H);for(let i=0;i<lines;i++){const y=Math.random()*H,h=1+Math.random()*8,shift=(Math.random()-.5)*40*(1-p);tc.fillStyle=`rgba(0,${Math.floor(200+Math.random()*55)},60,${.08+Math.random()*.12})`;tc.fillRect(shift,y,W,h);}if(!called&&p>=.5){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  slowzoom(cb) {
+    // 2001 — slow creeping black zoom
+    let p=0,called=false;
+    const go=()=>{p+=.012;tc.clearRect(0,0,W,H);tc.save();const s=1+p*0.08;tc.translate(W/2,H/2);tc.scale(s,s);tc.translate(-W/2,-H/2);tc.fillStyle=`rgba(0,0,4,${Math.min(.95,p*1.8)})`;tc.fillRect(0,0,W,H);tc.restore();if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  tenet_invert(cb) {
+    // Blue forward wave meets orange reverse wave
+    let p=0,called=false;
+    const go=()=>{p+=.018;const split=Math.max(0,Math.min(W,p*W*2));tc.fillStyle=`rgba(0,0,8,${Math.min(.92,p*1.6)})`;tc.fillRect(0,0,W,H);if(split>0){const wg=tc.createLinearGradient(split-30,0,split,0);wg.addColorStop(0,'rgba(100,100,255,.18)');wg.addColorStop(1,'transparent');tc.fillStyle=wg;tc.fillRect(split-30,0,30,H);}const rsplit=Math.max(0,W-split);if(rsplit<W){const wg2=tc.createLinearGradient(rsplit,0,rsplit+30,0);wg2.addColorStop(0,'transparent');wg2.addColorStop(1,'rgba(255,136,0,.18)');tc.fillStyle=wg2;tc.fillRect(rsplit,0,30,H);}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  dragonfire(cb) {
+    // Fire particles rain down from top
+    const flameCols=['#ff2200','#ff6600','#ff9900','#ffcc00','#ff4400'];
+    const pts=[...Array(60)].map(()=>({x:rnd(W),y:0,vy:8+rnd(12),size:6+rnd(18),col:flameCols[Math.floor(rnd(flameCols.length))]??'#ff4400'}));
+    let p=0,called=false;
+    const go=()=>{p+=.016;tc.fillStyle=`rgba(0,0,0,${Math.min(.92,p*1.2)})`;tc.fillRect(0,0,W,H);pts.forEach(pt=>{pt.y+=pt.vy;const a=Math.max(0,.8-pt.y/H);if(a>0){tc.beginPath();tc.arc(pt.x,pt.y,pt.size*(1-pt.y/H*.5),0,Math.PI*2);tc.fillStyle=pt.col+(Math.round(a*255).toString(16).padStart(2,'0'));tc.fill();}});if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  moonrise(cb) {
+    // Silver moon rises from bottom
+    let p=0,called=false;
+    const go=()=>{p+=.016;const cy=H*(1.1-p*1.2);const r=Math.min(W,H)*(.06+p*.12);tc.fillStyle=`rgba(2,3,10,${Math.min(.94,p*1.3)})`;tc.fillRect(0,0,W,H);if(p>.05){const mg=tc.createRadialGradient(W/2,cy,0,W/2,cy,r*3);mg.addColorStop(0,`rgba(200,220,255,${Math.min(.18,p*.25)})`);mg.addColorStop(1,'transparent');tc.fillStyle=mg;tc.fillRect(0,0,W,H);tc.fillStyle=`rgba(200,216,255,${Math.min(.9,p*1.4)})`;tc.beginPath();tc.arc(W/2,cy,r,0,Math.PI*2);tc.fill();}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
   },
 };
