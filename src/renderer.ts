@@ -220,6 +220,9 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   tenet(dt,t)       { drawTenet(dt, t); },
   dragonfire(dt,t)  { drawDragonFire(dt, t); },
   moonknight(dt,t)  { drawMoonKnight(dt, t); },
+  onepiece(dt,t)    { drawOnePiece(dt, t); },
+  attackontitan(dt,t){ drawAttackOnTitan(dt, t); },
+  deathnote(dt,t)   { drawDeathNote(dt, t); },
 };
 
 // ── Background animations ─────────────────────────────────────────────
@@ -1498,6 +1501,202 @@ function drawMoonKnight(dt: number, t: Theme) {
   }
 }
 
+// ── ONE PIECE — ocean + Thousand Sunny + Jolly Roger ──────────────────
+interface OPWave { period: number; phase: number; amp: number; freq: number; col: string; }
+const opWaves: OPWave[] = [
+  { period: 6.3, phase: 0,    amp: 0.04, freq: 0.022, col: '#003d8f' },
+  { period: 4.1, phase: 1.2,  amp: 0.03, freq: 0.035, col: '#00539f' },
+  { period: 8.7, phase: 2.8,  amp: 0.05, freq: 0.016, col: '#0066bb' },
+];
+
+// Seagull particles
+interface Seagull { x: number; y: number; vx: number; vy: number; phase: number; size: number; }
+const seagulls: Seagull[] = [];
+let opInit = false;
+
+function drawOnePiece(dt: number, t: Theme) {
+  if (!opInit) {
+    opInit = true;
+    for (let i = 0; i < 12; i++) {
+      seagulls.push({
+        x: rnd(W), y: H * 0.05 + rnd(H * 0.35),
+        vx: 0.4 + rnd(0.8), vy: 0,
+        phase: rnd(Math.PI * 2), size: 4 + rnd(6),
+      });
+    }
+  }
+
+  // Ocean waves
+  opWaves.forEach((w, wi) => {
+    c.beginPath();
+    const baseY = H * (0.62 + wi * 0.08);
+    for (let x = 0; x <= W; x += 3) {
+      const y = baseY + Math.sin(x * w.freq + tick / w.period + w.phase) * H * w.amp;
+      x === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+    }
+    c.lineTo(W, H); c.lineTo(0, H); c.closePath();
+    c.fillStyle = w.col + 'cc'; c.fill();
+  });
+
+  // Sun at horizon — large warm circle
+  if (shouldDrawGlow()) {
+    const sx = W * 0.72, sy = H * 0.38;
+    const sunR = Math.min(W, H) * 0.09;
+    const sunG = c.createRadialGradient(sx, sy, 0, sx, sy, sunR * 2.5);
+    sunG.addColorStop(0, 'rgba(255,220,80,.55)');
+    sunG.addColorStop(0.4, 'rgba(255,180,30,.2)');
+    sunG.addColorStop(1, 'transparent');
+    c.fillStyle = sunG; c.fillRect(0, 0, W, H);
+
+    c.fillStyle = '#ffe040';
+    c.beginPath(); c.arc(sx, sy, sunR, 0, Math.PI * 2); c.fill();
+  }
+
+  // Seagulls soaring
+  if (shouldRenderFull()) {
+    seagulls.forEach(s => {
+      s.x += s.vx;
+      s.phase += dt * 2.5;
+      s.vy = Math.sin(s.phase) * 0.4;
+      s.y += s.vy;
+      if (s.x > W + 20) s.x = -20;
+      // Simple M-shape wing
+      const wb = s.size;
+      c.strokeStyle = 'rgba(255,248,230,.55)'; c.lineWidth = 1.2;
+      c.beginPath();
+      c.moveTo(s.x - wb, s.y + Math.sin(s.phase) * wb * 0.4);
+      c.quadraticCurveTo(s.x - wb * 0.4, s.y - wb * 0.5, s.x, s.y);
+      c.quadraticCurveTo(s.x + wb * 0.4, s.y - wb * 0.5, s.x + wb, s.y + Math.sin(s.phase) * wb * 0.4);
+      c.stroke();
+    });
+  }
+
+  // Jolly Roger (Straw Hat crew skull) — faint watermark at lower centre
+  if (shouldDrawGlow()) {
+    const jx = W * 0.5, jy = H * 0.58;
+    const jr = Math.min(W, H) * 0.055;
+    c.globalAlpha = 0.07 + Math.sin(tick * 0.3) * 0.02;
+    c.fillStyle = '#ffcc00';
+    // Skull circle
+    c.beginPath(); c.arc(jx, jy, jr, 0, Math.PI * 2); c.fill();
+    // Crossbones suggestion — two diagonal lines
+    c.strokeStyle = t.baseBg[0]; c.lineWidth = jr * 0.35;
+    c.beginPath(); c.moveTo(jx - jr * 1.4, jy + jr * 0.8); c.lineTo(jx + jr * 1.4, jy - jr * 0.8); c.stroke();
+    c.beginPath(); c.moveTo(jx + jr * 1.4, jy + jr * 0.8); c.lineTo(jx - jr * 1.4, jy - jr * 0.8); c.stroke();
+    c.globalAlpha = 1;
+  }
+}
+
+// ── ATTACK ON TITAN — Survey Corps wings + titan silhouette ───────────
+interface AOTDust { x: number; y: number; vx: number; vy: number; alpha: number; r: number; }
+const aotDust: AOTDust[] = [];
+let aotInit = false;
+
+function drawAttackOnTitan(dt: number, t: Theme) {
+  if (!aotInit) {
+    aotInit = true;
+    for (let i = 0; i < 60; i++) {
+      aotDust.push({ x: rnd(W), y: H * 0.3 + rnd(H * 0.6), vx: 1 + rnd(3), vy: -(rnd(1)), alpha: 0.2 + rnd(0.4), r: 1 + rnd(3) });
+    }
+  }
+
+  // Dust particles blowing right (battlefield atmosphere)
+  if (shouldRenderFull()) {
+    aotDust.forEach(d => {
+      d.x += d.vx; d.y += d.vy;
+      if (d.x > W + 5) { d.x = -5; d.y = H * 0.3 + rnd(H * 0.6); }
+      c.globalAlpha = d.alpha * 0.5;
+      c.fillStyle = '#c8a870';
+      c.beginPath(); c.arc(d.x, d.y, d.r, 0, Math.PI * 2); c.fill();
+    });
+    c.globalAlpha = 1;
+  }
+
+  if (shouldDrawGlow()) {
+    // Titan silhouette — abstract giant humanoid shadow at bottom
+    const tx = W * 0.78, ty = H;
+    const ts = Math.min(W, H) * 0.22;
+    c.fillStyle = 'rgba(0,0,0,.65)';
+    // Body
+    c.beginPath(); c.ellipse(tx, ty - ts * 0.5, ts * 0.25, ts * 0.6, 0, 0, Math.PI * 2); c.fill();
+    // Head
+    c.beginPath(); c.arc(tx, ty - ts * 1.15, ts * 0.18, 0, Math.PI * 2); c.fill();
+    // Arms
+    c.lineWidth = ts * 0.12; c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(tx - ts * 0.25, ty - ts * 0.7); c.lineTo(tx - ts * 0.7, ty - ts * 0.3); c.stroke();
+    c.beginPath(); c.moveTo(tx + ts * 0.25, ty - ts * 0.7); c.lineTo(tx + ts * 0.65, ty - ts * 0.2); c.stroke();
+
+    // Wings of Freedom emblem (simplified) — faint at lower-left
+    const wx = W * 0.15, wy = H * 0.68;
+    const wr = Math.min(W, H) * 0.06;
+    c.globalAlpha = 0.06 + Math.sin(tick * 0.4) * 0.02;
+    c.strokeStyle = '#c8a000'; c.lineWidth = wr * 0.12;
+    // Two wing arcs
+    c.beginPath(); c.arc(wx - wr * 0.3, wy, wr, -Math.PI * 0.9, -Math.PI * 0.1); c.stroke();
+    c.beginPath(); c.arc(wx + wr * 0.3, wy, wr, -Math.PI * 0.9, -Math.PI * 0.1, true); c.stroke();
+    c.globalAlpha = 1;
+  }
+}
+
+// ── DEATH NOTE — falling letters + shinigami shadow ────────────────────
+interface DNLetter { x: number; y: number; vy: number; char: string; alpha: number; col: string; }
+const dnLetters: DNLetter[] = [];
+let dnTimer = 0;
+const DN_CHARS = 'LIGHT YAGAMI L KIRA JUSTICE DEATH NOTE 死 神 夜神月'.split(' ');
+
+function drawDeathNote(dt: number, t: Theme) {
+  dnTimer += dt;
+  if (dnTimer > 0.18 && dnLetters.length < 35) {
+    dnTimer = 0;
+    const word = DN_CHARS[Math.floor(rnd(DN_CHARS.length))]!;
+    dnLetters.push({
+      x: rnd(W * 0.85) + W * 0.05,
+      y: -20,
+      vy: 0.5 + rnd(1.2),
+      char: word,
+      alpha: 0.12 + rnd(0.15),
+      col: Math.random() > 0.6 ? '#cc00cc' : '#880088',
+    });
+  }
+
+  // Draw falling words
+  c.font = `italic bold clamp(9px,1.4vw,14px) 'Playfair Display',serif`;
+  for (let i = dnLetters.length - 1; i >= 0; i--) {
+    const d = dnLetters[i]!;
+    d.y += d.vy;
+    d.alpha -= 0.0008;
+    if (d.y > H + 20 || d.alpha <= 0) { dnLetters.splice(i, 1); continue; }
+    c.globalAlpha = d.alpha;
+    c.fillStyle = d.col;
+    c.fillText(d.char, d.x, d.y);
+  }
+  c.globalAlpha = 1;
+
+  // Shinigami shadow — abstract winged silhouette top-right
+  if (shouldDrawGlow()) {
+    const sx = W * 0.78, sy = H * 0.22;
+    const sr = Math.min(W, H) * 0.12;
+    const pulse = 0.05 + Math.sin(tick * 0.5) * 0.02;
+    c.globalAlpha = pulse;
+    c.fillStyle = '#330033';
+    // Body blob
+    c.beginPath(); c.ellipse(sx, sy, sr * 0.35, sr * 0.55, 0, 0, Math.PI * 2); c.fill();
+    // Wings
+    c.beginPath(); c.moveTo(sx, sy - sr * 0.2);
+    c.bezierCurveTo(sx - sr * 1.2, sy - sr * 0.8, sx - sr * 1.5, sy + sr * 0.3, sx - sr * 0.8, sy + sr * 0.2);
+    c.bezierCurveTo(sx - sr * 0.5, sy + sr * 0.15, sx - sr * 0.2, sy + sr * 0.05, sx, sy); c.fill();
+    c.beginPath(); c.moveTo(sx, sy - sr * 0.2);
+    c.bezierCurveTo(sx + sr * 1.2, sy - sr * 0.8, sx + sr * 1.5, sy + sr * 0.3, sx + sr * 0.8, sy + sr * 0.2);
+    c.bezierCurveTo(sx + sr * 0.5, sy + sr * 0.15, sx + sr * 0.2, sy + sr * 0.05, sx, sy); c.fill();
+    // Glowing eyes
+    c.globalAlpha = 0.7;
+    c.fillStyle = '#ff0000';
+    c.beginPath(); c.arc(sx - sr * 0.12, sy - sr * 0.08, sr * 0.04, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(sx + sr * 0.12, sy - sr * 0.08, sr * 0.04, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+  }
+}
+
 // ── Transitions ───────────────────────────────────────────────────────
 export function runTransition(type: string, cb: () => void) {
   if (transitioning) { cb(); return; }
@@ -1611,5 +1810,20 @@ const TRANS: Record<string, (cb: () => void) => void> = {
     // Silver moon rises from bottom
     let p=0,called=false;
     const go=()=>{p+=.016;const cy=H*(1.1-p*1.2);const r=Math.min(W,H)*(.06+p*.12);tc.fillStyle=`rgba(2,3,10,${Math.min(.94,p*1.3)})`;tc.fillRect(0,0,W,H);if(p>.05){const mg=tc.createRadialGradient(W/2,cy,0,W/2,cy,r*3);mg.addColorStop(0,`rgba(200,220,255,${Math.min(.18,p*.25)})`);mg.addColorStop(1,'transparent');tc.fillStyle=mg;tc.fillRect(0,0,W,H);tc.fillStyle=`rgba(200,216,255,${Math.min(.9,p*1.4)})`;tc.beginPath();tc.arc(W/2,cy,r,0,Math.PI*2);tc.fill();}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  onepiece_sail(cb) {
+    // Sun rises over ocean horizon
+    let p=0,called=false;
+    const go=()=>{p+=.014;const sy=H*(1.0-p*1.3);tc.clearRect(0,0,W,H);tc.fillStyle=`rgba(0,10,24,${Math.min(.92,p*1.2)})`;tc.fillRect(0,0,W,H);if(p>.08){const sg=tc.createRadialGradient(W*.72,sy,0,W*.72,sy,W*.3);sg.addColorStop(0,`rgba(255,220,60,${Math.min(.8,p*1.5)})`);sg.addColorStop(1,'transparent');tc.fillStyle=sg;tc.fillRect(0,0,W,H);tc.fillStyle=`rgba(255,210,30,${Math.min(.9,p*1.4)})`;tc.beginPath();tc.arc(W*.72,sy,W*.06,0,Math.PI*2);tc.fill();}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  aot_charge(cb) {
+    // Horizontal dust charge wipe
+    let p=0,called=false;const particles=[...Array(40)].map(()=>({x:0,y:rnd(H),vx:12+rnd(18),r:2+rnd(6),a:0.3+rnd(0.4)}));
+    const go=()=>{p+=.02;tc.fillStyle=`rgba(6,5,0,${Math.min(.92,p*1.4)})`;tc.fillRect(0,0,W,H);particles.forEach(pt=>{pt.x+=pt.vx;if(pt.x<W){tc.beginPath();tc.arc(pt.x,pt.y,pt.r,0,Math.PI*2);tc.fillStyle=`rgba(200,168,112,${pt.a*(1-p*.5)})`;tc.fill();}});if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  deathnote_write(cb) {
+    // Ink spreads from centre
+    let p=0,called=false;
+    const go=()=>{p+=.016;const r=Math.min(W,H)*(p*0.9);tc.fillStyle=`rgba(4,0,6,${Math.min(.95,p*1.6)})`;tc.fillRect(0,0,W,H);if(r>10){const ig=tc.createRadialGradient(W/2,H/2,0,W/2,H/2,r);ig.addColorStop(0,`rgba(100,0,100,${Math.min(.3,p*.4)})`);ig.addColorStop(1,'transparent');tc.fillStyle=ig;tc.fillRect(0,0,W,H);}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
   },
 };

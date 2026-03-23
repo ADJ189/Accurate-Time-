@@ -63,6 +63,9 @@ const LOGOS: Record<string, string> = {
   tenet:        `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#040408"/><text x="16" y="9" text-anchor="middle" fill="#8888ff" font-size="5" font-family="sans-serif" letter-spacing="2" opacity=".8">TENET</text><text x="16" y="18" text-anchor="middle" fill="#ff8800" font-size="5" font-family="sans-serif" letter-spacing="2" opacity=".5" transform="scale(-1,1) translate(-32,0)">TENET</text></svg>`,
   dragonfire:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0e0200"/><path d="M10 18 Q12 10 16 8 Q20 10 22 18" fill="#e84000" opacity=".6"/><path d="M13 18 Q14 13 16 11 Q18 13 19 18" fill="#ffa020" opacity=".5"/><circle cx="16" cy="6" r="2.5" fill="#e84000" opacity=".4"/><path d="M11 8 Q13 5 16 4 Q19 5 21 8" fill="none" stroke="#ffa020" stroke-width=".8" opacity=".5"/></svg>`,
   moonknight:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#04060e"/><circle cx="21" cy="8" r="5.5" fill="#c8d8ff" opacity=".85"/><circle cx="24" cy="7" r="4.5" fill="#04060e"/><line x1="16" y1="14" x2="16" y2="20" stroke="#c8d8ff" stroke-width="1" opacity=".4"/><line x1="13" y1="16" x2="19" y2="16" stroke="#c8d8ff" stroke-width="1" opacity=".4"/><circle cx="16" cy="14" r="1.5" fill="none" stroke="#c8d8ff" stroke-width=".8" opacity=".4"/></svg>`,
+  onepiece:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000d1a"/><circle cx="16" cy="8" r="4" fill="#ffcc00" opacity=".9"/><path d="M4 16 Q8 12 16 14 Q24 12 28 16 L28 22 L4 22 Z" fill="#003d8f" opacity=".8"/><circle cx="8" cy="6" r="1.5" fill="#ffcc00" opacity=".5"/><circle cx="24" cy="6" r="1.5" fill="#ffcc00" opacity=".5"/></svg>`,
+  attackontitan:`<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0a0800"/><path d="M22 22 L26 8 L28 22" fill="#1a1400" stroke="#c8a000" stroke-width=".8"/><path d="M22 22 L20 14 L24 14 Z" fill="#c8a000" opacity=".6"/><path d="M24 14 L28 14 L26 8 Z" fill="#884400" opacity=".5"/><line x1="4" y1="10" x2="18" y2="10" stroke="#c8a000" stroke-width=".5" opacity=".3" stroke-dasharray="2 2"/></svg>`,
+  deathnote:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#060006"/><rect x="8" y="3" width="16" height="16" rx="2" fill="#0c000c" stroke="#cc00cc" stroke-width=".8"/><text x="16" y="11" text-anchor="middle" font-size="5" fill="#cc00cc" font-family="serif" opacity=".8">死</text><text x="16" y="17" text-anchor="middle" font-size="3.5" fill="#880088" font-family="serif" opacity=".6">神</text></svg>`,
 };
 
 // ── Cached DOM refs ────────────────────────────────────────────────────
@@ -721,6 +724,7 @@ function buildPanel() {
     ['nat',   '🌿', 'Natural'],
     ['tv',    '📺', 'TV Shows'],
     ['movie', '🎬', 'Movies'],
+    ['anime', '⛩', 'Anime'],
     ['f1',    '🏎', 'F1 Teams'],
   ];
   const contents: Record<string, HTMLElement> = {};
@@ -794,8 +798,8 @@ function buildPanel() {
   }
   contents['nat'] = natContent;
 
-  // TV, Movie, F1 tabs
-  (['tv','movie','f1'] as const).forEach(cat => {
+  // TV, Movie, Anime, F1 tabs
+  (['tv','movie','anime','f1'] as const).forEach(cat => {
     const content = document.createElement('div');
     content.className = 'tab-content' + (activePanelTab === cat ? ' active' : '');
     content.dataset.tab = cat;
@@ -2336,7 +2340,7 @@ function init() {
     e.preventDefault(); deferredInstall = e;
     const btn = document.createElement('button');
     btn.id = 'pwaInstallBtn'; btn.className = 'show';
-    btn.innerHTML = '⬇ Install App';
+    btn.textContent = '⬇ Install App';
     btn.addEventListener('click', () => {
       (deferredInstall as any)?.prompt?.();
       btn.remove(); deferredInstall = null;

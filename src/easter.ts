@@ -79,6 +79,14 @@ const KEYWORD_ACTIONS: Record<string, () => void> = {
   'targaryen':   () => { triggerThemeEasterEgg('dragonfire', '🐉 Fire and Blood.'); },
   'khonshu':     () => { triggerThemeEasterEgg('moonknight', '🌙 The Moon\'s light reveals hidden truth.'); },
   'moonknight':  () => { triggerThemeEasterEgg('moonknight', '🌙 I am the Fist of Khonshu.'); },
+  'luffy':       () => { triggerThemeEasterEgg('onepiece', '🏴‍☠️ I\'m going to be King of the Pirates!'); },
+  'onepiece':    () => { triggerOnePieceEgg(); },
+  'gomu gomu':   () => { triggerThemeEasterEgg('onepiece', '🏴‍☠️ Gomu Gomu no… PISTOL!'); },
+  'dedicate':    () => { triggerThemeEasterEgg('attackontitan', '⚔️ DEDICATE YOUR HEART!'); },
+  'eren':        () => { triggerThemeEasterEgg('attackontitan', '⚔️ I\'ll keep moving forward until my enemies are destroyed.'); },
+  'lightyagami': () => { triggerDeathNoteEgg(); },
+  'kira':        () => { triggerThemeEasterEgg('deathnote', '📓 I am justice. I am the god of the new world.'); },
+  'potato chip': () => { triggerThemeEasterEgg('deathnote', '📓 I\'ll take a potato chip… and eat it!'); },
 };
 
 function setupKeywordDetector() {
@@ -111,14 +119,19 @@ function triggerCyberpunkGlitch() {
   document.body.appendChild(overlay);
   let frame = 0;
   const interval = setInterval(() => {
+    // Clear previous lines safely — no innerHTML
+    while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
     const lines = 8 + Math.floor(Math.random() * 12);
-    overlay.innerHTML = Array.from({length: lines}, () => {
+    for (let i = 0; i < lines; i++) {
+      const bar = document.createElement('div');
       const y = Math.random() * 100;
       const h = Math.random() * 3 + 1;
       const shift = (Math.random() - 0.5) * 30;
       const col = Math.random() > 0.5 ? '#ff0090' : '#00eeff';
-      return `<div style="position:absolute;top:${y}%;left:${shift}px;right:${-shift}px;height:${h}px;background:${col};opacity:${0.15 + Math.random() * 0.2}"></div>`;
-    }).join('');
+      const op  = (0.15 + Math.random() * 0.2).toFixed(3);
+      bar.style.cssText = `position:absolute;top:${y.toFixed(2)}%;left:${shift.toFixed(1)}px;right:${(-shift).toFixed(1)}px;height:${h.toFixed(1)}px;background:${col};opacity:${op};pointer-events:none;`;
+      overlay.appendChild(bar);
+    }
     if (++frame > 18) { clearInterval(interval); overlay.remove(); }
   }, 60);
   _showToast('🌆 Wake the f*** up, Samurai.', 4000);
@@ -161,6 +174,32 @@ function triggerTenetReverse() {
   document.body.classList.add('tenet-reverse');
   _showToast('⏪ What\'s happened, happened.', 4000);
   setTimeout(() => document.body.classList.remove('tenet-reverse'), 5000);
+}
+
+// ── One Piece: Luffy scream effect ────────────────────────────────────
+function triggerOnePieceEgg() {
+  _applyThemeById('onepiece');
+  // Flash the screen yellow then back
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;inset:0;background:#ffcc00;z-index:9999;pointer-events:none;animation:eggFlash .6s ease forwards;';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 700);
+  _showToast('🏴‍☠️ "I\'m gonna be King of the Pirates!" — Luffy', 5000);
+}
+
+// ── Death Note: L solves your session ────────────────────────────────
+function triggerDeathNoteEgg() {
+  _applyThemeById('deathnote');
+  const lines = [
+    'L speaking.',
+    'I\'ve been observing your sessions.',
+    `You have completed ${JSON.parse(localStorage.getItem('sc_focus_log')||'[]').length} sessions.`,
+    'Productivity level: Kira-tier.',
+    '...I\'ll take the case.',
+  ];
+  let i = 0;
+  const show = () => { if (i < lines.length) { _showToast(`🍰 ${lines[i++]}`, 2200); setTimeout(show, 2400); } };
+  show();
 }
 
 function flashScreen() {
@@ -248,18 +287,29 @@ function openDevConsole() {
     border:1px solid #00ff4133;backdrop-filter:blur(12px);
     animation:fadeUp .3s ease;min-width:220px;
   `;
-  const rows = [
-    `🎯 Render tier : ${tier.toUpperCase()}`,
-    `📊 FPS         : ${fps}`,
-    `🔊 Audio nodes : ${audioNodes}`,
-    `💾 localStorage: ${(lsSize/1024).toFixed(1)} KB`,
-    `🎨 Themes      : ${(window as any).__scThemeCount?.() ?? '?'}`,
-    `📋 Sessions    : ${JSON.parse(localStorage.getItem('sc_focus_log')||'[]').length}`,
-    `🔥 Streak      : ${JSON.parse(localStorage.getItem('sc_streak')||'{"current":0}').current} days`,
-    ``,
-    `<span style="opacity:.4;font-size:.55rem">click clock again to close</span>`,
+  const rows: [string, string | number][] = [
+    ['🎯 Render tier', tier.toUpperCase()],
+    ['📊 FPS',         fps],
+    ['🔊 Audio nodes', audioNodes],
+    ['💾 localStorage', `${(lsSize/1024).toFixed(1)} KB`],
+    ['🎨 Themes',      (window as any).__scThemeCount?.() ?? '?'],
+    ['📋 Sessions',    JSON.parse(localStorage.getItem('sc_focus_log')||'[]').length],
+    ['🔥 Streak',      `${JSON.parse(localStorage.getItem('sc_streak')||'{"current":0}').current} days`],
   ];
-  panel.innerHTML = rows.join('<br>');
+
+  rows.forEach(([label, value]) => {
+    const line = document.createElement('div');
+    line.style.cssText = 'display:flex;gap:8px;justify-content:space-between;min-width:200px;';
+    const lbl = document.createElement('span'); lbl.style.opacity = '0.55'; lbl.textContent = String(label);
+    const val = document.createElement('span'); val.style.color = '#00ff41'; val.textContent = String(value);
+    line.append(lbl, val);
+    panel.appendChild(line);
+  });
+
+  const hint = document.createElement('div');
+  hint.style.cssText = 'opacity:.35;font-size:.55rem;margin-top:6px;text-align:center;';
+  hint.textContent = 'click clock again to close';
+  panel.appendChild(hint);
   document.body.appendChild(panel);
 }
 

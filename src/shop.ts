@@ -100,6 +100,26 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id:'mk_cape',     themeId:'moonknight',name:'Moon Knight Cape',       desc:'Made of moonbeams, Marc',                   cost:55,  icon:'🌙', type:'cosmetic' },
   { id:'mk_ankh',     themeId:'moonknight',name:'Ankh Amulet',            desc:'Ancient Egyptian symbol of life',           cost:40,  icon:'☥', type:'cosmetic' },
   { id:'mk_crescent', themeId:'moonknight',name:'Crescent Dart',          desc:'Thrown true by the Fist of Khonshu',        cost:35,  icon:'🌛', type:'cosmetic' },
+
+  // ── One Piece ──
+  { id:'op_hat',      themeId:'onepiece',  name:'Straw Hat',              desc:'The treasure of the King of Pirates',        cost:90,  icon:'🎩', type:'badge'    },
+  { id:'op_fruit',    themeId:'onepiece',  name:'Gomu Gomu no Mi',        desc:'Eat it and you\'ll never swim again',         cost:60,  icon:'🍎', type:'cosmetic' },
+  { id:'op_sword',    themeId:'onepiece',  name:'Zoro\'s Katana',         desc:'Santoryu. Three swords, one legend.',         cost:70,  icon:'⚔️',type:'cosmetic' },
+  { id:'op_log',      themeId:'onepiece',  name:'Log Pose',               desc:'Navigating the Grand Line',                  cost:35,  icon:'🧭', type:'cosmetic' },
+  { id:'op_jolly',    themeId:'onepiece',  name:'Jolly Roger',            desc:'The Straw Hat crew sail on',                  cost:45,  icon:'🏴‍☠️',type:'cosmetic'},
+
+  // ── Attack on Titan ──
+  { id:'aot_wings',   themeId:'attackontitan',name:'Wings of Freedom',    desc:'Survey Corps emblem. Dedicate your heart.',  cost:80,  icon:'🦅', type:'badge'    },
+  { id:'aot_gear',    themeId:'attackontitan',name:'ODM Gear',            desc:'Vertical manoeuvring equipment',             cost:65,  icon:'🪝', type:'cosmetic' },
+  { id:'aot_key',     themeId:'attackontitan',name:'Basement Key',        desc:'Eren\'s father left it for a reason',        cost:50,  icon:'🗝', type:'cosmetic' },
+  { id:'aot_scarf',   themeId:'attackontitan',name:'Red Scarf',           desc:'He tied it around her neck',                 cost:30,  icon:'🧣', type:'cosmetic' },
+
+  // ── Death Note ──
+  { id:'dn_note',     themeId:'deathnote', name:'Death Note',             desc:'The human whose name is written in it…',    cost:85,  icon:'📓', type:'badge'    },
+  { id:'dn_apple',    themeId:'deathnote', name:'Ryuk\'s Apple',          desc:'Shinigami love apples',                      cost:20,  icon:'🍎', type:'cosmetic' },
+  { id:'dn_chip',     themeId:'deathnote', name:'Potato Chip',            desc:'"I\'ll take a potato chip… and eat it!"',    cost:10,  icon:'🍟', type:'cosmetic' },
+  { id:'dn_l',        themeId:'deathnote', name:'L\'s Cake',              desc:'I\'ll take the case. But give me cake first.',cost:35, icon:'🍰', type:'cosmetic' },
+
   { id:'f1rb_trophy', themeId:'redbull',     name:'WCC Trophy',            desc:'World Constructors Champions',             cost:100, icon:'🏆', type:'badge'    },
   { id:'f1rb_helmet', themeId:'redbull',     name:'Max\'s Helmet',         desc:'Blue and red RB design',                  cost:60,  icon:'🪖', type:'cosmetic' },
   { id:'f1fe_horse',  themeId:'ferrari',     name:'Prancing Horse Pin',    desc:'Il Cavallino Rampante',                   cost:60,  icon:'🐎', type:'badge'    },
