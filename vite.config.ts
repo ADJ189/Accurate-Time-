@@ -1,8 +1,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: './',
-  plugins: [],
+  publicDir: 'public',
   build: {
     outDir: 'dist',
     target: 'es2022',

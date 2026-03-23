@@ -1324,3 +1324,103 @@ body:has([data-theme="terminal"]) .btn,
   display: flex; align-items: center; justify-content: center;
   height: 40px;
 }
+
+/* ════════════════════════════════════════════════════════════
+   FLOW STATE
+════════════════════════════════════════════════════════════ */
+body.flow-state #mainUI { transition: transform .8s cubic-bezier(.16,1,.3,1); }
+body.flow-state .digit-pair { text-shadow: var(--glow), 0 0 80px var(--clr-accent); }
+body.flow-state .session-card { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.06); }
+
+.flow-badge {
+  position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-8px);
+  z-index: 150; opacity: 0; pointer-events: none;
+  font-size: .58rem; font-weight: 800; letter-spacing: .2em; text-transform: uppercase;
+  padding: 5px 16px; border-radius: 99px;
+  background: var(--clr-btn-bg); color: var(--clr-accent);
+  border: 1px solid var(--clr-accent); opacity: 0;
+  transition: opacity .5s, transform .5s cubic-bezier(.34,1.56,.64,1);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 20px var(--clr-accent)33;
+}
+.flow-badge.visible {
+  opacity: 1; transform: translateX(-50%) translateY(0);
+  animation: flowPulse 3s ease-in-out infinite 1s;
+}
+@keyframes flowPulse {
+  0%,100% { box-shadow: 0 0 20px var(--clr-accent)33; }
+  50%      { box-shadow: 0 0 35px var(--clr-accent)66; }
+}
+
+/* ── Smart break hint ── */
+.sync-pill.break-hint {
+  animation: breakPulse 2s ease-in-out infinite;
+}
+@keyframes breakPulse {
+  0%,100% { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.07); }
+  50%     { background: rgba(245,158,11,.12);  border-color: rgba(245,158,11,.35); }
+}
+
+/* ════════════════════════════════════════════════════════════
+   TOAST NOTIFICATIONS
+════════════════════════════════════════════════════════════ */
+.sc-toast {
+  position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%) translateY(12px);
+  z-index: 9999; opacity: 0; pointer-events: none;
+  font-size: .75rem; font-weight: 600; letter-spacing: .03em;
+  padding: 10px 22px; border-radius: 99px;
+  background: rgba(14,12,30,.92); color: var(--clr-text);
+  border: 1px solid rgba(255,255,255,.14);
+  backdrop-filter: blur(20px); white-space: nowrap;
+  transition: opacity .3s, transform .4s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 4px 24px rgba(0,0,0,.5);
+}
+.sc-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+body.light-theme .sc-toast { background: rgba(240,244,252,.95); color: var(--clr-text); }
+
+/* ════════════════════════════════════════════════════════════
+   PWA INSTALL BUTTON (shown when installable)
+════════════════════════════════════════════════════════════ */
+#pwaInstallBtn {
+  display: none; position: fixed; bottom: 80px; right: 16px; z-index: 150;
+  background: var(--clr-btn-bg); color: var(--clr-btn-fg);
+  border: 1px solid rgba(255,255,255,.18); border-radius: 99px;
+  padding: 8px 18px; font-size: .66rem; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; cursor: pointer; font-family: inherit;
+  backdrop-filter: blur(16px); box-shadow: 0 4px 20px rgba(0,0,0,.4);
+  transition: transform .2s, box-shadow .2s;
+  animation: fadeUp .5s cubic-bezier(.16,1,.3,1);
+}
+#pwaInstallBtn:hover { transform: scale(1.05); box-shadow: 0 6px 28px rgba(0,0,0,.5); }
+#pwaInstallBtn.show { display: flex; align-items: center; gap: 6px; }
+
+/* ════════════════════════════════════════════════════════════
+   WALLPAPER DROP HINT
+════════════════════════════════════════════════════════════ */
+body.drag-over::after {
+  content: 'Drop image to create wallpaper theme';
+  position: fixed; inset: 0; z-index: 9998;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; font-weight: 700; color: var(--clr-text);
+  background: rgba(0,0,0,.75); backdrop-filter: blur(8px);
+  letter-spacing: .04em; pointer-events: none;
+}
+
+/* ════════════════════════════════════════════════════════════
+   SOUND PRESETS UI  (inside sound modal)
+════════════════════════════════════════════════════════════ */
+.sound-presets {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 10px 0 6px;
+  border-top: 1px solid rgba(255,255,255,.07);
+  margin-top: 8px;
+}
+.preset-chip {
+  font-size: .6rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  padding: 5px 12px; border-radius: 99px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05);
+  color: var(--clr-text); font-family: inherit;
+  transition: background .15s, border-color .15s;
+}
+.preset-chip:hover { background: rgba(255,255,255,.12); border-color: var(--clr-accent); }
+.preset-chip.save-btn { border-color: var(--clr-accent); color: var(--clr-accent); }
