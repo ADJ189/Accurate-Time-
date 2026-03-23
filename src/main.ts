@@ -7,9 +7,11 @@ import { initWeather, stopWeather } from './weather';
 import * as Sound from './sound';
 import * as Pom from './pomodoro';
 import * as Log from './focuslog';
-import { resize, buildParticles, drawBg, runTransition, setBreathing } from './renderer';
+import { resize, buildParticles, drawBg, runTransition, setBreathing, setParallax } from './renderer';
 import { drawQR } from './qr';
 import * as Shop from './shop';
+import * as Intel from './intelligence';
+import { generateShareCard } from './share';
 
 // ── Clock mode ────────────────────────────────────────────────────────
 export type ClockMode = 'digital' | 'analogue' | 'flip' | 'word' | 'minimal' | 'segment';
@@ -98,24 +100,40 @@ function startTimer() {
   DOM.btnStart.textContent = 'Pause';
   DOM.focusInputWrap.classList.add('visible');
   if (Pom.isActive()) Pom.onStart();
+  Intel.onSessionStart();
+  Intel.onFlowInterrupt(); // reset flow clock on new start
+  bcBroadcast('session', { running: true });
 }
 
 function pauseTimer() {
   sessionRunning = false;
   sessionElapsed = performance.now() - sessionStart;
   DOM.btnStart.textContent = 'Resume';
+  Intel.onFlowInterrupt();
+  bcBroadcast('session', { running: false });
 }
 
 function resetTimer() {
   const dur = sessionRunning ? performance.now() - sessionStart : sessionElapsed;
   Log.record(DOM.focusInput.value.trim(), dur);
-  if (dur > 60_000) awardTokens(Math.floor(dur / 60000)); // 1 token per 5 min
+  if (dur > 60_000) {
+    awardTokens(Math.floor(dur / 60000));
+    Intel.recordCompleted();
+    const streak = Intel.updateStreak();
+    const milestone = Intel.getStreakMilestone(streak.current);
+    if (milestone) showToast(milestone);
+    Intel.onBreakTaken();
+  } else if (dur > 5_000) {
+    Intel.recordAbandoned();
+  }
+  Intel.onFlowInterrupt();
   sessionRunning = false; sessionStart = sessionElapsed = 0;
   DOM.btnStart.textContent = 'Start';
   DOM.sTmr.textContent = '00:00:00';
   DOM.focusInputWrap.classList.remove('visible');
   DOM.focusInput.value = '';
   if (Pom.isActive()) Pom.reset();
+  bcBroadcast('session', { running: false });
 }
 
 DOM.btnStart.addEventListener('click', () => sessionRunning ? pauseTimer() : startTimer());
@@ -205,6 +223,7 @@ function applyTheme(theme: Theme, instant = false) {
     document.querySelectorAll<HTMLElement>('.nat-btn,.media-card').forEach(b => b.classList.toggle('active', b.dataset.id === theme.id));
     lastQKey = '';
     localStorage.setItem('sc_last_theme', theme.id);
+    bcBroadcast('theme', { id: theme.id });
     // Common Room: auto-start rain + fire
     if (theme.id === 'commonroom') setTimeout(() => Sound.autoStartCommonRoom(), 400);
     // Rebuild clock canvas so font/colours update for current theme
@@ -241,6 +260,10 @@ function tickDigit(el: HTMLElement, val: string) {
 function renderFrame(ts: number) {
   requestAnimationFrame(renderFrame);
   const dt = Math.min((ts - lastTs) / 1000, 0.05); lastTs = ts;
+  // Smooth parallax
+  parallaxX += (targetPX - parallaxX) * 0.06;
+  parallaxY += (targetPY - parallaxY) * 0.06;
+  setParallax(parallaxX, parallaxY);
   drawBg(dt, currentTheme);
   Sound.tickSpatial(ts / 1000);
 
@@ -646,6 +669,7 @@ function buildPanel() {
      ['btnPrivacy',     '🔒 Privacy',   togglePrivacy],
      ['btnFocusLock',   '🔐 Focus Lock',toggleFocusLock],
      ['btnQR',          '📱 Handoff',   openQRHandoff],
+     ['btnShare',       '🖼 Share',      openShareCard],
      ['btnAnimedoro',   '🎬 Animedoro', () => { startAnimedoro(); openModal('pomOverlay'); }],
      ['btnShop',        '🛒 Shop',      openShop],
      ['btnSettings',    '⚙️ Settings',  openSettings],
@@ -936,6 +960,35 @@ function buildSoundUI() {
   Sound.BINAURAL_PRESETS.forEach(p => {
     container.appendChild(makeSoundTrack(p.id, p.icon, p.name, p.desc, Sound.binauralPresetId === p.id, 100, true));
   });
+
+  // ── Sound Presets ─────────────────────────────────────────────────────
+  const presetsSection = document.createElement('div'); presetsSection.className = 'sound-presets';
+
+  const saveChip = document.createElement('button');
+  saveChip.className = 'preset-chip save-btn'; saveChip.textContent = '+ Save Mix';
+  saveChip.addEventListener('click', () => {
+    const name = prompt('Name this preset (e.g. "Late Night"):');
+    if (!name?.trim()) return;
+    saveSoundPreset(name.trim());
+    buildSoundUI(); // rebuilds presets row
+    showToast(`Saved "${name.trim()}" mix`);
+  });
+  presetsSection.appendChild(saveChip);
+
+  getSoundPresets().forEach(p => {
+    const chip = document.createElement('button');
+    chip.className = 'preset-chip'; chip.textContent = p.name;
+    chip.title = 'Click to load, right-click to delete';
+    chip.addEventListener('click',        () => { loadSoundPreset(p); showToast(`Loaded "${p.name}"`); });
+    chip.addEventListener('contextmenu',  e  => {
+      e.preventDefault();
+      const presets = getSoundPresets().filter(pr => pr.name !== p.name);
+      localStorage.setItem('sc_sound_presets', JSON.stringify(presets));
+      buildSoundUI();
+    });
+    presetsSection.appendChild(chip);
+  });
+  container.appendChild(presetsSection);
 }
 
 Sound.setTrackChangeHandler(buildSoundUI);
@@ -1478,13 +1531,12 @@ function updatePanelHeight() {
   document.documentElement.style.setProperty('--panel-h', h + 'px');
 }
 
-// ── Info strip rotator ────────────────────────────────────────────────
-const INFO_ITEMS = [
+// ── Info strip — intelligence-powered ────────────────────────────────
+const BASE_INFO_ITEMS = [
   () => {
     const now = new Date();
     const start = new Date(now.getFullYear(), 0, 0);
-    const diff = now.getTime() - start.getTime();
-    const dayOfYear = Math.floor(diff / 86400000);
+    const dayOfYear = Math.floor((now.getTime() - start.getTime()) / 86400000);
     const weekNum = Math.ceil(dayOfYear / 7);
     return `Week ${weekNum} · Day ${dayOfYear} of ${now.getFullYear()}`;
   },
@@ -1495,19 +1547,15 @@ const INFO_ITEMS = [
     return `${daysLeft} days left in ${now.getFullYear()}`;
   },
   () => {
-    const entries = (() => { try { return JSON.parse(localStorage.getItem('sc_focus_log') || '[]'); } catch { return []; } })();
-    const todayStr = new Date().toDateString();
-    const todayMins = entries.filter((e: {date:string;dur:number}) => e.date === todayStr).reduce((s: number, e: {dur:number}) => s + e.dur, 0) / 60000;
-    if (todayMins < 1) return 'Start your first focus session today';
-    const h = Math.floor(todayMins / 60), m = Math.floor(todayMins % 60);
-    return `${h > 0 ? h + 'h ' : ''}${m}m focused today`;
-  },
-  () => {
     const now = new Date();
     const pct = ((now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400 * 100).toFixed(1);
     return `${pct}% of today complete`;
   },
 ];
+
+function getAllInfoItems(): Array<() => string> {
+  return [...Intel.getIntelligenceInsights(), ...BASE_INFO_ITEMS];
+}
 
 let infoIdx = 0;
 function rotateInfo() {
@@ -1516,8 +1564,9 @@ function rotateInfo() {
   if (!slide || !label) return;
   slide.classList.add('leaving');
   setTimeout(() => {
-    infoIdx = (infoIdx + 1) % INFO_ITEMS.length;
-    label.textContent = INFO_ITEMS[infoIdx]();
+    const items = getAllInfoItems();
+    infoIdx = (infoIdx + 1) % items.length;
+    label.textContent = items[infoIdx]();
     slide.classList.remove('leaving');
     slide.style.animation = 'none';
     void slide.offsetWidth;
@@ -1584,8 +1633,244 @@ function updateClockCanvas() {
 }
 
 function startInfoStrip() {
-  if (DOM.infoLabel) DOM.infoLabel.textContent = INFO_ITEMS[0]();
+  const items0 = getAllInfoItems();
+  if (DOM.infoLabel) DOM.infoLabel.textContent = items0[0]();
   setInterval(rotateInfo, 6000);
+}
+
+// ── Parallax depth ────────────────────────────────────────────────────
+let parallaxX = 0, parallaxY = 0;
+let targetPX = 0, targetPY = 0;
+const PARALLAX_STRENGTH = 18; // max px offset
+
+window.addEventListener('mousemove', e => {
+  targetPX = (e.clientX / window.innerWidth  - 0.5) * PARALLAX_STRENGTH;
+  targetPY = (e.clientY / window.innerHeight - 0.5) * PARALLAX_STRENGTH;
+});
+
+// Gyroscope for mobile
+if (window.DeviceOrientationEvent) {
+  window.addEventListener('deviceorientation', e => {
+    if (e.gamma != null && e.beta != null) {
+      targetPX = Math.max(-PARALLAX_STRENGTH, Math.min(PARALLAX_STRENGTH, e.gamma / 2));
+      targetPY = Math.max(-PARALLAX_STRENGTH, Math.min(PARALLAX_STRENGTH, (e.beta - 45) / 2));
+    }
+  });
+}
+
+// ── Cross-tab BroadcastChannel sync ───────────────────────────────────
+const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('sc_sync') : null;
+
+function bcBroadcast(type: string, payload: Record<string, unknown> = {}) {
+  bc?.postMessage({ type, ...payload });
+}
+
+if (bc) {
+  bc.onmessage = (e) => {
+    const { type } = e.data;
+    if (type === 'theme')   applyTheme(THEME_BY_ID[e.data.id] ?? currentTheme, true);
+    if (type === 'session') {
+      if (e.data.running && !sessionRunning) DOM.btnStart.click();
+      if (!e.data.running && sessionRunning)  DOM.btnStart.click();
+    }
+    if (type === 'pom_phase') {
+      // Mirror phase label across tabs
+      if (DOM.pomPill) DOM.pomPill.textContent = e.data.pill;
+    }
+  };
+}
+
+// ── Flow State UI ─────────────────────────────────────────────────────
+let flowUIActive = false;
+const FLOW_BADGE_ID = 'flowBadge';
+
+function updateFlowState() {
+  const isFlow = Intel.checkFlowState(sessionRunning);
+  if (isFlow === flowUIActive) return;
+  flowUIActive = isFlow;
+
+  if (isFlow) {
+    // Collapse panel, deepen vignette
+    DOM.themePanel.classList.add('collapsed');
+    updateRevealBtn();
+    document.body.classList.add('flow-state');
+    // Show flow badge
+    let badge = document.getElementById(FLOW_BADGE_ID);
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = FLOW_BADGE_ID;
+      badge.className = 'flow-badge';
+      document.body.appendChild(badge);
+    }
+    badge.textContent = '⚡ Flow State';
+    badge.classList.add('visible');
+  } else {
+    document.body.classList.remove('flow-state');
+    const badge = document.getElementById(FLOW_BADGE_ID);
+    if (badge) badge.classList.remove('visible');
+  }
+}
+
+// Intercept theme panel open as flow interrupt
+const _origFocusLockIntercept = focusLockIntercept;
+
+// ── Smart Break Suggester ─────────────────────────────────────────────
+let breakBadgeShown = false;
+
+function checkSmartBreak() {
+  if (!Intel.checkBreakNeeded(sessionRunning)) return;
+  if (breakBadgeShown) return;
+  breakBadgeShown = true;
+
+  const pill = document.querySelector<HTMLElement>('.sync-pill');
+  if (!pill) return;
+  pill.classList.add('break-hint');
+  pill.title = 'You\'ve been focused for 90+ minutes — consider a short break';
+  setTimeout(() => { pill.classList.remove('break-hint'); breakBadgeShown = false; }, 30_000);
+}
+
+// ── Sound Preset Saving ───────────────────────────────────────────────
+interface SoundPreset { name: string; tracks: Record<string, number>; master: number; }
+const PRESETS_KEY = 'sc_sound_presets';
+
+function getSoundPresets(): SoundPreset[] {
+  try { return JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]'); } catch { return []; }
+}
+
+function saveSoundPreset(name: string) {
+  const presets = getSoundPresets();
+  const tracks: Record<string, number> = {};
+  Sound.SOUNDS.forEach(s => { tracks[s.id] = Sound.getTrackVolume(s.id); });
+  const preset: SoundPreset = { name, tracks, master: Sound.getMasterVolume() };
+  // Replace existing with same name, otherwise add
+  const idx = presets.findIndex(p => p.name === name);
+  if (idx >= 0) presets[idx] = preset; else presets.push(preset);
+  if (presets.length > 5) presets.shift();
+  localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+}
+
+function loadSoundPreset(preset: SoundPreset) {
+  Sound.setMasterVolume(preset.master);
+  Sound.SOUNDS.forEach(s => {
+    const vol = preset.tracks[s.id];
+    if (vol !== undefined) Sound.setTrackVolume(s.id, vol);
+  });
+  buildSoundUI();
+}
+
+// ── Custom Wallpaper Theme ────────────────────────────────────────────
+function initWallpaperDrop() {
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        // Sample 16×16 thumbnail for dominant colour
+        const cv = document.createElement('canvas'); cv.width = cv.height = 16;
+        const ctx = cv.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, 16, 16);
+        const px = ctx.getImageData(0, 0, 16, 16).data;
+        let r = 0, g = 0, b = 0, n = 0;
+        for (let i = 0; i < px.length; i += 4) {
+          // Skip very dark or very bright pixels
+          const luma = 0.299 * px[i]! + 0.587 * px[i+1]! + 0.114 * px[i+2]!;
+          if (luma < 20 || luma > 235) continue;
+          r += px[i]!; g += px[i+1]!; b += px[i+2]!; n++;
+        }
+        if (n === 0) return;
+        r = Math.round(r / n); g = Math.round(g / n); b = Math.round(b / n);
+        const accent = `#${[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('')}`;
+
+        // Generate wallpaper-based theme
+        const wallTheme = {
+          ...currentTheme,
+          id: 'wallpaper',
+          name: 'Wallpaper',
+          accent, accent2: lightenHex(accent, 0.3),
+          btnBg: accent + '22', btnFg: '#ffffff',
+          glow: `0 0 55px ${accent}44`,
+          hdr: true,
+          baseBg: [darkenHex2(accent, 0.9), darkenHex2(accent, 0.85), darkenHex2(accent, 0.92)],
+        };
+
+        // Set wallpaper as CSS background
+        document.body.style.backgroundImage = `url('${ev.target?.result as string}')`;
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundPosition = 'center';
+        document.getElementById('overlay')!.style.background = 'rgba(0,0,0,0.55)';
+
+        applyTheme(wallTheme as typeof currentTheme, true);
+        showToast('Wallpaper theme applied! Drop a new image to change.');
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function lightenHex(hex: string, amt: number): string {
+  if (!hex.startsWith('#')) return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, Math.round(((n >> 16) & 0xff) + 255 * amt));
+  const g = Math.min(255, Math.round(((n >> 8)  & 0xff) + 255 * amt));
+  const b = Math.min(255, Math.round(( n        & 0xff) + 255 * amt));
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function darkenHex2(hex: string, amt: number): string {
+  if (!hex.startsWith('#')) return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, Math.round(((n >> 16) & 0xff) * (1 - amt)));
+  const g = Math.max(0, Math.round(((n >> 8)  & 0xff) * (1 - amt)));
+  const b = Math.max(0, Math.round(( n        & 0xff) * (1 - amt)));
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+// ── Toast notifications ───────────────────────────────────────────────
+function showToast(msg: string, duration = 3500) {
+  const existing = document.getElementById('scToast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'scToast'; toast.className = 'sc-toast';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('visible'));
+  setTimeout(() => {
+    toast.classList.remove('visible');
+    setTimeout(() => toast.remove(), 400);
+  }, duration);
+}
+
+// ── Share focus card ──────────────────────────────────────────────────
+function openShareCard() {
+  const log = (() => { try { return JSON.parse(localStorage.getItem('sc_focus_log') || '[]'); } catch { return []; } })();
+  const today = new Date().toDateString();
+  const todayMs = (log as Array<{date:string;dur:number}>).filter(e => e.date === today).reduce((s, e) => s + e.dur, 0);
+  const todayMins = Math.max(1, Math.floor(todayMs / 60000));
+
+  generateShareCard({
+    themeName:    currentTheme.name,
+    accentColor:  currentTheme.accent,
+    bgColor:      currentTheme.baseBg[0],
+    textColor:    currentTheme.text,
+    glow:         currentTheme.glow,
+    focusMinutes: todayMins,
+    taskName:     DOM.focusInput.value.trim(),
+    streakDays:   Intel.getStreak().current,
+    date:         new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+  });
+  showToast('Focus card saved to your downloads!');
+}
+
+// ── Service Worker registration ───────────────────────────────────────
+function registerSW() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {/* silent */});
+  }
 }
 
 // ── Theme flash on switch ─────────────────────────────────────────────
@@ -1604,11 +1889,31 @@ function init() {
   updatePanelHeight();
   updateClockCanvas();
   startInfoStrip();
+  initWallpaperDrop();
+  registerSW();
+
+  // Drag-over visual feedback
+  document.addEventListener('dragenter', () => document.body.classList.add('drag-over'));
+  document.addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classList.remove('drag-over'); });
+  document.addEventListener('drop', () => document.body.classList.remove('drag-over'));
+
+  // PWA install prompt
+  let deferredInstall: Event | null = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); deferredInstall = e;
+    const btn = document.createElement('button');
+    btn.id = 'pwaInstallBtn'; btn.className = 'show';
+    btn.innerHTML = '⬇ Install App';
+    btn.addEventListener('click', () => {
+      (deferredInstall as any)?.prompt?.();
+      btn.remove(); deferredInstall = null;
+    });
+    document.body.appendChild(btn);
+  });
 
   const kbBtn = $('btnKbShortcuts');
   if (kbBtn) kbBtn.addEventListener('click', () => openModal('kbOverlay'));
 
-  // Topbar Themes button — toggles panel open/closed
   const topbarThemesBtn = $('topbarThemesBtn');
   if (topbarThemesBtn) {
     topbarThemesBtn.addEventListener('click', () => {
@@ -1622,6 +1927,13 @@ function init() {
   const lastId = localStorage.getItem('sc_last_theme');
   applyTheme(lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0], true);
   applyHandoffState();
+
+  // Smart break + flow state tick every 60s
+  setInterval(() => {
+    updateFlowState();
+    checkSmartBreak();
+  }, 60_000);
+
   requestAnimationFrame(ts => { lastTs = ts; renderFrame(ts); });
 
   if (!privacyMode) {

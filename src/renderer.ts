@@ -3,6 +3,10 @@ import { rnd, rndpm, easeIO, MAT_CHARS } from './utils';
 import { getAudioLevel, getBassLevel } from './sound';
 import { getCircadianWarmth, getSunTimes } from './weather';
 
+// Parallax offset — set by main.ts via mouse/gyro
+let _parallaxX = 0, _parallaxY = 0;
+export function setParallax(x: number, y: number) { _parallaxX = x; _parallaxY = y; }
+
 // ── Particle pool (SoA Float32Array) ────────────────────────────────────
 const PSTRIDE = 6; // x, y, vx, vy, size, alpha
 const MAX_PARTICLES = 400;
@@ -53,10 +57,18 @@ export function drawBg(dt: number, theme: Theme) {
   tick += dt;
   const bt = theme.bgType;
   const bg = theme.baseBg;
-  const gr = c.createLinearGradient(0, 0, W, H);
+
+  // Apply parallax via canvas transform
+  c.save();
+  c.translate(_parallaxX * 0.4, _parallaxY * 0.4);
+
+  // Slightly overdraw to hide parallax edges
+  const pad = 24;
+  const gr = c.createLinearGradient(-pad, -pad, W + pad, H + pad);
   gr.addColorStop(0, bg[0]); gr.addColorStop(0.5, bg[1] ?? bg[0]); gr.addColorStop(1, bg[2] ?? bg[0]);
-  c.fillStyle = gr; c.fillRect(0, 0, W, H);
+  c.fillStyle = gr; c.fillRect(-pad, -pad, W + pad * 2, H + pad * 2);
   (DRAW[bt] ?? drawParticles)(dt, theme);
+  c.restore();
 
   // ── Circadian warm overlay ───────────────────────────────────────────
   const st = getSunTimes();
