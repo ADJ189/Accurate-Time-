@@ -2,10 +2,68 @@ import type { Theme } from './types';
 import { rnd, rndpm, easeIO, MAT_CHARS } from './utils';
 import { getAudioLevel, getBassLevel } from './sound';
 import { getCircadianWarmth, getSunTimes } from './weather';
+import { getTier, shouldRenderFull, shouldSampleAudio, shouldDrawGlow, maxParticles, particleStepSize, isTabVisible } from './perf';
 
 // Parallax offset — set by main.ts via mouse/gyro
 let _parallaxX = 0, _parallaxY = 0;
 export function setParallax(x: number, y: number) { _parallaxX = x; _parallaxY = y; }
+
+// ── Cached DOM refs (avoid getElementById in hot path) ────────────────
+const grainEl = document.getElementById('grain') as HTMLElement;
+
+// ── Gradient cache — recomputed only on theme/resize change ──────────
+interface GradCache { bg: CanvasGradient | null; bloom: CanvasGradient | null; themeId: string; w: number; h: number; }
+const gradCache: GradCache = { bg: null, bloom: null, themeId: '', w: 0, h: 0 };
+let lastAccent = '';
+let lastBloomR = 0;
+
+function getBgGrad(bg: string[], pad: number): CanvasGradient {
+  if (gradCache.themeId && gradCache.w === W && gradCache.h === H && gradCache.bg) {
+    // Check if theme changed
+    if (gradCache.themeId === bg.join(',')) return gradCache.bg;
+  }
+  const gr = c.createLinearGradient(-pad, -pad, W + pad, H + pad);
+  gr.addColorStop(0, bg[0]!); gr.addColorStop(0.5, bg[1] ?? bg[0]!); gr.addColorStop(1, bg[2] ?? bg[0]!);
+  gradCache.bg = gr;
+  gradCache.themeId = bg.join(',');
+  gradCache.w = W; gradCache.h = H;
+  return gr;
+}
+
+// Invalidate gradient cache on resize
+export function invalidateCache() {
+  gradCache.bg = null; gradCache.bloom = null;
+  gradCache.themeId = ''; gradCache.w = 0; gradCache.h = 0;
+}
+
+// ── SMPTE focus-log cache — avoid localStorage every frame ─────────────
+let smpteCachedClips: Array<{startPct:number;durPct:number;lane:number;task:string}> = [];
+let smpteLastCacheTs = 0;
+
+function getSMPTEClips(today: string) {
+  const now = Date.now();
+  if (now - smpteLastCacheTs < 30_000) return smpteCachedClips; // 30s cache
+  try {
+    const entries = JSON.parse(localStorage.getItem('sc_focus_log') || '[]');
+    smpteCachedClips = entries
+      .filter((e: {date:string}) => e.date === today)
+      .map((e: {time:number;dur:number;task:string}, idx: number) => {
+        const d = new Date(e.time);
+        return {
+          startPct: (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400,
+          durPct: Math.min(e.dur / 86400000, 0.15),
+          lane: idx % 4,
+          task: (e.task ?? '').slice(0, 12),
+        };
+      });
+    smpteLastCacheTs = now;
+  } catch { smpteCachedClips = []; }
+  return smpteCachedClips;
+}
+
+// ── Severance number cache — don't call Math.random() 12×/frame ────────
+const sevClusterNums: number[] = Array.from({length: 12}, () => Math.floor(Math.random() * 10));
+let sevNumTimer = 0;
 
 // ── Particle pool (SoA Float32Array) ────────────────────────────────────
 const PSTRIDE = 6; // x, y, vx, vy, size, alpha
@@ -36,13 +94,14 @@ export function isBreathing() { return breathingActive; }
 export function resize() {
   W = bgCanvas.width  = tCanvas.width  = window.innerWidth;
   H = bgCanvas.height = tCanvas.height = window.innerHeight;
+  invalidateCache();
 }
 
 // ── Particle initialisation ───────────────────────────────────────────
 export function buildParticles(theme: Theme) {
   const bt = theme.bgType;
-  poolN = bt === 'aurora' ? 280 : bt === 'matrix' || bt === 'strangerthings' ? 220 : 180;
-  poolN = Math.min(poolN, MAX_PARTICLES);
+  const base = bt === 'aurora' ? 280 : bt === 'matrix' || bt === 'strangerthings' ? 220 : 180;
+  poolN = Math.min(maxParticles(base), MAX_PARTICLES);
   const p = pool;
   for (let i = 0; i < poolN; i++) {
     const o = i * PSTRIDE;
@@ -52,54 +111,65 @@ export function buildParticles(theme: Theme) {
   }
 }
 
+// ── Cached circadian warmth — recomputed once per second ──────────────
+let _lastCircadianSec = -1;
+let _cachedWarmth = 0;
+
 // ── Main draw dispatcher ──────────────────────────────────────────────
 export function drawBg(dt: number, theme: Theme) {
+  // Tab hidden — skip all rendering
+  if (!isTabVisible()) return;
+
   tick += dt;
   const bt = theme.bgType;
   const bg = theme.baseBg;
+  const pad = 20;
 
   // Apply parallax via canvas transform
   c.save();
   c.translate(_parallaxX * 0.4, _parallaxY * 0.4);
-
-  // Slightly overdraw to hide parallax edges
-  const pad = 24;
-  const gr = c.createLinearGradient(-pad, -pad, W + pad, H + pad);
-  gr.addColorStop(0, bg[0]); gr.addColorStop(0.5, bg[1] ?? bg[0]); gr.addColorStop(1, bg[2] ?? bg[0]);
-  c.fillStyle = gr; c.fillRect(-pad, -pad, W + pad * 2, H + pad * 2);
+  c.fillStyle = getBgGrad(bg, pad);
+  c.fillRect(-pad, -pad, W + pad * 2, H + pad * 2);
   (DRAW[bt] ?? drawParticles)(dt, theme);
   c.restore();
 
-  // ── Circadian warm overlay ───────────────────────────────────────────
-  const st = getSunTimes();
-  if (st) {
-    const warmth = getCircadianWarmth(st);
-    if (warmth > 0.01) {
-      // Amber-tinted overlay, max ~18% opacity at full warmth
-      c.fillStyle = `rgba(200,100,20,${warmth * 0.18})`;
-      c.fillRect(0, 0, W, H);
-    }
+  // ── Circadian warm overlay — cached per second ───────────────────────
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (nowSec !== _lastCircadianSec) {
+    const st = getSunTimes();
+    _cachedWarmth = st ? getCircadianWarmth(st) : 0;
+    _lastCircadianSec = nowSec;
+  }
+  if (_cachedWarmth > 0.01) {
+    c.fillStyle = `rgba(200,100,20,${(_cachedWarmth * 0.18).toFixed(3)})`;
+    c.fillRect(0, 0, W, H);
   }
 
-  // ── Audio-reactive bloom/grain ───────────────────────────────────────
-  const audioLvl = getAudioLevel();
-  const bassLvl  = getBassLevel();
-  if (audioLvl > 0.01) {
-    // Pulse a radial bloom from centre in accent colour
-    const bloomR = Math.min(W, H) * (0.4 + bassLvl * 0.3);
-    const bloomA = audioLvl * 0.12;
-    const bg2 = c.createRadialGradient(W * 0.5, H * 0.5, 0, W * 0.5, H * 0.5, bloomR);
-    bg2.addColorStop(0, `${theme.accent}${Math.round(bloomA * 255).toString(16).padStart(2,'0')}`);
-    bg2.addColorStop(1, 'transparent');
-    c.fillStyle = bg2; c.fillRect(0, 0, W, H);
+  // ── Audio-reactive bloom — skip frames on LOW tier ───────────────────
+  if (shouldSampleAudio()) {
+    const audioLvl = getAudioLevel();
+    const bassLvl  = getBassLevel();
+    if (audioLvl > 0.02 && shouldDrawGlow()) {
+      const bloomR = Math.min(W, H) * (0.38 + bassLvl * 0.28);
+      // Only recreate gradient if bloom radius changed significantly
+      if (Math.abs(bloomR - lastBloomR) > 4 || lastAccent !== theme.accent) {
+        lastBloomR = bloomR; lastAccent = theme.accent;
+        gradCache.bloom = c.createRadialGradient(W * 0.5, H * 0.5, 0, W * 0.5, H * 0.5, bloomR);
+        const hex = Math.round(audioLvl * 0.12 * 255).toString(16).padStart(2, '0');
+        gradCache.bloom.addColorStop(0, `${theme.accent}${hex}`);
+        gradCache.bloom.addColorStop(1, 'transparent');
+      }
+      if (gradCache.bloom) {
+        c.fillStyle = gradCache.bloom; c.fillRect(0, 0, W, H);
+      }
 
-    // Bass makes grain layer visible via CSS var (updated each frame)
-    const grainEl = document.getElementById('grain');
-    if (grainEl && theme.grain) {
-      const currentOpacity = parseFloat(grainEl.style.opacity || '0');
-      const targetOpacity  = Math.min(0.45, 0.25 + bassLvl * 0.35);
-      // Smooth it
-      grainEl.style.opacity = String(currentOpacity + (targetOpacity - currentOpacity) * 0.15);
+      // Update grain opacity — avoid DOM write every frame with threshold
+      if (grainEl && theme.grain) {
+        const cur = parseFloat(grainEl.style.opacity || '0');
+        const target = Math.min(0.4, 0.2 + bassLvl * 0.3);
+        const next = cur + (target - cur) * 0.12;
+        if (Math.abs(next - cur) > 0.005) grainEl.style.opacity = next.toFixed(3);
+      }
     }
   }
 
@@ -143,20 +213,32 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
 };
 
 // ── Background animations ─────────────────────────────────────────────
+// Cached accent style to avoid string building every particle
+let _lastParticleAccent = '';
+let _lastParticleAlphaBase = 0;
+
 function drawParticles(dt: number, t: Theme) {
+  if (!shouldRenderFull()) return; // skip on low-tier frames
   const p = pool;
-  for (let i = 0; i < poolN; i++) {
+  const step = particleStepSize();
+  const accent = t.accent;
+
+  // Batch by alpha to reduce state changes
+  c.fillStyle = accent;
+  for (let i = 0; i < poolN; i += step) {
     const o = i * PSTRIDE;
-    p[o] += p[o+2]; p[o+1] += p[o+3];
-    if (p[o] < -5) p[o] = W + 5; if (p[o] > W+5) p[o] = -5;
-    if (p[o+1] < -5) p[o+1] = H + 5; if (p[o+1] > H+5) p[o+1] = -5;
-    c.beginPath(); c.arc(p[o], p[o+1], p[o+4], 0, Math.PI*2);
-    c.fillStyle = t.accent; c.globalAlpha = p[o+5] * 0.5; c.fill();
+    p[o]   += p[o+2] * step;
+    p[o+1] += p[o+3] * step;
+    if (p[o]   < -5) p[o]   = W + 5; else if (p[o]   > W + 5) p[o]   = -5;
+    if (p[o+1] < -5) p[o+1] = H + 5; else if (p[o+1] > H + 5) p[o+1] = -5;
+    c.globalAlpha = p[o+5]! * 0.45;
+    c.beginPath(); c.arc(p[o]!, p[o+1]!, p[o+4]!, 0, Math.PI * 2); c.fill();
   }
   c.globalAlpha = 1;
 }
 
 function drawAurora(t: Theme) {
+  if (!shouldRenderFull()) return;
   const cols = t.bgColors as string[] ?? [t.accent, t.accent2];
   for (let i = 0; i < 4; i++) {
     const y = H * (0.15 + i * 0.18) + Math.sin(tick * 0.4 + i) * H * 0.06;
@@ -167,6 +249,7 @@ function drawAurora(t: Theme) {
 }
 
 function drawSunrise(t: Theme) {
+  if (!shouldDrawGlow()) return;
   const cy = H * 0.65;
   const g = c.createRadialGradient(W/2, cy, 0, W/2, cy, W * 0.7);
   g.addColorStop(0, t.accent + '44'); g.addColorStop(1, 'transparent');
@@ -174,6 +257,7 @@ function drawSunrise(t: Theme) {
 }
 
 function drawForest(t: Theme) {
+  if (!shouldDrawGlow()) return;
   const breath = 0.04 + 0.02 * Math.sin(tick * 0.3);
   const g = c.createRadialGradient(W/2, 0, 0, W/2, 0, H);
   g.addColorStop(0, t.accent + Math.round(breath * 255).toString(16).padStart(2,'0'));
@@ -257,14 +341,22 @@ function drawSeverance(dt: number, t: Theme) {
   });
 
   // The "selected" cluster — a few numbers brighter in a small region near centre
-  c.font = `400 ${fontSize + 2}px 'Josefin Sans', sans-serif`;
-  const selX = W * 0.5 + Math.sin(tick * 0.4) * W * 0.08;
-  const selY = H * 0.44 + Math.cos(tick * 0.3) * H * 0.04;
-  for (let i = 0; i < 12; i++) {
-    const ox = (i % 4 - 1.5) * (fontSize + 4);
-    const oy = (Math.floor(i / 4) - 1) * (fontSize + 6);
-    c.fillStyle = `rgba(0,180,255,${0.6 + Math.sin(tick * 1.2 + i) * 0.3})`;
-    c.fillText(String(Math.floor(Math.random() * 10)), selX + ox, selY + oy);
+  // The "selected" cluster — use cached numbers, refresh every ~2s
+  sevNumTimer += dt;
+  if (sevNumTimer > 2.1) {
+    for (let i = 0; i < 12; i++) sevClusterNums[i] = Math.floor(Math.random() * 10);
+    sevNumTimer = 0;
+  }
+  if (shouldDrawGlow()) {
+    c.font = `400 ${fontSize + 2}px 'Josefin Sans', sans-serif`;
+    const selX = W * 0.5 + Math.sin(tick * 0.4) * W * 0.08;
+    const selY = H * 0.44 + Math.cos(tick * 0.3) * H * 0.04;
+    for (let i = 0; i < 12; i++) {
+      const ox = (i % 4 - 1.5) * (fontSize + 4);
+      const oy = (Math.floor(i / 4) - 1) * (fontSize + 6);
+      c.fillStyle = `rgba(0,180,255,${0.55 + Math.sin(tick * 1.2 + i) * 0.25})`;
+      c.fillText(String(sevClusterNums[i] ?? 0), selX + ox, selY + oy);
+    }
   }
 
   // Lumon logo-esque horizontal line
@@ -328,30 +420,28 @@ function drawSMPTE(t: Theme) {
   c.closePath();
   c.fillStyle = t.accent; c.fill();
 
-  // Focus log clips from localStorage
-  try {
-    const entries = JSON.parse(localStorage.getItem('sc_focus_log') || '[]');
-    const today = new Date().toDateString();
-    entries.filter((e: {date:string;time:number;dur:number;task:string}) => e.date === today).forEach((e: {time:number;dur:number;task:string}, idx: number) => {
-      const d = new Date(e.time);
-      const startPct = (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400;
-      const durPct = Math.min(e.dur / 86400000, 0.15);
-      const lane = idx % 4;
-      const clipX = startPct * W;
-      const clipW = Math.max(durPct * W, 6);
-      c.fillStyle = trackColors[lane % trackColors.length] + 'cc';
-      c.fillRect(clipX, laneY + lane * laneH + 2, clipW, laneH - 4);
-      c.fillStyle = 'rgba(0,0,0,.6)';
-      c.font = '9px Inter, sans-serif';
-      if (clipW > 30) c.fillText(e.task.slice(0, 12), clipX + 4, laneY + lane * laneH + 14);
-    });
-  } catch {}
+  // Focus log clips — cached, not read from localStorage every frame
+  const today = new Date().toDateString();
+  const clips = getSMPTEClips(today);
+  c.font = '9px Inter, sans-serif';
+  clips.forEach(clip => {
+    const clipX = clip.startPct * W;
+    const clipW = Math.max(clip.durPct * W, 6);
+    c.fillStyle = (trackColors[clip.lane % trackColors.length] ?? t.accent) + 'cc';
+    c.fillRect(clipX, laneY + clip.lane * laneH + 2, clipW, laneH - 4);
+    if (clipW > 30 && clip.task) {
+      c.fillStyle = 'rgba(0,0,0,.65)';
+      c.fillText(clip.task, clipX + 4, laneY + clip.lane * laneH + 14);
+    }
+  });
 
   // Subtle glow above tracks
-  const tg = c.createLinearGradient(0, laneY - 40, 0, laneY);
-  tg.addColorStop(0, 'transparent');
-  tg.addColorStop(1, t.accent + '12');
-  c.fillStyle = tg; c.fillRect(0, laneY - 40, W, 40);
+  if (shouldDrawGlow()) {
+    const tg = c.createLinearGradient(0, laneY - 40, 0, laneY);
+    tg.addColorStop(0, 'transparent');
+    tg.addColorStop(1, t.accent + '12');
+    c.fillStyle = tg; c.fillRect(0, laneY - 40, W, 40);
+  }
 }
 
 // ── Air-Gapped Terminal background ────────────────────────────────────
@@ -459,7 +549,17 @@ function drawCommonRoom(t: Theme) {
 }
 
 // ── Conway's Game of Life ─────────────────────────────────────────────
-const GOL_CELL = 8; // px per cell — keeps GPU load low
+const GOL_CELL_BASE = 8; // px per cell at HIGH tier
+
+function getGolCell(): number {
+  const t = getTier();
+  return t === 'low' ? 14 : t === 'med' ? 10 : GOL_CELL_BASE;
+}
+
+function getGolInterval(): number {
+  const t = getTier();
+  return t === 'low' ? 0.22 : t === 'med' ? 0.15 : 0.11;
+}
 let golCols = 0, golRows = 0;
 let golGrid: Uint8Array = new Uint8Array(0);
 let golNext: Uint8Array = new Uint8Array(0);
@@ -467,14 +567,45 @@ let golLastTick = 0;
 let golAccTheme = '';
 
 function golResize(t: Theme) {
-  golCols = Math.ceil(W / GOL_CELL) + 2;
-  golRows = Math.ceil(H / GOL_CELL) + 2;
+  const cell = getGolCell();
+  golCols = Math.ceil(W / cell) + 2;
+  golRows = Math.ceil(H / cell) + 2;
   const size = golCols * golRows;
   golGrid = new Uint8Array(size);
   golNext = new Uint8Array(size);
-  // Random seed ~28% density
   for (let i = 0; i < size; i++) golGrid[i] = Math.random() < 0.28 ? 1 : 0;
   golAccTheme = t.id;
+}
+
+function drawGameOfLife(dt: number, t: Theme) {
+  const cell = getGolCell();
+  if (golAccTheme !== t.id || golGrid.length !== (Math.ceil(W/cell)+2) * (Math.ceil(H/cell)+2)) {
+    golResize(t);
+  }
+  golLastTick += dt;
+  if (golLastTick > getGolInterval()) { golStep(); golLastTick = 0; }
+
+  const acc = t.accent;
+  let r = 110, g2 = 231, b = 183;
+  if (acc.startsWith('#') && acc.length >= 7) {
+    r = parseInt(acc.slice(1,3),16);
+    g2 = parseInt(acc.slice(3,5),16);
+    b = parseInt(acc.slice(5,7),16);
+  }
+
+  const cellSz = cell - 1;
+  for (let row = 0; row < golRows; row++) {
+    for (let col = 0; col < golCols; col++) {
+      if (!golGrid[row * golCols + col]) continue;
+      c.fillStyle = `rgba(${r},${g2},${b},0.55)`;
+      c.fillRect(col * cell, row * cell, cellSz, cellSz);
+    }
+  }
+  if (shouldDrawGlow()) {
+    const vg = c.createRadialGradient(W/2,H/2,W*0.2,W/2,H/2,W*0.7);
+    vg.addColorStop(0,'transparent'); vg.addColorStop(1,'rgba(0,0,0,0.55)');
+    c.fillStyle = vg; c.fillRect(0,0,W,H);
+  }
 }
 
 function golStep() {
@@ -496,40 +627,6 @@ function golStep() {
   }
   // Swap buffers
   const tmp = golGrid; golGrid = golNext; golNext = tmp;
-}
-
-function drawGameOfLife(dt: number, t: Theme) {
-  // (Re)init if theme changed or dimensions changed
-  if (golAccTheme !== t.id || golGrid.length !== (Math.ceil(W/GOL_CELL)+2) * (Math.ceil(H/GOL_CELL)+2)) {
-    golResize(t);
-  }
-  // Evolve every 110ms — fast enough to feel alive, slow enough to read patterns
-  golLastTick += dt;
-  if (golLastTick > 0.11) { golStep(); golLastTick = 0; }
-
-  // Draw — parse accent hex into rgb for fast rgba construction
-  const acc = t.accent; // e.g. '#6ee7b7' or 'rgba(...)'
-  let r = 110, g2 = 231, b = 183;
-  if (acc.startsWith('#') && acc.length >= 7) {
-    r = parseInt(acc.slice(1,3),16);
-    g2 = parseInt(acc.slice(3,5),16);
-    b = parseInt(acc.slice(5,7),16);
-  }
-
-  const cellSz = GOL_CELL - 1; // 1px gap between cells
-  for (let row = 0; row < golRows; row++) {
-    for (let col = 0; col < golCols; col++) {
-      if (!golGrid[row * golCols + col]) continue;
-      const px = col * GOL_CELL, py = row * GOL_CELL;
-      c.fillStyle = `rgba(${r},${g2},${b},0.55)`;
-      c.fillRect(px, py, cellSz, cellSz);
-    }
-  }
-  // Soft vignette to blend edges
-  const vg = c.createRadialGradient(W/2,H/2,W*0.2,W/2,H/2,W*0.7);
-  vg.addColorStop(0,'transparent');
-  vg.addColorStop(1,`rgba(0,0,0,0.55)`);
-  c.fillStyle = vg; c.fillRect(0,0,W,H);
 }
 
 function drawMediaBg(t: Theme) {

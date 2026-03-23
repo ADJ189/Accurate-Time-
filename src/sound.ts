@@ -46,10 +46,22 @@ function ensureCtx() {
     analyser.fftSize = 256;
     analyser.smoothingTimeConstant = 0.85;
     analyserData = new Uint8Array(new ArrayBuffer(analyser.frequencyBinCount));
+
     masterGain = ctx.createGain();
     masterGain.gain.value = masterVol;
+
+    // DynamicsCompressor prevents clipping at high volumes (200% boost)
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.knee.value       = 10;
+    comp.ratio.value      = 4;
+    comp.attack.value     = 0.003;
+    comp.release.value    = 0.25;
+
+    // Chain: tracks → analyser → masterGain → compressor → destination
     analyser.connect(masterGain);
-    masterGain.connect(ctx.destination);
+    masterGain.connect(comp);
+    comp.connect(ctx.destination);
   }
   if (ctx.state === 'suspended') ctx.resume();
 }
@@ -415,7 +427,7 @@ export function playTrack(id: string) {
     }
   });
   trackNodes[id] = { nodes: made.nodes, gain: g };
-  if (spatialEnabled) attachPanner(id, g);
+  if (spatialEnabled) attachSpatialRig(id, g);
   onTrackChange?.();
   if (fadeMinutes > 0) { clearTimeout(fadeTimer); fadeTimer = window.setTimeout(fadeAll, fadeMinutes * 60_000); }
 }
@@ -423,7 +435,7 @@ export function playTrack(id: string) {
 export function stopTrack(id: string) {
   if (!trackNodes[id]) return;
   const t = trackNodes[id];
-  detachPanner(id, t.gain);
+  detachSpatialRig(id, t.gain);
   t.nodes.forEach(n => {
     // Call custom cleanup hook if present (chirp/crackle schedulers)
     if ((n as any)._customStop) { (n as any)._customStop(); return; }
@@ -443,10 +455,47 @@ export function setMasterVolume(v: number) { masterVol = v; if (masterGain) mast
 export function getMasterVolume() { return masterVol; }
 export function setFade(v: number) { fadeMinutes = v; }
 
-// ── Spatial 3D Audio ──────────────────────────────────────────────────
+// ── Spatial 3D Audio — ILD + ITD stereo panning ───────────────────────
+// Instead of PannerNode (weak, distance-dependent), we use:
+//   • StereoPannerNode   → Inter-aural Level Difference (louder in near ear)
+//   • DelayNode          → Inter-aural Time Difference (arrives later in far ear)
+// Max ITD for human head ≈ 0.65ms. This is what games use for headphones.
+// Each sound has a unique LFO speed and motion pattern (not all just L↔R).
+
 let spatialEnabled = localStorage.getItem('sc_spatial') === '1';
-const spatialPanners: Record<string, PannerNode> = {};
-const spatialLFOs:    Record<string, number>     = {};
+
+interface SpatialRig {
+  panner:    StereoPannerNode;
+  delayL:    DelayNode;
+  delayR:    DelayNode;
+  splitter:  ChannelSplitterNode;
+  merger:    ChannelMergerNode;
+  gainL:     GainNode;
+  gainR:     GainNode;
+  lfoPhase:  number;
+}
+
+const spatialRigs:  Record<string, SpatialRig>  = {};
+const spatialLFOs:  Record<string, number>       = {};
+
+// Per-sound spatial character
+interface SpatialProfile {
+  speed: number;      // LFO speed (rad/s)
+  width: number;      // pan width 0..1 (1 = hard L/R)
+  pattern: 'sweep' | 'wander' | 'fixed' | 'burst';
+  fixedPan?: number;  // for 'fixed' pattern
+}
+
+const SPATIAL_PROFILES: Record<string, SpatialProfile> = {
+  rain:   { speed: 0.04, width: 0.55, pattern: 'sweep'  },  // slow wide sweep — rain from all sides
+  brown:  { speed: 0.02, width: 0.30, pattern: 'wander' },  // very slow gentle wander
+  forest: { speed: 0.09, width: 0.75, pattern: 'burst'  },  // birds dart L/R unexpectedly
+  cafe:   { speed: 0.18, width: 0.60, pattern: 'wander' },  // people walking past
+  ocean:  { speed: 0.05, width: 0.65, pattern: 'sweep'  },  // waves rolling side to side
+  fire:   { speed: 0.03, width: 0.20, pattern: 'fixed',  fixedPan: 0.15 }, // fire stays slightly right
+};
+
+const MAX_ITD = 0.00065; // 0.65ms — human head max inter-aural time delay
 
 export function isSpatialEnabled() { return spatialEnabled; }
 
@@ -456,38 +505,113 @@ export function setSpatial(v: boolean) {
   Object.keys(trackNodes).forEach(id => {
     const n = trackNodes[id];
     if (!n) return;
-    v ? attachPanner(id, n.gain) : detachPanner(id, n.gain);
+    v ? attachSpatialRig(id, n.gain) : detachSpatialRig(id, n.gain);
   });
 }
 
-function attachPanner(id: string, gainNode: GainNode) {
-  if (spatialPanners[id] || !ctx) return;
-  const panner = ctx.createPanner();
-  panner.panningModel = 'equalpower';
-  panner.setPosition(0, 0, -1);
+function attachSpatialRig(id: string, gainNode: GainNode) {
+  if (spatialRigs[id] || !ctx) return;
+
+  // Split mono → two channels for independent L/R processing
+  const splitter = ctx.createChannelSplitter(2);
+  const merger   = ctx.createChannelMerger(2);
+
+  // Slight delay on one channel = ITD
+  const delayL = ctx.createDelay(0.01);
+  const delayR = ctx.createDelay(0.01);
+  delayL.delayTime.value = 0;
+  delayR.delayTime.value = 0;
+
+  // Level difference = ILD
+  const gainL = ctx.createGain(); gainL.gain.value = 1;
+  const gainR = ctx.createGain(); gainR.gain.value = 1;
+
+  // StereoPanner for the main coarse pan
+  const panner = ctx.createStereoPanner();
+  panner.pan.value = 0;
+
+  // Route: gainNode → panner → splitter → delayL/R → gainL/R → merger → analyser
   try { gainNode.disconnect(analyser!); } catch {}
   gainNode.connect(panner);
-  panner.connect(analyser!);
-  spatialPanners[id] = panner;
-  spatialLFOs[id]    = Math.random() * Math.PI * 2;
+  panner.connect(splitter);
+  splitter.connect(delayL, 0); delayL.connect(gainL); gainL.connect(merger, 0, 0);
+  splitter.connect(delayR, 1); delayR.connect(gainR); gainR.connect(merger, 0, 1);
+  merger.connect(analyser!);
+
+  const prof = SPATIAL_PROFILES[id];
+  spatialRigs[id]  = { panner, delayL, delayR, splitter, merger, gainL, gainR, lfoPhase: Math.random() * Math.PI * 2 };
+  spatialLFOs[id]  = Math.random() * Math.PI * 2;
+
+  // For 'fixed' pattern apply immediately
+  if (prof?.pattern === 'fixed' && prof.fixedPan !== undefined) {
+    applyPanValue(spatialRigs[id], prof.fixedPan, id);
+  }
 }
 
-function detachPanner(id: string, gainNode: GainNode) {
-  const p = spatialPanners[id];
-  if (!p) return;
-  try { gainNode.disconnect(p); p.disconnect(); } catch {}
+function detachSpatialRig(id: string, gainNode: GainNode) {
+  const rig = spatialRigs[id];
+  if (!rig) return;
+  try { gainNode.disconnect(rig.panner); rig.merger.disconnect(); } catch {}
   gainNode.connect(analyser!);
-  delete spatialPanners[id];
+  delete spatialRigs[id];
+}
+
+function applyPanValue(rig: SpatialRig, pan: number, id: string) {
+  // pan: -1 (full left) to +1 (full right)
+  rig.panner.pan.setTargetAtTime(pan, ctx!.currentTime, 0.05);
+
+  // ITD: the far ear gets a delay proportional to pan amount
+  const itd = Math.abs(pan) * MAX_ITD;
+  if (pan > 0) {
+    // Sound is right: left ear is far → delay left
+    rig.delayL.delayTime.setTargetAtTime(itd, ctx!.currentTime, 0.05);
+    rig.delayR.delayTime.setTargetAtTime(0,   ctx!.currentTime, 0.05);
+  } else {
+    // Sound is left: right ear is far → delay right
+    rig.delayL.delayTime.setTargetAtTime(0,   ctx!.currentTime, 0.05);
+    rig.delayR.delayTime.setTargetAtTime(itd, ctx!.currentTime, 0.05);
+  }
+
+  // ILD: far ear is ~6dB quieter per unit pan
+  const nearGain = 1.0;
+  const farGain  = 1.0 - Math.abs(pan) * 0.35;
+  if (pan > 0) {
+    rig.gainL.gain.setTargetAtTime(farGain,  ctx!.currentTime, 0.05);
+    rig.gainR.gain.setTargetAtTime(nearGain, ctx!.currentTime, 0.05);
+  } else {
+    rig.gainL.gain.setTargetAtTime(nearGain, ctx!.currentTime, 0.05);
+    rig.gainR.gain.setTargetAtTime(farGain,  ctx!.currentTime, 0.05);
+  }
 }
 
 export function tickSpatial(now: number) {
   if (!spatialEnabled) return;
-  const speeds: Record<string, number> = { rain: 0.06, brown: 0.03, forest: 0.08, cafe: 0.14, ocean: 0.05, fire: 0.04 };
-  Object.keys(spatialPanners).forEach(id => {
-    const panner = spatialPanners[id];
-    if (!panner) return;
-    const phase = now * (speeds[id] ?? 0.07) + (spatialLFOs[id] ?? 0);
-    panner.setPosition(Math.sin(phase) * 3, 0, -1);
+  Object.keys(spatialRigs).forEach(id => {
+    const rig  = spatialRigs[id];
+    const prof = SPATIAL_PROFILES[id];
+    if (!rig || !prof || prof.pattern === 'fixed') return;
+
+    let pan = 0;
+    const phase = now * prof.speed + rig.lfoPhase;
+
+    switch (prof.pattern) {
+      case 'sweep':
+        // Smooth sine sweep
+        pan = Math.sin(phase) * prof.width;
+        break;
+      case 'wander':
+        // Slower, slightly irregular wander using two sines
+        pan = (Math.sin(phase) * 0.6 + Math.sin(phase * 1.618) * 0.4) * prof.width;
+        break;
+      case 'burst':
+        // Mostly centre, then quick darts to a random side
+        // Use a squared sine to spend most time near centre
+        const raw  = Math.sin(phase * 1.3) * Math.sin(phase * 0.7);
+        pan = Math.sign(raw) * Math.pow(Math.abs(raw), 0.5) * prof.width;
+        break;
+    }
+
+    applyPanValue(rig, pan, id);
   });
 }
 

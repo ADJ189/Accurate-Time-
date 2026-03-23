@@ -7,11 +7,12 @@ import { initWeather, stopWeather } from './weather';
 import * as Sound from './sound';
 import * as Pom from './pomodoro';
 import * as Log from './focuslog';
-import { resize, buildParticles, drawBg, runTransition, setBreathing, setParallax } from './renderer';
+import { resize, buildParticles, drawBg, runTransition, setBreathing, setParallax, invalidateCache } from './renderer';
 import { drawQR } from './qr';
 import * as Shop from './shop';
 import * as Intel from './intelligence';
 import { generateShareCard } from './share';
+import { initPerf, getTier, setTier, tickFps, getFps, type QualityTier } from './perf';
 
 // ── Clock mode ────────────────────────────────────────────────────────
 export type ClockMode = 'digital' | 'analogue' | 'flip' | 'word' | 'minimal' | 'segment';
@@ -260,12 +261,22 @@ function tickDigit(el: HTMLElement, val: string) {
 function renderFrame(ts: number) {
   requestAnimationFrame(renderFrame);
   const dt = Math.min((ts - lastTs) / 1000, 0.05); lastTs = ts;
-  // Smooth parallax
-  parallaxX += (targetPX - parallaxX) * 0.06;
-  parallaxY += (targetPY - parallaxY) * 0.06;
-  setParallax(parallaxX, parallaxY);
+
+  // FPS tracking + auto quality tier
+  tickFps(ts);
+
+  // Parallax — skip on LOW tier to save CPU
+  const tier = getTier();
+  if (tier !== 'low') {
+    parallaxX += (targetPX - parallaxX) * 0.06;
+    parallaxY += (targetPY - parallaxY) * 0.06;
+    setParallax(parallaxX, parallaxY);
+  }
+
   drawBg(dt, currentTheme);
-  Sound.tickSpatial(ts / 1000);
+
+  // Spatial audio tick — throttle on LOW
+  if (tier !== 'low') Sound.tickSpatial(ts / 1000);
 
   const now = new Date(Date.now() + clockOffset);
   const ms = now.getMilliseconds(), sec = now.getSeconds(), min = now.getMinutes(), hr = now.getHours();
@@ -922,14 +933,16 @@ function makeSoundTrack(
     const volWrap = document.createElement('div'); volWrap.className = 'sound-track-vol';
     const slider = document.createElement('input') as HTMLInputElement;
     slider.type = 'range'; slider.className = 'track-vol-slider';
-    slider.min = '0'; slider.max = '100'; slider.value = String(vol);
+    slider.min = '0'; slider.max = '200'; slider.value = String(vol);
     slider.dataset.id = id;
     const pct = document.createElement('span'); pct.className = 'sound-vol-pct';
     pct.id = 'tvp_' + id; pct.textContent = vol + '%';
     slider.addEventListener('input', e => {
-      const v = +(e.target as HTMLInputElement).value / 100;
+      const p = +(e.target as HTMLInputElement).value; // 0–200
+      const v = p / 100;                               // 0.0–2.0
       Sound.setTrackVolume(id, v);
-      pct.textContent = Math.round(v * 100) + '%';
+      pct.textContent = p + '%';
+      pct.style.color = p > 100 ? 'var(--clr-accent)' : '';
     });
     volWrap.append(slider, pct);
     track.append(iconEl, info, volWrap, toggle);
@@ -995,10 +1008,15 @@ Sound.setTrackChangeHandler(buildSoundUI);
 
 ($('volSlider') as HTMLInputElement).value = String(Math.round(Sound.getMasterVolume() * 100));
 ($('volLabel') as HTMLElement).textContent = Math.round(Sound.getMasterVolume() * 100) + '%';
+($('volSlider') as HTMLInputElement).style.setProperty('--boost-pct', '50%');
 ($('volSlider') as HTMLInputElement).addEventListener('input', e => {
-  const v = +(e.target as HTMLInputElement).value / 100;
+  const pct = +(e.target as HTMLInputElement).value; // 0–200
+  const v   = pct / 100;                             // 0.0–2.0
   Sound.setMasterVolume(v);
-  $('volLabel').textContent = Math.round(v * 100) + '%';
+  const label = $('volLabel');
+  label.textContent = pct + '%';
+  label.style.color = pct > 100 ? 'var(--clr-accent)' : '';
+  label.title = pct > 100 ? 'Boosted — compressor prevents clipping' : '';
 });
 ($('fadeSlider') as HTMLInputElement).addEventListener('input', e => {
   const v = +(e.target as HTMLInputElement).value;
@@ -1181,6 +1199,39 @@ function buildSettingsUI() {
   const privSec = makeSection('Privacy');
   privSec.appendChild(makeRow('Privacy Mode', 'Disable weather & time sync — local clock only', 'togglePrivacyS', privacyMode));
   el.appendChild(privSec);
+
+  // ── Performance section
+  const perfSec = makeSection('Performance');
+
+  const qualityRow = document.createElement('div'); qualityRow.className = 'settings-row';
+  const qualInfo = document.createElement('div'); qualInfo.className = 'settings-row-info';
+  const qualLabel = document.createElement('span'); qualLabel.className = 'settings-row-label'; qualLabel.textContent = 'Render Quality';
+  const qualDesc  = document.createElement('span'); qualDesc.className  = 'settings-row-desc';
+  const fps = getFps();
+  qualDesc.textContent = `Auto-detected: ${getTier().toUpperCase()} · ${fps} fps`;
+  qualInfo.append(qualLabel, qualDesc);
+
+  const qualSelect = document.createElement('select'); qualSelect.className = 'settings-select';
+  (['auto','high','med','low'] as const).forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v === 'auto' ? '' : v;
+    opt.textContent = v === 'auto' ? 'Auto' : v.charAt(0).toUpperCase() + v.slice(1);
+    const stored = localStorage.getItem('sc_quality');
+    if ((v === 'auto' && !stored) || stored === v) opt.selected = true;
+    qualSelect.appendChild(opt);
+  });
+  qualSelect.addEventListener('change', () => {
+    const val = qualSelect.value as QualityTier | '';
+    if (val) setTier(val as QualityTier);
+    else { localStorage.removeItem('sc_quality'); }
+    invalidateCache();
+    qualDesc.textContent = `Quality: ${getTier().toUpperCase()} · ${getFps()} fps`;
+    showToast(`Render quality set to ${getTier().toUpperCase()}`);
+  });
+
+  qualityRow.append(qualInfo, qualSelect);
+  perfSec.appendChild(qualityRow);
+  el.appendChild(perfSec);
 
   // Wire toggles
   const wire = (id: string, fn: () => void) =>
@@ -1883,6 +1934,7 @@ function flashTheme() {
 
 // ── Init ───────────────────────────────────────────────────────────────
 function init() {
+  initPerf(); // detect device tier before anything else
   resize();
   window.addEventListener('resize', () => { resize(); updatePanelHeight(); });
   buildPanel();
