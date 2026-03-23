@@ -80,6 +80,7 @@ export async function initWeather(
       async ({ coords: { latitude: lat, longitude: lon } }) => {
         // Compute sun times immediately from coords — no extra fetch needed
         sunTimes = calcSunTimes(lat, lon);
+        (window as any).__scLat = lat; // expose for sidereal time easter egg
 
         try {
           const url = `https://api.open-meteo.com/v1/forecast`

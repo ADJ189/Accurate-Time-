@@ -15,6 +15,7 @@ import { generateShareCard } from './share';
 import { initPerf, getTier, setTier, tickFps, getFps, type QualityTier } from './perf';
 import * as APIs from './apis';
 import * as Privacy from './privacy';
+import * as Easter from './easter';
 
 // ── Clock mode ────────────────────────────────────────────────────────
 export type ClockMode = 'digital' | 'analogue' | 'flip' | 'word' | 'minimal' | 'segment';
@@ -306,6 +307,10 @@ function applyTheme(theme: Theme, instant = false) {
 
     // Light theme body class (Nordic, Lemon)
     document.body.classList.toggle('light-theme', !!theme.light);
+    // Theme body class for CSS selectors (easter egg animations etc.)
+    document.body.className = document.body.className
+      .replace(/\btheme-\S+/g, '').trim();
+    document.body.classList.add(`theme-${theme.id}`);
 
     $('overlay').style.background  = theme.overlay  === 'none' ? '' : theme.overlay;
     $('vignette').style.background = theme.vignette === 'none' ? '' : theme.vignette;
@@ -437,8 +442,16 @@ function renderFrame(ts: number) {
 
   if (sec !== lastSec) {
     lastSec = sec;
+    // Midnight confetti check
+    (window as any).__checkMidnight?.();
     const uh = now.getUTCHours(), um = now.getUTCMinutes(), us = now.getUTCSeconds();
-    DOM.utcPill.textContent = `UTC ${p2(uh)}:${p2(um)}:${p2(us)}`;
+    // Sidereal time easter egg
+    if (Easter.isSiderealMode()) {
+      const lat = (window as any).__scLat ?? 0;
+      DOM.utcPill.textContent = Easter.getSiderealTime(lat);
+    } else {
+      DOM.utcPill.textContent = `UTC ${p2(uh)}:${p2(um)}:${p2(us)}`;
+    }
     DOM.dateDis.textContent = `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
     DOM.greeting.textContent = GREETS.find(([s, e]) => hr >= s && hr < e)?.[2] ?? '';
     DOM.dayPct.textContent = dp.toFixed(1) + '%';
@@ -2264,6 +2277,24 @@ function init() {
   updateClockCanvas();
   startInfoStrip();
   initWallpaperDrop();
+  // Easter eggs — init after theme is applied
+  Easter.initEaster(
+    (id) => { const t = THEME_BY_ID[id]; if (t) applyTheme(t); },
+    showToast,
+    () => Sound.playChime(),
+  );
+  // Expose helpers for easter.ts cross-module access
+  (window as any).__scFps       = () => getFps();
+  (window as any).__scTier      = () => getTier();
+  (window as any).__scThemeCount= () => THEMES.length;
+  (window as any).__scAudioNodes= () => {
+    try { const a = new AudioContext(); const n = a.destination.channelCount; a.close(); return 'ok'; } catch { return '?'; }
+  };
+  (window as any).__scRandomTheme = () => {
+    const idx = Math.floor(Math.random() * THEMES.length);
+    applyTheme(THEMES[idx]!);
+  };
+
   registerSW();
   // Expose incognito check for focuslog.ts (avoids circular import)
   (window as any).__scIncognito = Privacy.isIncognito;

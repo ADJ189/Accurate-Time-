@@ -185,7 +185,7 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   ocean(dt, t)   { drawOcean(t); drawParticles(dt, t); },
   candy(dt, t)   { drawCandy(t); drawParticles(dt, t); },
   nordic(dt, t)  { drawNordic(); },
-  midnight(dt,t) { drawMidnight(t); drawParticles(dt, t); },
+  midnight(dt,t) { drawMidnight(dt, t); drawParticles(dt, t); },
   lemon(dt, t)   { drawLemon(); },
   blueprint(dt,t){ drawBlueprint(t); },
   commonroom(dt,t){ drawCommonRoom(t); },
@@ -198,7 +198,7 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   dark(dt,t)        { drawMediaBg(t); drawSymbol('dark', t); },
   breakingbad(dt,t) { drawMediaBg(t); drawSymbol('breakingbad', t); },
   strangerthings(dt,t){ drawMediaBg(t); drawParticles(dt, t); drawSymbol('strangerthings', t); },
-  interstellar(dt,t){ drawMediaBg(t); drawSymbol('interstellar', t); },
+  interstellar(dt,t){ drawInterstellar(dt, t); drawSymbol('interstellar', t); },
   dune(dt,t)        { drawMediaBg(t); drawParticles(dt, t); drawSymbol('dune', t); },
   matrix(dt,t)      { drawMatrix(t); drawSymbol('matrix', t); },
   bladerunner(dt,t) { drawMediaBg(t); drawSymbol('bladerunner', t); },
@@ -210,6 +210,11 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   mclaren(dt,t)     { drawF1Bg(t,'mclaren'); },
   astonmartin(dt,t) { drawF1Bg(t,'astonmartin'); },
   gameoflife(dt,t)  { drawGameOfLife(dt, t); },
+  mrrobot(dt,t)     { drawMrRobot(dt, t); },
+  oppenheimer(dt,t) { drawOppenheimer(dt, t); },
+  thebear(dt,t)     { drawTheBear(dt, t); },
+  '8bit'(dt,t)      { draw8Bit(dt, t); },
+  phoenix(dt,t)     { drawPhoenix(dt, t); },
 };
 
 // ── Background animations ─────────────────────────────────────────────
@@ -289,10 +294,49 @@ function drawCandy(t: Theme) {
 function drawNordic() { /* clean white/grey — baseBg is enough */ }
 function drawLemon()  { /* yellow baseBg is enough */ }
 
-function drawMidnight(t: Theme) {
-  const g = c.createRadialGradient(W/2, H/2, 0, W/2, H/2, W*0.6);
-  g.addColorStop(0, t.accent + '18'); g.addColorStop(1, 'transparent');
-  c.fillStyle = g; c.fillRect(0, 0, W, H);
+// ── Midnight — deep purple glow + shooting stars ──────────────────────
+interface ShootingStar { x: number; y: number; len: number; speed: number; angle: number; alpha: number; life: number; maxLife: number; }
+const shootingStars: ShootingStar[] = [];
+let shootingStarTimer = 0;
+
+function spawnShootingStar() {
+  shootingStars.push({
+    x: rnd(W), y: rnd(H * 0.5),
+    len: 80 + rnd(140), speed: 6 + rnd(10),
+    angle: Math.PI * 0.15 + rnd(Math.PI * 0.12),
+    alpha: 1, life: 0, maxLife: 40 + rnd(30),
+  });
+}
+
+function drawMidnight(dt: number, t: Theme) {
+  // Glow
+  if (shouldDrawGlow()) {
+    const g = c.createRadialGradient(W/2, H/2, 0, W/2, H/2, W*0.6);
+    g.addColorStop(0, t.accent + '18'); g.addColorStop(1, 'transparent');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+  }
+  // Shooting stars
+  shootingStarTimer += dt;
+  if (shootingStarTimer > (2.5 + rnd(4))) {
+    spawnShootingStar();
+    shootingStarTimer = 0;
+  }
+  for (let i = shootingStars.length - 1; i >= 0; i--) {
+    const s = shootingStars[i]!;
+    s.life++;
+    s.alpha = Math.max(0, 1 - s.life / s.maxLife);
+    const ex = s.x + Math.cos(s.angle) * s.len;
+    const ey = s.y + Math.sin(s.angle) * s.len;
+    const grad = c.createLinearGradient(s.x, s.y, ex, ey);
+    grad.addColorStop(0, `rgba(255,255,255,0)`);
+    grad.addColorStop(0.4, `rgba(255,255,255,${s.alpha * 0.9})`);
+    grad.addColorStop(1, `rgba(255,255,255,0)`);
+    c.strokeStyle = grad; c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(s.x, s.y); c.lineTo(ex, ey); c.stroke();
+    s.x += Math.cos(s.angle) * s.speed * 0.7;
+    s.y += Math.sin(s.angle) * s.speed * 0.7;
+    if (s.life >= s.maxLife || s.x > W + 50 || s.y > H + 50) shootingStars.splice(i, 1);
+  }
 }
 
 function drawLiterary(t: Theme) {
@@ -881,6 +925,191 @@ function drawBreathing() {
   c.restore();
 }
 
+// ── Mr. Robot — green terminal glitch ─────────────────────────────────
+const mrGlitchLines: Array<{y:number; w:number; h:number; life:number; col:string}> = [];
+let mrGlitchTimer = 0;
+
+function drawMrRobot(dt: number, t: Theme) {
+  // Scanline base
+  c.fillStyle = 'rgba(0,180,60,.015)';
+  for (let y = 0; y < H; y += 2) c.fillRect(0, y, W, 1);
+
+  // Glitch artifacts
+  mrGlitchTimer += dt;
+  if (mrGlitchTimer > 0.08 + rnd(0.35)) {
+    mrGlitchTimer = 0;
+    if (mrGlitchLines.length < 6) {
+      mrGlitchLines.push({
+        y: rnd(H), w: 40 + rnd(W * 0.5),
+        h: 2 + rnd(6),
+        life: 0.08 + rnd(0.2),
+        col: Math.random() > 0.7 ? '#00ff66' : Math.random() > 0.5 ? '#ffffff' : '#ff0066',
+      });
+    }
+  }
+  for (let i = mrGlitchLines.length - 1; i >= 0; i--) {
+    const g = mrGlitchLines[i]!;
+    g.life -= dt;
+    if (g.life <= 0) { mrGlitchLines.splice(i, 1); continue; }
+    c.fillStyle = g.col + '44';
+    c.fillRect(rnd(W * 0.3), g.y, g.w, g.h);
+  }
+
+  // Vignette pulse
+  if (shouldDrawGlow()) {
+    const vg = c.createRadialGradient(W/2, H/2, W*0.08, W/2, H/2, W*0.65);
+    vg.addColorStop(0, 'transparent');
+    vg.addColorStop(1, `rgba(0,${Math.floor(6 + Math.sin(tick*0.8)*3)},0,.88)`);
+    c.fillStyle = vg; c.fillRect(0, 0, W, H);
+  }
+}
+
+// ── Oppenheimer — sepia atomic flash ──────────────────────────────────
+let opFlashAlpha = 0;
+let opFlashTimer = 0;
+
+function drawOppenheimer(dt: number, t: Theme) {
+  opFlashTimer += dt;
+  // Hourly flash (or every 5 min for demo — check seconds == 0 of each 5-min mark)
+  const now = new Date();
+  if (now.getSeconds() === 0 && now.getMinutes() % 5 === 0 && opFlashTimer > 10) {
+    opFlashAlpha = 1; opFlashTimer = 0;
+  }
+  if (opFlashAlpha > 0) {
+    c.fillStyle = `rgba(255,220,150,${opFlashAlpha * 0.85})`;
+    c.fillRect(0, 0, W, H);
+    opFlashAlpha = Math.max(0, opFlashAlpha - dt * 1.8);
+  }
+
+  // Atomic wire-sphere
+  if (shouldDrawGlow()) {
+    const cx = W * 0.5, cy = H * 0.45;
+    const r = Math.min(W, H) * 0.22;
+    const phase = tick * 0.3;
+    c.strokeStyle = t.accent + '30'; c.lineWidth = 1;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + phase;
+      const rx = Math.cos(a) * r, ry = Math.sin(a) * r * 0.38;
+      c.beginPath(); c.ellipse(cx, cy, Math.abs(rx), Math.abs(ry) + 4, 0, 0, Math.PI*2); c.stroke();
+    }
+    c.beginPath(); c.arc(cx, cy, r, 0, Math.PI*2);
+    c.strokeStyle = t.accent + '18'; c.lineWidth = 1.5; c.stroke();
+    // Core glow
+    const cg = c.createRadialGradient(cx, cy, 0, cx, cy, r * 0.4);
+    cg.addColorStop(0, t.accent + '22'); cg.addColorStop(1, 'transparent');
+    c.fillStyle = cg; c.fillRect(0, 0, W, H);
+  }
+}
+
+// ── The Bear — kitchen aesthetic ──────────────────────────────────────
+function drawTheBear(dt: number, t: Theme) {
+  // Subtle warm vignette from top (kitchen light)
+  if (shouldDrawGlow()) {
+    const tg = c.createLinearGradient(0, 0, 0, H * 0.5);
+    tg.addColorStop(0, 'rgba(255,200,80,.04)'); tg.addColorStop(1, 'transparent');
+    c.fillStyle = tg; c.fillRect(0, 0, W, H);
+  }
+  // Ticket print lines — subtle horizontal rules
+  c.strokeStyle = 'rgba(255,255,255,.03)';
+  c.lineWidth = 1;
+  for (let y = H * 0.6; y < H * 0.9; y += 18) {
+    c.beginPath(); c.moveTo(W * 0.05, y); c.lineTo(W * 0.95, y); c.stroke();
+  }
+}
+
+// ── 8-bit — CGA pixel grid ────────────────────────────────────────────
+const CGA = ['#000000','#0000aa','#00aa00','#00aaaa','#aa0000','#aa00aa','#aa5500','#aaaaaa','#555555','#5555ff','#55ff55','#55ffff','#ff5555','#ff55ff','#ffff55','#ffffff'];
+let bitGlitchTimer = 0;
+
+function draw8Bit(dt: number, t: Theme) {
+  // CGA pixel grid overlay
+  if (getTier() === 'low') return;
+  bitGlitchTimer += dt;
+  if (bitGlitchTimer > 0.5) {
+    bitGlitchTimer = 0;
+    // Scatter a few CGA-coloured pixels
+    const num = 30;
+    for (let i = 0; i < num; i++) {
+      const x = Math.floor(rnd(W / 8)) * 8;
+      const y = Math.floor(rnd(H / 8)) * 8;
+      c.fillStyle = CGA[Math.floor(rnd(CGA.length))]!;
+      c.fillRect(x, y, 8, 8);
+    }
+  }
+  // "INSERT COIN" blink
+  if (Math.floor(tick * 1.5) % 2 === 0) {
+    c.font = `bold clamp(10px,1.6vw,18px) 'Press Start 2P',monospace`;
+    c.fillStyle = '#ffffff';
+    c.textAlign = 'center'; c.textBaseline = 'bottom';
+    c.fillText('INSERT COIN', W / 2, H * 0.88);
+    c.textAlign = 'left';
+  }
+}
+
+// ── Phoenix — rising fire ─────────────────────────────────────────────
+interface Ember { x:number; y:number; vx:number; vy:number; size:number; alpha:number; col:string; }
+const embers: Ember[] = [];
+let emberTimer = 0;
+
+function drawPhoenix(dt: number, t: Theme) {
+  emberTimer += dt;
+  // Spawn embers from base
+  if (emberTimer > 0.04) {
+    emberTimer = 0;
+    for (let i = 0; i < 3; i++) {
+      embers.push({
+        x: W * 0.3 + rnd(W * 0.4),
+        y: H * 0.75 + rnd(H * 0.15),
+        vx: rndpm(1.2), vy: -(1.5 + rnd(3.5)),
+        size: 1.5 + rnd(4), alpha: 0.8 + rnd(0.2),
+        col: Math.random() > 0.4 ? '#ff6600' : Math.random() > 0.5 ? '#ffcc00' : '#ff2200',
+      });
+    }
+  }
+  // Draw and age embers
+  for (let i = embers.length - 1; i >= 0; i--) {
+    const e = embers[i]!;
+    e.x += e.vx; e.y += e.vy; e.vy -= 0.04;
+    e.alpha -= 0.008;
+    if (e.alpha <= 0 || e.y < -20) { embers.splice(i, 1); continue; }
+    c.beginPath(); c.arc(e.x, e.y, e.size, 0, Math.PI*2);
+    c.fillStyle = e.col + Math.round(e.alpha * 255).toString(16).padStart(2,'0');
+    c.fill();
+  }
+  if (embers.length > 400) embers.splice(0, embers.length - 400);
+
+  // Rising glow
+  const rg = c.createLinearGradient(0, H, 0, H * 0.3);
+  rg.addColorStop(0, `rgba(255,80,0,${0.12 + Math.sin(tick * 0.8) * 0.04})`);
+  rg.addColorStop(1, 'transparent');
+  c.fillStyle = rg; c.fillRect(0, 0, W, H);
+}
+
+// ── Interstellar — wormhole ring ──────────────────────────────────────
+let wormholeAngle = 0;
+
+function drawInterstellar(dt: number, t: Theme) {
+  drawMediaBg(t);
+  wormholeAngle += dt * 0.15;
+
+  if (!shouldDrawGlow()) return;
+  const cx = W * 0.5, cy = H * 0.42;
+  const baseR = Math.min(W, H) * 0.18;
+
+  // Accretion disk rings
+  for (let i = 0; i < 5; i++) {
+    const r = baseR * (1 + i * 0.22);
+    const opacity = (0.22 - i * 0.04) * (0.8 + Math.sin(tick * 0.5 + i) * 0.2);
+    c.beginPath(); c.ellipse(cx, cy, r, r * 0.28, wormholeAngle + i * 0.15, 0, Math.PI*2);
+    c.strokeStyle = `rgba(68,153,238,${opacity})`; c.lineWidth = 2 - i * 0.3;
+    c.stroke();
+  }
+  // Core glow
+  const cg = c.createRadialGradient(cx, cy, 0, cx, cy, baseR);
+  cg.addColorStop(0, 'rgba(200,230,255,.12)'); cg.addColorStop(0.4, 'rgba(68,153,238,.06)'); cg.addColorStop(1, 'transparent');
+  c.fillStyle = cg; c.fillRect(0, 0, W, H);
+}
+
 // ── Transitions ───────────────────────────────────────────────────────
 export function runTransition(type: string, cb: () => void) {
   if (transitioning) { cb(); return; }
@@ -962,5 +1191,15 @@ const TRANS: Record<string, (cb: () => void) => void> = {
     const sm=[...Array(48)].map(()=>({x:W*(.28+Math.random()*.44),y:H*(.68+Math.random()*.12),r:Math.random()*22+12,maxR:Math.random()*160+90,vx:(Math.random()-.5)*.9,vy:-(Math.random()*.7+.25),alpha:Math.random()*.18+.08,grey:Math.floor(Math.random()*40+130),delay:Math.random()*.28}));
     let elapsed=0,lastT=0,called=false;const totalDur=3400;
     const go=(ts:number)=>{if(!lastT)lastT=ts;elapsed+=ts-lastT;lastT=ts;const p=Math.min(1,elapsed/totalDur);tc.clearRect(0,0,W,H);tc.fillStyle=`rgba(0,0,0,${Math.min(.92,p*1.1)})`;tc.fillRect(0,0,W,H);if(p>.04){const sp=(p-.04)/.96;sm.forEach(s=>{if(sp<s.delay)return;const lp=Math.min(1,(sp-s.delay)/(1-s.delay)),cx=s.x+s.vx*lp*180,cy=s.y+s.vy*lp*220;s.r=Math.min(s.maxR,s.r+(s.maxR-s.r)*.008);const la=s.alpha*Math.min(1,lp*4)*Math.max(0,1-lp*.5);const sg=tc.createRadialGradient(cx,cy,0,cx,cy,s.r);sg.addColorStop(0,`rgba(${s.grey},${s.grey-8},${s.grey-12},${la*1.1})`);sg.addColorStop(1,'rgba(0,0,0,0)');tc.fillStyle=sg;tc.beginPath();tc.arc(cx,cy,s.r,0,Math.PI*2);tc.fill();});}tc.globalAlpha=1;if(!called&&p>=.52){called=true;cb();}p<1.0?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  flash(cb) {
+    // Oppenheimer white flash
+    let p=0,called=false;
+    const go=()=>{p+=.04;const a=p<.5?p*2:Math.max(0,2-p*2);tc.fillStyle=`rgba(255,240,200,${a*.95})`;tc.fillRect(0,0,W,H);if(!called&&p>=.5){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  glitch(cb) {
+    // Mr Robot glitch transition
+    let p=0,called=false;
+    const go=()=>{p+=.025;const lines=Math.floor(8+p*12);tc.fillStyle=`rgba(0,0,0,${Math.min(.9,p*1.4)})`;tc.fillRect(0,0,W,H);for(let i=0;i<lines;i++){const y=Math.random()*H,h=1+Math.random()*8,shift=(Math.random()-.5)*40*(1-p);tc.fillStyle=`rgba(0,${Math.floor(200+Math.random()*55)},60,${.08+Math.random()*.12})`;tc.fillRect(shift,y,W,h);}if(!called&&p>=.5){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
   },
 };
