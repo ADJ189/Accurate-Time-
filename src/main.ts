@@ -153,8 +153,6 @@ function isPrivacyMode() { return privacyMode; }
 function togglePrivacy() {
   privacyMode = !privacyMode;
   localStorage.setItem('sc_privacy', privacyMode ? '1' : '0');
-  const btn = document.getElementById('btnPrivacy');
-  if (btn) btn.classList.toggle('on', privacyMode);
   if (privacyMode) {
     updateSyncDisplay('failed');
     stopWeather();
@@ -282,8 +280,6 @@ function buildDataPanel() {
 function toggleFocusLock() {
   focusLockEnabled = !focusLockEnabled;
   localStorage.setItem('sc_focus_lock', focusLockEnabled ? '1' : '0');
-  const btn = document.getElementById('btnFocusLock');
-  if (btn) btn.classList.toggle('on', focusLockEnabled);
 }
 
 // ── Current theme ──────────────────────────────────────────────────────
@@ -383,12 +379,16 @@ function renderFrame(ts: number) {
   // FPS tracking + auto quality tier
   tickFps(ts);
 
-  // Parallax — skip on LOW tier to save CPU
+  // Parallax — skip on LOW tier, reduce-motion, or user disabled
   const tier = getTier();
-  if (tier !== 'low') {
+  const parallaxEnabled = localStorage.getItem('sc_parallax') !== '0' &&
+    !document.body.classList.contains('reduced-motion');
+  if (tier !== 'low' && parallaxEnabled) {
     parallaxX += (targetPX - parallaxX) * 0.06;
     parallaxY += (targetPY - parallaxY) * 0.06;
     setParallax(parallaxX, parallaxY);
+  } else {
+    setParallax(0, 0);
   }
 
   drawBg(dt, currentTheme);
@@ -789,31 +789,27 @@ function buildPanel() {
 
   Object.values(contents).forEach(c => panelRows.appendChild(c));
 
-  // ── Feature bar ───────────────────────────────────────────────────────
-  ([ ['btnSound',       '🎵 Sound',      () => { buildSoundUI(); openModal('soundOverlay'); }],
-     ['btnKiosk',       '⛶ Kiosk',      toggleKiosk],
-     ['btnPresent',     '📺 Present',    togglePresent],
-     ['btnThemeBuilder','🎨 Custom',     openThemeBuilder],
-     ['btnKb',          '⌨ Keys',       () => openModal('kbOverlay')],
-     ['btnPrivacy',     '🔒 Privacy',   togglePrivacy],
-     ['btnData',        '🛡 My Data',   openDataPanel],
-     ['btnFocusLock',   '🔐 Focus Lock',toggleFocusLock],
-     ['btnQR',          '📱 Handoff',   openQRHandoff],
-     ['btnShare',       '🖼 Share',      openShareCard],
-     ['btnAnimedoro',   '🎬 Animedoro', () => { startAnimedoro(); openModal('pomOverlay'); }],
-     ['btnShop',        '🛒 Shop',      openShop],
-     ['btnSettings',    '⚙️ Settings',  openSettings],
-  ] as [string, string, () => void][]).forEach(([id, label, action]) => {
+  // ── Feature bar — 5 essential actions ────────────────────────────────
+  const featDefs: [string, string, string, () => void][] = [
+    // [id, emoji, label, action]
+    ['btnSound',   '🎵', 'Sound',    () => { buildSoundUI(); openModal('soundOverlay'); }],
+    ['btnLog',     '📋', 'Log',      openLog],
+    ['btnShare',   '🖼', 'Share',    () => { openShareCard(); }],
+    ['btnShop',    '🛒', 'Shop',     openShop],
+    ['btnSettings','⚙️', 'Settings', openSettings],
+  ];
+  featDefs.forEach(([id, emoji, label, action]) => {
     const b = document.createElement('button');
     b.className = 'feat-btn'; b.id = id;
+    const iconEl = document.createElement('span'); iconEl.className = 'feat-icon'; iconEl.textContent = emoji;
+    const lblEl  = document.createElement('span'); lblEl.className  = 'feat-label';
     if (id === 'btnShop') {
-      b.textContent = '🛒 Shop ';
-      b.appendChild(createCoinEl(Shop.getTokens()));
+      lblEl.textContent = 'Shop ';
+      lblEl.appendChild(createCoinEl(Shop.getTokens()));
     } else {
-      b.textContent = label;
+      lblEl.textContent = label;
     }
-    if (id === 'btnPrivacy'   && privacyMode)      b.classList.add('on');
-    if (id === 'btnFocusLock' && focusLockEnabled) b.classList.add('on');
+    b.append(iconEl, lblEl);
     b.addEventListener('click', action);
     featBar.appendChild(b);
   });
@@ -1189,7 +1185,6 @@ function renderLogView() {
   else Log.render(container);
 }
 
-$('btnLog').addEventListener('click', openLog);
 
 // Tab buttons wired via onclick in HTML — expose via SC
 (window as any).SC = {
@@ -1280,116 +1275,260 @@ function openThemeBuilder() { buildColorRows(); openModal('themeBuilderOverlay')
 (window as any).SC = { ...(window as any).SC, themeBuilder: { preview: previewCustomTheme, save: saveCustomTheme, reset: () => applyTheme(currentTheme, true), openBuilder: openThemeBuilder } };
 
 // ── Settings modal ────────────────────────────────────────────────────
-function openSettings() { buildSettingsUI(); openModal('settingsOverlay'); }
+let _lastSettingsTab = 'general';
+function openSettings() {
+  buildSettingsUI(_lastSettingsTab);
+  openModal('settingsOverlay');
+}
 
-function buildSettingsUI() {
-  const el = $('settingsContent');
-  if (!el) return;
+function buildSettingsUI(activeTab = 'general') {
+  const tabBarEl = $('settingsTabBar');
+  const el       = $('settingsContent');
+  if (!el || !tabBarEl) return;
   el.innerHTML = '';
+  tabBarEl.innerHTML = '';
 
-  const clockModes: { mode: ClockMode; label: string; icon: string; desc: string }[] = [
-    { mode: 'digital',  label: 'Digital',  icon: '🔢', desc: 'Classic digits'   },
-    { mode: 'analogue', label: 'Analogue', icon: '🕐', desc: 'Sweep hands'      },
-    { mode: 'flip',     label: 'Flip',     icon: '📅', desc: '3D card flip'     },
-    { mode: 'word',     label: 'Word',     icon: '📝', desc: 'It is half past'  },
-    { mode: 'minimal',  label: 'Minimal',  icon: '○',  desc: 'Hour only, huge'  },
-    { mode: 'segment',  label: 'Segment',  icon: '📟', desc: 'LED 7-segment'    },
+  // Animate content in
+  el.style.animation = 'none';
+  void el.offsetWidth; // reflow
+  el.style.animation = 'paneFadeIn .18s ease';
+
+  // ── Tab definitions ───────────────────────────────────────────────────
+  const tabs = [
+    { id: 'general',  icon: '✦',  label: 'General'  },
+    { id: 'sound',    icon: '🎵', label: 'Sound'    },
+    { id: 'focus',    icon: '⏱',  label: 'Focus'    },
+    { id: 'display',  icon: '🎨', label: 'Display'  },
+    { id: 'privacy',  icon: '🔒', label: 'Privacy'  },
   ];
+
+  // Tab bar — written to #settingsTabBar (outside scroll container)
+  const tabBar = document.createElement('div'); tabBar.className = 'settings-tab-bar';
+  tabs.forEach(t => {
+    const btn = document.createElement('button'); btn.className = 'settings-tab-btn' + (t.id === activeTab ? ' active' : '');
+    btn.dataset.tab = t.id;
+    const ic = document.createElement('span'); ic.className = 'stb-icon'; ic.textContent = t.icon;
+    const lb = document.createElement('span'); lb.className = 'stb-label'; lb.textContent = t.label;
+    btn.append(ic, lb);
+    btn.addEventListener('click', () => { _lastSettingsTab = t.id; buildSettingsUI(t.id); });
+    tabBar.appendChild(btn);
+  });
+  tabBarEl.appendChild(tabBar);
+
+  // Pane container — scrollable body
+  const paneWrap = el; // write directly to settingsContent
 
   const makeSection = (title: string) => {
     const s = document.createElement('div'); s.className = 'settings-section';
     const h = document.createElement('div'); h.className = 'settings-section-title'; h.textContent = title;
     s.appendChild(h); return s;
   };
-  const makeRow = (lText: string, dText: string, btnId: string, on: boolean) => {
-    const row  = document.createElement('div'); row.className = 'settings-row';
+
+  const makeRow = (lText: string, dText: string, btnId: string, on: boolean, badge?: string) => {
+    const row = document.createElement('div'); row.className = 'settings-row';
     const info = document.createElement('div'); info.className = 'settings-row-info';
+    const top  = document.createElement('div'); top.className  = 'settings-row-top';
     const lbl  = document.createElement('span'); lbl.className = 'settings-row-label'; lbl.textContent = lText;
-    const dsc  = document.createElement('span'); dsc.className = 'settings-row-desc';  dsc.textContent = dText;
-    info.append(lbl, dsc);
-    const btn  = document.createElement('button'); btn.className = 'settings-toggle' + (on ? ' on' : ''); btn.id = btnId;
-    row.append(info, btn); return row;
+    top.appendChild(lbl);
+    if (badge) {
+      const b = document.createElement('span'); b.className = 'settings-badge'; b.textContent = badge;
+      top.appendChild(b);
+    }
+    const dsc  = document.createElement('span'); dsc.className = 'settings-row-desc'; dsc.textContent = dText;
+    info.append(top, dsc);
+    const tog  = document.createElement('button'); tog.className = 'settings-toggle' + (on ? ' on' : ''); tog.id = btnId;
+    row.append(info, tog); return row;
   };
 
-  // ── Clock section
-  const clockSec = makeSection('Clock Style');
-  const grid = document.createElement('div'); grid.className = 'clock-mode-grid';
-  clockModes.forEach(({ mode, label, icon, desc }) => {
-    const btn = document.createElement('button');
-    btn.className = 'clock-mode-btn' + (clockMode === mode ? ' active' : '');
-    btn.dataset.mode = mode;
-    const iEl = document.createElement('span'); iEl.className = 'cmb-icon';  iEl.textContent = icon;
-    const lEl = document.createElement('span'); lEl.className = 'cmb-label'; lEl.textContent = label;
-    const dEl = document.createElement('span'); dEl.className = 'cmb-desc';  dEl.textContent = desc;
-    btn.append(iEl, lEl, dEl);
-    btn.addEventListener('click', () => {
-      setClockMode(mode); updateClockCanvas();
-      grid.querySelectorAll('.clock-mode-btn').forEach(b => b.classList.toggle('active', (b as HTMLElement).dataset.mode === mode));
+  const wireToggle = (id: string, fn: (on: boolean) => void) => {
+    paneWrap.querySelector<HTMLButtonElement>('#' + id)?.addEventListener('click', e => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      const wasOn = btn.classList.contains('on');
+      btn.classList.toggle('on');
+      // Ripple animation on enable
+      if (!wasOn) {
+        const rip = document.createElement('span'); rip.className = 'toggle-ripple';
+        btn.appendChild(rip);
+        setTimeout(() => rip.remove(), 600);
+      }
+      fn(!wasOn);
     });
-    grid.appendChild(btn);
-  });
-  clockSec.appendChild(grid);
-  el.appendChild(clockSec);
+  };
 
-  // ── Audio section
-  const audioSec = makeSection('Audio');
-  audioSec.appendChild(makeRow('3D Spatial Audio', 'Ambient sounds pan left/right — requires headphones', 'toggleSpatial', Sound.isSpatialEnabled()));
-  audioSec.appendChild(makeRow('Box Breathing on Break', 'Guided breathing overlay during Pomodoro breaks', 'toggleBreathing', breathingBreakEnabled));
-  el.appendChild(audioSec);
-
-  // ── Focus section
-  const focusSec = makeSection('Focus');
-  focusSec.appendChild(makeRow('Focus Lock Delay', '3-second delay before opening panels during Pomodoro', 'toggleFocusLockS', focusLockEnabled));
-  el.appendChild(focusSec);
-
-  // ── Privacy section
-  const privSec = makeSection('Privacy');
-  privSec.appendChild(makeRow('Privacy Mode', 'Disable weather & time sync — local clock only', 'togglePrivacyS', privacyMode));
-  el.appendChild(privSec);
-
-  // ── Performance section
-  const perfSec = makeSection('Performance');
-
-  const qualityRow = document.createElement('div'); qualityRow.className = 'settings-row';
-  const qualInfo = document.createElement('div'); qualInfo.className = 'settings-row-info';
-  const qualLabel = document.createElement('span'); qualLabel.className = 'settings-row-label'; qualLabel.textContent = 'Render Quality';
-  const qualDesc  = document.createElement('span'); qualDesc.className  = 'settings-row-desc';
-  const fps = getFps();
-  qualDesc.textContent = `Auto-detected: ${getTier().toUpperCase()} · ${fps} fps`;
-  qualInfo.append(qualLabel, qualDesc);
-
-  const qualSelect = document.createElement('select'); qualSelect.className = 'settings-select';
-  (['auto','high','med','low'] as const).forEach(v => {
-    const opt = document.createElement('option');
-    opt.value = v === 'auto' ? '' : v;
-    opt.textContent = v === 'auto' ? 'Auto' : v.charAt(0).toUpperCase() + v.slice(1);
-    const stored = localStorage.getItem('sc_quality');
-    if ((v === 'auto' && !stored) || stored === v) opt.selected = true;
-    qualSelect.appendChild(opt);
-  });
-  qualSelect.addEventListener('change', () => {
-    const val = qualSelect.value as QualityTier | '';
-    if (val) setTier(val as QualityTier);
-    else { localStorage.removeItem('sc_quality'); }
-    invalidateCache();
-    qualDesc.textContent = `Quality: ${getTier().toUpperCase()} · ${getFps()} fps`;
-    showToast(`Render quality set to ${getTier().toUpperCase()}`);
-  });
-
-  qualityRow.append(qualInfo, qualSelect);
-  perfSec.appendChild(qualityRow);
-  el.appendChild(perfSec);
-
-  // Wire toggles
-  const wire = (id: string, fn: () => void) =>
-    el.querySelector<HTMLElement>('#' + id)?.addEventListener('click', e => {
-      (e.currentTarget as HTMLElement).classList.toggle('on'); fn();
+  // ══ GENERAL ════════════════════════════════════════════════════════════
+  if (activeTab === 'general') {
+    const clockModes: { mode: ClockMode; label: string; icon: string; desc: string }[] = [
+      { mode: 'digital',  label: 'Digital',  icon: '🔢', desc: 'Classic digits'   },
+      { mode: 'analogue', label: 'Analogue', icon: '🕐', desc: 'Sweep hands'      },
+      { mode: 'flip',     label: 'Flip',     icon: '📅', desc: '3D card flip'     },
+      { mode: 'word',     label: 'Word',     icon: '📝', desc: 'It is half past'  },
+      { mode: 'minimal',  label: 'Minimal',  icon: '○',  desc: 'Hour only, huge'  },
+      { mode: 'segment',  label: 'Segment',  icon: '📟', desc: 'LED 7-segment'    },
+    ];
+    const clockSec = makeSection('Clock Style');
+    const grid = document.createElement('div'); grid.className = 'clock-mode-grid';
+    clockModes.forEach(({ mode, label, icon, desc }) => {
+      const btn = document.createElement('button');
+      btn.className = 'clock-mode-btn' + (clockMode === mode ? ' active' : '');
+      btn.dataset.mode = mode;
+      const iEl = document.createElement('span'); iEl.className = 'cmb-icon';  iEl.textContent = icon;
+      const lEl = document.createElement('span'); lEl.className = 'cmb-label'; lEl.textContent = label;
+      const dEl = document.createElement('span'); dEl.className = 'cmb-desc';  dEl.textContent = desc;
+      btn.append(iEl, lEl, dEl);
+      btn.addEventListener('click', () => {
+        setClockMode(mode); updateClockCanvas();
+        grid.querySelectorAll('.clock-mode-btn').forEach(b => b.classList.toggle('active', (b as HTMLElement).dataset.mode === mode));
+      });
+      grid.appendChild(btn);
     });
-  wire('toggleSpatial',    () => Sound.setSpatial(!Sound.isSpatialEnabled()));
-  wire('toggleBreathing',  () => { breathingBreakEnabled = !breathingBreakEnabled; localStorage.setItem('sc_breathing_break', breathingBreakEnabled ? '1' : '0'); });
-  wire('toggleFocusLockS', () => toggleFocusLock());
-  wire('togglePrivacyS',   () => togglePrivacy());
+    clockSec.appendChild(grid);
+    paneWrap.appendChild(clockSec);
+
+    // Quick actions
+    const actionSec = makeSection('Quick Actions');
+    const actionGrid = document.createElement('div'); actionGrid.className = 'settings-action-grid';
+    const quickActions = [
+      { label: '🎨 Custom Theme', fn: () => { closeModal('settingsOverlay'); openThemeBuilder(); } },
+      { label: '📱 QR Handoff',   fn: () => { closeModal('settingsOverlay'); openQRHandoff(); } },
+      { label: '🎬 Animedoro',    fn: () => { closeModal('settingsOverlay'); startAnimedoro(); openModal('pomOverlay'); } },
+      { label: '⛶ Kiosk Mode',   fn: () => { closeModal('settingsOverlay'); toggleKiosk(); } },
+      { label: '📺 Present',      fn: () => { closeModal('settingsOverlay'); togglePresent(); } },
+      { label: '🖼 Picture-in-Picture', fn: async () => {
+          closeModal('settingsOverlay');
+          if (APIs.isPiPActive()) { await APIs.exitPiP(); showToast('PiP closed'); }
+          else { await APIs.enterPiP(document.getElementById('clock-block-wrap')!, { accent: currentTheme.accent, text: currentTheme.text, baseBg: currentTheme.baseBg }); showToast('Clock floating in PiP'); }
+        }
+      },
+    ];
+    quickActions.forEach(({ label, fn }) => {
+      const btn = document.createElement('button'); btn.className = 'settings-action-btn';
+      btn.textContent = label; btn.addEventListener('click', fn as () => void);
+      actionGrid.appendChild(btn);
+    });
+    actionSec.appendChild(actionGrid);
+    paneWrap.appendChild(actionSec);
+  }
+
+  // ══ SOUND ═════════════════════════════════════════════════════════════
+  else if (activeTab === 'sound') {
+    const audioSec = makeSection('Audio');
+    audioSec.appendChild(makeRow('3D Spatial Audio', 'Sounds pan independently — best with headphones', 'toggleSpatial', Sound.isSpatialEnabled(), 'ILD+ITD'));
+    audioSec.appendChild(makeRow('Box Breathing on Break', 'Guided breathing overlay during Pomodoro breaks', 'toggleBreathing', breathingBreakEnabled));
+    paneWrap.appendChild(audioSec);
+
+    const soundBtnSec = makeSection('Mixer');
+    const openMixerBtn = document.createElement('button'); openMixerBtn.className = 'settings-action-btn settings-action-btn--full';
+    openMixerBtn.textContent = '🎵 Open Sound Mixer';
+    openMixerBtn.addEventListener('click', () => { closeModal('settingsOverlay'); buildSoundUI(); openModal('soundOverlay'); });
+    soundBtnSec.appendChild(openMixerBtn);
+    paneWrap.appendChild(soundBtnSec);
+
+    wireToggle('toggleSpatial',   (on) => Sound.setSpatial(on));
+    wireToggle('toggleBreathing', (on) => { breathingBreakEnabled = on; localStorage.setItem('sc_breathing_break', on ? '1' : '0'); });
+  }
+
+  // ══ FOCUS ═════════════════════════════════════════════════════════════
+  else if (activeTab === 'focus') {
+    const focusSec = makeSection('Pomodoro & Sessions');
+    focusSec.appendChild(makeRow('Focus Lock Delay', '3-second intentional friction before opening panels during Pomodoro', 'toggleFocusLockS', focusLockEnabled));
+    focusSec.appendChild(makeRow('Smart Break Reminder', 'Gently pulses after 90 uninterrupted minutes', 'toggleSmartBreak', localStorage.getItem('sc_smart_break') !== '0'));
+    paneWrap.appendChild(focusSec);
+
+    const pomBtn = document.createElement('button'); pomBtn.className = 'settings-action-btn settings-action-btn--full';
+    pomBtn.textContent = '⏱ Pomodoro Settings';
+    pomBtn.addEventListener('click', () => { closeModal('settingsOverlay'); openModal('pomOverlay'); });
+    const pomSec = makeSection('Timer'); pomSec.appendChild(pomBtn);
+    paneWrap.appendChild(pomSec);
+
+    wireToggle('toggleFocusLockS', () => toggleFocusLock());
+    wireToggle('toggleSmartBreak', (on) => { localStorage.setItem('sc_smart_break', on ? '1' : '0'); });
+  }
+
+  // ══ DISPLAY ═══════════════════════════════════════════════════════════
+  else if (activeTab === 'display') {
+    const animSec = makeSection('Motion & Animations');
+    const reduceMotion = localStorage.getItem('sc_reduce_motion') === '1' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    animSec.appendChild(makeRow('Reduce Motion', 'Simpler transitions, no parallax, no particle animations', 'toggleReduceMotion', reduceMotion));
+    animSec.appendChild(makeRow('Parallax Depth', 'Canvas layers shift with mouse/gyroscope movement', 'toggleParallax', localStorage.getItem('sc_parallax') !== '0'));
+    paneWrap.appendChild(animSec);
+
+    const perfSec = makeSection('Performance');
+    const qualityRow = document.createElement('div'); qualityRow.className = 'settings-row';
+    const qualInfo = document.createElement('div'); qualInfo.className = 'settings-row-info';
+    const qualTop  = document.createElement('div'); qualTop.className  = 'settings-row-top';
+    const qualLbl  = document.createElement('span'); qualLbl.className = 'settings-row-label'; qualLbl.textContent = 'Render Quality';
+    const fpsBadge = document.createElement('span'); fpsBadge.className = 'settings-badge'; fpsBadge.textContent = `${getFps()} fps`;
+    qualTop.append(qualLbl, fpsBadge);
+    const qualDesc = document.createElement('span'); qualDesc.className = 'settings-row-desc';
+    qualDesc.textContent = `Auto-detected: ${getTier().toUpperCase()}`;
+    qualInfo.append(qualTop, qualDesc);
+    const qualSelect = document.createElement('select'); qualSelect.className = 'settings-select';
+    (['auto','high','med','low'] as const).forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v === 'auto' ? '' : v; opt.textContent = v === 'auto' ? 'Auto' : v.charAt(0).toUpperCase() + v.slice(1);
+      const stored = localStorage.getItem('sc_quality');
+      if ((v === 'auto' && !stored) || stored === v) opt.selected = true;
+      qualSelect.appendChild(opt);
+    });
+    qualSelect.addEventListener('change', () => {
+      const val = qualSelect.value as QualityTier | '';
+      if (val) setTier(val as QualityTier); else localStorage.removeItem('sc_quality');
+      invalidateCache();
+      qualDesc.textContent = `Quality: ${getTier().toUpperCase()}`;
+      fpsBadge.textContent = `${getFps()} fps`;
+      showToast(`Quality set to ${getTier().toUpperCase()}`);
+    });
+    qualityRow.append(qualInfo, qualSelect);
+    perfSec.appendChild(qualityRow);
+    paneWrap.appendChild(perfSec);
+
+    wireToggle('toggleReduceMotion', (on) => {
+      localStorage.setItem('sc_reduce_motion', on ? '1' : '0');
+      document.body.classList.toggle('reduced-motion', on);
+      showToast(on ? 'Reduced motion on' : 'Full animations on');
+    });
+    wireToggle('toggleParallax', (on) => {
+      localStorage.setItem('sc_parallax', on ? '1' : '0');
+      showToast(on ? 'Parallax on' : 'Parallax off');
+    });
+  }
+
+  // ══ PRIVACY ══════════════════════════════════════════════════════════
+  else if (activeTab === 'privacy') {
+    const privSec = makeSection('Privacy Mode');
+    privSec.appendChild(makeRow('Privacy Mode', 'Disables weather, time sync & Google Fonts — local only', 'togglePrivacyS', privacyMode, privacyMode ? 'On' : undefined));
+    paneWrap.appendChild(privSec);
+
+    const sessionSec = makeSection('Sessions');
+    sessionSec.appendChild(makeRow('Incognito Sessions', 'Sessions run in memory — nothing written to storage', 'toggleIncognito', Privacy.isIncognito()));
+    sessionSec.appendChild(makeRow('Auto-Clear on Close', 'Wipe session log & focus data when tab closes', 'toggleAutoClear', Privacy.isAutoClear()));
+    paneWrap.appendChild(sessionSec);
+
+    const dataBtnSec = makeSection('Data');
+    const dataBtn = document.createElement('button'); dataBtn.className = 'settings-action-btn settings-action-btn--full';
+    dataBtn.textContent = '🛡 View & Manage My Data';
+    dataBtn.addEventListener('click', () => { closeModal('settingsOverlay'); openDataPanel(); });
+    dataBtnSec.appendChild(dataBtn);
+    paneWrap.appendChild(dataBtnSec);
+
+    // Privacy mode toggle with lock animation
+    wireToggle('togglePrivacyS', (on) => {
+      togglePrivacy();
+      // Lock-down animation
+      if (on) {
+        document.body.classList.add('privacy-activating');
+        setTimeout(() => document.body.classList.remove('privacy-activating'), 800);
+      }
+    });
+    wireToggle('toggleIncognito', (on) => { Privacy.setIncognito(on); showToast(on ? '🕵 Incognito on — sessions not saved' : 'Incognito off'); });
+    wireToggle('toggleAutoClear', (on) => { Privacy.setAutoClear(on); showToast(on ? 'Auto-clear on close enabled' : 'Auto-clear disabled'); });
+  }
+
+  // Add bottom padding so last row isn't flush against modal edge
+  const pad = document.createElement('div'); pad.style.height = '12px';
+  el.appendChild(pad);
 }
+
 
 // ── Shop SVG art (developer-authored, safe for innerHTML) ─────────────
 const SHOP_SVG: Record<string, string> = {
@@ -2101,6 +2240,12 @@ function flashTheme() {
 // ── Init ───────────────────────────────────────────────────────────────
 function init() {
   initPerf(); // detect device tier before anything else
+
+  // Apply persisted motion/animation preferences
+  const reduceMotion = localStorage.getItem('sc_reduce_motion') === '1' ||
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion) document.body.classList.add('reduced-motion');
+
   APIs.initBattery().then(() => {
     APIs.onBatteryChange((level, charging) => {
       // Auto-downgrade to LOW quality on low battery
@@ -2144,26 +2289,6 @@ function init() {
 
   const kbBtn = $('btnKbShortcuts');
   if (kbBtn) kbBtn.addEventListener('click', () => openModal('kbOverlay'));
-
-  // PiP button
-  const pipBtn = $('btnPiP');
-  if (pipBtn) {
-    pipBtn.addEventListener('click', async () => {
-      if (APIs.isPiPActive()) {
-        await APIs.exitPiP();
-        pipBtn.classList.remove('on');
-        showToast('PiP closed');
-      } else {
-        await APIs.enterPiP(document.getElementById('clock-block-wrap')!, {
-          accent: currentTheme.accent,
-          text:   currentTheme.text,
-          baseBg: currentTheme.baseBg,
-        });
-        pipBtn.classList.add('on');
-        showToast('Clock floating in Picture-in-Picture');
-      }
-    });
-  }
 
   // Request notifications permission automatically (non-intrusive — deferred until first Pom start)
   // We'll request on first session start instead of on load
