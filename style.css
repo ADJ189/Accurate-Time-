@@ -1424,3 +1424,42 @@ body.drag-over::after {
 }
 .preset-chip:hover { background: rgba(255,255,255,.12); border-color: var(--clr-accent); }
 .preset-chip.save-btn { border-color: var(--clr-accent); color: var(--clr-accent); }
+
+/* ════════════════════════════════════════════════════════════
+   VOLUME BOOST ZONE — slider accent when > 100%
+════════════════════════════════════════════════════════════ */
+.master-vol-slider {
+  --boost-pct: 50%; /* updated by JS — marks where 100% is on the 0-200 range */
+  background: linear-gradient(
+    to right,
+    var(--clr-accent) 0%,
+    var(--clr-accent) var(--boost-pct),
+    rgba(255,100,100,.5) var(--boost-pct),
+    rgba(255,100,100,.5) 100%
+  ) !important;
+}
+
+/* Spatial audio badge */
+.sound-track.spatial-active .sound-track-icon::after {
+  content: '↔';
+  font-size: .5rem; position: absolute; bottom: -2px; right: -2px;
+  background: var(--clr-accent); color: #000;
+  border-radius: 50%; width: 10px; height: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── Settings select (quality tier) ── */
+.settings-select {
+  -webkit-appearance: none; appearance: none;
+  background: rgba(255,255,255,.07); color: var(--clr-text);
+  border: 1px solid rgba(255,255,255,.15); border-radius: 8px;
+  padding: 6px 28px 6px 10px; font-size: .72rem; font-family: inherit;
+  font-weight: 600; cursor: pointer; flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(255,255,255,.4)'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+  transition: border-color .18s, background-color .18s;
+}
+.settings-select:hover { border-color: var(--clr-accent); }
+.settings-select option { background: #0e0c1e; }
+body.light-theme .settings-select { background-color: rgba(0,0,0,.06); color: var(--clr-text); border-color: rgba(0,0,0,.14); }
+body.light-theme .settings-select option { background: #f1f5f9; }
