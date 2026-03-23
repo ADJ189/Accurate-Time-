@@ -1801,3 +1801,82 @@ body.theme-oppenheimer {
 
 /* Reduced motion overrides for easter egg animations */
 body.reduced-motion .digit-pair { animation: none !important; filter: none !important; }
+
+/* ═══════════════════════════════════════════════════════════
+   NEW THEME CSS EFFECTS
+═══════════════════════════════════════════════════════════ */
+
+/* Cyberpunk — neon RGB aberration on digits */
+body.theme-cyberpunk .digit-pair {
+  text-shadow:
+    -2px 0 #ff0090,
+    2px 0 #00eeff,
+    0 0 30px #ff0090,
+    0 0 60px rgba(255,0,144,.4);
+  animation: cyberAberration 6s ease infinite;
+}
+@keyframes cyberAberration {
+  0%,90%,100% { text-shadow: -2px 0 #ff0090, 2px 0 #00eeff, 0 0 30px #ff0090; }
+  91% { text-shadow: -5px 0 #ff0090, 5px 0 #00eeff, 0 0 40px #ff0090; filter: brightness(1.4); }
+  92% { text-shadow: -1px 0 #ff0090, 1px 0 #00eeff, 0 0 20px #ff0090; }
+  93% { text-shadow: -4px 0 #ff0090, 4px 0 #00eeff, 0 0 35px #ff0090; }
+  94% { text-shadow: -2px 0 #ff0090, 2px 0 #00eeff, 0 0 30px #ff0090; filter: none; }
+}
+
+/* 2001 — HAL red pulsing glow on digits */
+body.theme-hal9000 .digit-pair {
+  color: #e8d0f0;
+  text-shadow: 0 0 20px rgba(200,0,0,.5), 0 0 50px rgba(200,0,0,.25);
+  animation: halPulse 3s ease-in-out infinite;
+}
+@keyframes halPulse {
+  0%,100% { text-shadow: 0 0 20px rgba(200,0,0,.5), 0 0 50px rgba(200,0,0,.25); }
+  50%     { text-shadow: 0 0 35px rgba(220,0,0,.8), 0 0 70px rgba(200,0,0,.4); }
+}
+
+/* Tenet — digits appear to count backward briefly */
+body.tenet-reverse .digit-pair {
+  transform: scaleX(-1);
+  transition: transform .3s;
+}
+body.tenet-reverse #mainUI {
+  filter: invert(.06) hue-rotate(180deg);
+  transition: filter .4s;
+}
+
+/* Dragon Fire — ember glow on digits */
+body.theme-dragonfire .digit-pair {
+  text-shadow:
+    0 0 20px #ff4400,
+    0 0 40px #ff2200,
+    0 0 80px rgba(255,60,0,.4);
+  animation: dragonGlow 2.5s ease-in-out infinite;
+}
+@keyframes dragonGlow {
+  0%,100% { text-shadow: 0 0 20px #ff4400, 0 0 40px #ff2200; }
+  40%     { text-shadow: 0 0 30px #ff6600, 0 0 60px #ff3300, 0 0 90px rgba(255,80,0,.5); }
+  80%     { text-shadow: 0 0 15px #ff2200, 0 0 35px #ee1100; }
+}
+
+/* Moon Knight — silver shimmer */
+body.theme-moonknight .digit-pair {
+  color: #eef2ff;
+  text-shadow:
+    0 0 25px rgba(200,216,255,.6),
+    0 0 50px rgba(180,200,255,.25);
+  animation: moonShimmer 4s ease-in-out infinite;
+}
+@keyframes moonShimmer {
+  0%,100% { text-shadow: 0 0 25px rgba(200,216,255,.6), 0 0 50px rgba(180,200,255,.25); }
+  50%     { text-shadow: 0 0 35px rgba(220,235,255,.9), 0 0 70px rgba(200,220,255,.4), 0 0 100px rgba(180,200,255,.15); }
+}
+
+/* HAL easter egg animation */
+@keyframes halFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Cyberpunk easter egg HTML panel */
+body.reduced-motion .digit-pair,
+body.reduced-motion .digit-pair { animation: none !important; }

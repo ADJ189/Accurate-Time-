@@ -4,7 +4,7 @@
 
 **The most feature-complete focus timer on the open web.**
 
-*42 animated themes · Easter eggs · Pomodoro · Binaural beats · Session intelligence · Token shop · PWA · Zero backend*
+*48 animated themes · Easter eggs · Pomodoro · Binaural beats · Session intelligence · Token shop · PWA · Zero backend*
 
 [![Deploy](https://img.shields.io/github/actions/workflow/status/ADJ189/Accurate-Time-/deploy.yml?label=Deploy&style=flat-square)](https://github.com/ADJ189/Accurate-Time-/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
@@ -41,16 +41,18 @@ Aurora · Sunrise · Forest · Ocean · Candy · Nordic · Midnight (+ shooting 
 Literary Clock — 288 prose sentences, one for every 5-minute slot (00:00–23:55)
 
 ### TV Shows
-**Severance** · **Mr. Robot** · Supernatural · The Mentalist · The Sopranos · Dark · Breaking Bad · Stranger Things
+**Severance** · **Mr. Robot** · **House of the Dragon** · **Moon Knight** · Supernatural · The Mentalist · The Sopranos · Dark · Breaking Bad · Stranger Things
 
 ### Movies
-Interstellar (+ wormhole rings) · **Oppenheimer** · Dune · The Matrix · Blade Runner 2049 · Inception · The Godfather
+**Cyberpunk 2077** · **2001: A Space Odyssey** · **Tenet** · Interstellar (+ wormhole rings) · **Oppenheimer** · Dune · The Matrix · Blade Runner 2049 · Inception · The Godfather
 
 ### F1 Teams
 Red Bull Racing · Scuderia Ferrari · Mercedes-AMG · McLaren · Aston Martin
 
 ### Secret / Unlockable
 **8-BIT** (Konami Code) · **Phoenix** (100 sessions milestone) · **The Bear**
+
+> **Bold** = new themes added in v9.a
 
 > **Bold** = new themes added in v9.a
 
@@ -76,6 +78,11 @@ There are 8 hidden easter eggs. Discover them yourself — or read on.
 | **Type `oppenheimer`** | Switches to Oppenheimer theme + Trinity quote |
 | **Type `spice`** | Switches to Dune theme + spice quote |
 | **Type `thebear`** | Switches to The Bear theme |
+| **Type `nightcity` or `samurai`** | Cyberpunk 2077 theme + full-screen RGB glitch burst |
+| **Type `hal` or `daisy`** | HAL 9000 theme; `daisy` makes HAL sing the famous song line by line |
+| **Type `dont try` or `tenet`** | Tenet theme; `tenet` reverses the clock display and inverts the UI briefly |
+| **Type `dracarys` or `targaryen`** | House of the Dragon theme + fire quote |
+| **Type `khonshu` or `moonknight`** | Moon Knight theme + Khonshu quote |
 | **Triple-click the clock** | Opens a dev console overlay showing FPS, tier, audio nodes, storage size |
 | **Hold the session timer 3 seconds** | Hyperfocus mode — UI fades to black, only clock + timer remain. Press Esc to exit |
 | **00:00:00 midnight** | Confetti burst in theme accent colours + "Happy New Day!" toast |
