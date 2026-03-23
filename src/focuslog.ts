@@ -10,8 +10,14 @@ function save(d: LogEntry[]) { localStorage.setItem(KEY, JSON.stringify(d)); }
 
 export function record(task: string, durMs: number) {
   if (durMs < 5000) return;
+  const entry = { time: Date.now(), task: task || 'Untitled session', dur: Math.round(durMs), date: new Date().toDateString() };
+  // Check incognito — import avoided via dynamic check on window
+  const isIncognito = typeof (window as any).__scIncognito === 'function'
+    ? (window as any).__scIncognito()
+    : false;
+  if (isIncognito) return; // don't persist
   const entries = load();
-  entries.unshift({ time: Date.now(), task: task || 'Untitled session', dur: Math.round(durMs), date: new Date().toDateString() });
+  entries.unshift(entry);
   if (entries.length > 500) entries.pop();
   save(entries);
 }

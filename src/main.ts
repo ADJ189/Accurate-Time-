@@ -13,6 +13,8 @@ import * as Shop from './shop';
 import * as Intel from './intelligence';
 import { generateShareCard } from './share';
 import { initPerf, getTier, setTier, tickFps, getFps, type QualityTier } from './perf';
+import * as APIs from './apis';
+import * as Privacy from './privacy';
 
 // ── Clock mode ────────────────────────────────────────────────────────
 export type ClockMode = 'digital' | 'analogue' | 'flip' | 'word' | 'minimal' | 'segment';
@@ -102,8 +104,12 @@ function startTimer() {
   DOM.focusInputWrap.classList.add('visible');
   if (Pom.isActive()) Pom.onStart();
   Intel.onSessionStart();
-  Intel.onFlowInterrupt(); // reset flow clock on new start
+  Intel.onFlowInterrupt();
   bcBroadcast('session', { running: true });
+  // Request notification permission on first user interaction (feels natural)
+  APIs.requestNotifications();
+  // Keep screen on during session
+  APIs.acquireWakeLock();
 }
 
 function pauseTimer() {
@@ -149,16 +155,128 @@ function togglePrivacy() {
   localStorage.setItem('sc_privacy', privacyMode ? '1' : '0');
   const btn = document.getElementById('btnPrivacy');
   if (btn) btn.classList.toggle('on', privacyMode);
-  // Update sync dot label
   if (privacyMode) {
-    updateSyncDisplay('failed'); // shows "Local clock"
+    updateSyncDisplay('failed');
     stopWeather();
     const wp = $('weatherPill');
     if (wp) { wp.classList.remove('loaded'); }
+    // Apply system fonts — no Google Fonts in privacy mode
+    document.body.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
+    showToast('🔒 Privacy Mode: fonts, weather & sync disabled');
   } else {
     syncTime();
     initWeather($('weatherIcon'), $('weatherText'), $('weatherPill'), isPrivacyMode);
+    document.body.style.fontFamily = '';
+    showToast('Privacy Mode off — reconnected');
   }
+  // Sync settings toggle state
+  const settingsToggle = document.getElementById('togglePrivacyS');
+  if (settingsToggle) settingsToggle.classList.toggle('on', privacyMode);
+}
+
+// ── Data Management Panel ─────────────────────────────────────────────
+function openDataPanel() { buildDataPanel(); openModal('dataOverlay'); }
+
+function buildDataPanel() {
+  const el = $('dataContent');
+  if (!el) return;
+  el.innerHTML = '';
+
+  const totalBytes = Privacy.getTotalSize();
+
+  // Header summary
+  const summary = document.createElement('div'); summary.className = 'data-summary';
+  const totalEl = document.createElement('p'); totalEl.className = 'data-total';
+  totalEl.textContent = `Total stored: ${Privacy.formatBytes(totalBytes)} — all on your device, never sent anywhere.`;
+  summary.appendChild(totalEl);
+
+  // Incognito mode toggle
+  const incogRow = document.createElement('div'); incogRow.className = 'settings-row';
+  const incogInfo = document.createElement('div'); incogInfo.className = 'settings-row-info';
+  const incogLbl = document.createElement('span'); incogLbl.className = 'settings-row-label'; incogLbl.textContent = '🕵 Incognito Sessions';
+  const incogDesc = document.createElement('span'); incogDesc.className = 'settings-row-desc'; incogDesc.textContent = 'Sessions run in memory only — nothing written to storage';
+  incogInfo.append(incogLbl, incogDesc);
+  const incogToggle = document.createElement('button');
+  incogToggle.className = 'settings-toggle' + (Privacy.isIncognito() ? ' on' : '');
+  incogToggle.addEventListener('click', () => {
+    Privacy.setIncognito(!Privacy.isIncognito());
+    incogToggle.classList.toggle('on', Privacy.isIncognito());
+    showToast(Privacy.isIncognito() ? '🕵 Incognito mode on' : 'Incognito mode off');
+  });
+  incogRow.append(incogInfo, incogToggle);
+  summary.appendChild(incogRow);
+
+  // Auto-clear toggle
+  const clearRow = document.createElement('div'); clearRow.className = 'settings-row';
+  const clearInfo = document.createElement('div'); clearInfo.className = 'settings-row-info';
+  const clearLbl = document.createElement('span'); clearLbl.className = 'settings-row-label'; clearLbl.textContent = '🗑 Auto-Clear on Close';
+  const clearDesc = document.createElement('span'); clearDesc.className = 'settings-row-desc'; clearDesc.textContent = 'Wipe session log & focus data when you close the tab';
+  clearInfo.append(clearLbl, clearDesc);
+  const clearToggle = document.createElement('button');
+  clearToggle.className = 'settings-toggle' + (Privacy.isAutoClear() ? ' on' : '');
+  clearToggle.addEventListener('click', () => {
+    Privacy.setAutoClear(!Privacy.isAutoClear());
+    clearToggle.classList.toggle('on', Privacy.isAutoClear());
+    showToast(Privacy.isAutoClear() ? 'Auto-clear enabled' : 'Auto-clear disabled');
+  });
+  clearRow.append(clearInfo, clearToggle);
+  summary.appendChild(clearRow);
+
+  el.appendChild(summary);
+
+  // Per-category breakdown
+  const catTitle = document.createElement('div'); catTitle.className = 'settings-section-title';
+  catTitle.textContent = 'Data Categories'; el.appendChild(catTitle);
+
+  Privacy.DATA_CATEGORIES.forEach(cat => {
+    const size = Privacy.getCategorySize(cat);
+    const row = document.createElement('div'); row.className = 'data-cat-row';
+
+    const left = document.createElement('div'); left.className = 'data-cat-info';
+    const icon = document.createElement('span'); icon.className = 'data-cat-icon'; icon.textContent = cat.icon;
+    const info = document.createElement('div');
+    const name = document.createElement('span'); name.className = 'data-cat-name'; name.textContent = cat.label;
+    const desc = document.createElement('span'); desc.className = 'data-cat-desc'; desc.textContent = cat.desc;
+    if (cat.sensitive) {
+      const badge = document.createElement('span'); badge.className = 'data-sensitive-badge'; badge.textContent = 'Personal';
+      name.appendChild(badge);
+    }
+    info.append(name, desc);
+    left.append(icon, info);
+
+    const right = document.createElement('div'); right.className = 'data-cat-right';
+    const sizeEl = document.createElement('span'); sizeEl.className = 'data-cat-size';
+    sizeEl.textContent = size > 0 ? Privacy.formatBytes(size) : 'empty';
+    const delBtn = document.createElement('button'); delBtn.className = 'data-del-btn';
+    delBtn.textContent = 'Clear'; delBtn.disabled = size === 0;
+    delBtn.addEventListener('click', () => {
+      if (!confirm(`Clear "${cat.label}"? This cannot be undone.`)) return;
+      Privacy.deleteCategory(cat);
+      showToast(`${cat.icon} ${cat.label} cleared`);
+      buildDataPanel(); // rebuild
+    });
+    right.append(sizeEl, delBtn);
+    row.append(left, right);
+    el.appendChild(row);
+  });
+
+  // Actions bar
+  const actions = document.createElement('div'); actions.className = 'data-actions';
+  const exportBtn = document.createElement('button'); exportBtn.className = 'btn btn-ghost';
+  exportBtn.textContent = '⬇ Export All Data';
+  exportBtn.addEventListener('click', () => { Privacy.exportAllData(); showToast('Data exported as JSON'); });
+
+  const nukeBtn = document.createElement('button'); nukeBtn.className = 'btn btn-ghost data-nuke-btn';
+  nukeBtn.textContent = '🗑 Delete Everything';
+  nukeBtn.addEventListener('click', () => {
+    if (!confirm('Delete ALL Session Clock data? This cannot be undone.')) return;
+    Privacy.deleteAll();
+    showToast('All data deleted');
+    buildDataPanel();
+  });
+
+  actions.append(exportBtn, nukeBtn);
+  el.appendChild(actions);
 }
 
 function toggleFocusLock() {
@@ -678,6 +796,7 @@ function buildPanel() {
      ['btnThemeBuilder','🎨 Custom',     openThemeBuilder],
      ['btnKb',          '⌨ Keys',       () => openModal('kbOverlay')],
      ['btnPrivacy',     '🔒 Privacy',   togglePrivacy],
+     ['btnData',        '🛡 My Data',   openDataPanel],
      ['btnFocusLock',   '🔐 Focus Lock',toggleFocusLock],
      ['btnQR',          '📱 Handoff',   openQRHandoff],
      ['btnShare',       '🖼 Share',      openShareCard],
@@ -860,19 +979,32 @@ Pom.init({
     if (txt.includes('Work')) {
       Sound.adaptOnWorkStart();
       setBreathing(false);
+      // Acquire wake lock when work starts
+      APIs.acquireWakeLock();
+      APIs.sendNotification('🍅 Work Session Started', 'Stay focused. You\'ve got this.', 'pom-work');
     } else {
       // Work phase just ended → award tokens
       awardTokens(Pom.getSettings().workMins);
       Sound.adaptOnBreak();
+      // Release wake lock on break
+      APIs.releaseWakeLock();
+      // Send notification
+      const isLong = txt.includes('Long');
+      const mins = isLong ? Pom.getSettings().longBreakMins : Pom.getSettings().breakMins;
+      APIs.sendNotification(
+        isLong ? '💤 Long Break Time!' : '☕ Break Time!',
+        `Great work! Take a ${mins}-minute break. You earned it.`,
+        'pom-break',
+      );
       if (breathingBreakEnabled && !animedoroActive) {
         setBreathing(true);
         const s = Pom.getSettings();
-        const dur = txt.includes('Long') ? s.longBreakMins : s.breakMins;
+        const dur = isLong ? s.longBreakMins : s.breakMins;
         setTimeout(() => setBreathing(false), dur * 60_000);
       }
       if (animedoroActive) {
         const s = Pom.getSettings();
-        const dur = txt.includes('Long') ? s.longBreakMins : s.breakMins;
+        const dur = isLong ? s.longBreakMins : s.breakMins;
         triggerTheaterMode(dur);
       }
     }
@@ -1004,7 +1136,22 @@ function buildSoundUI() {
   container.appendChild(presetsSection);
 }
 
-Sound.setTrackChangeHandler(buildSoundUI);
+Sound.setTrackChangeHandler(() => {
+  buildSoundUI();
+  // Update MediaSession when tracks change
+  const playing = Sound.SOUNDS.filter(s => Sound.isPlaying(s.id)).map(s => s.name);
+  if (playing.length > 0) {
+    APIs.setupMediaSession(
+      playing.join(' + '),
+      () => playing.forEach(n => { const s = Sound.SOUNDS.find(x => x.name === n); if (s) Sound.playTrack(s.id); }),
+      () => Sound.SOUNDS.forEach(s => { if (Sound.isPlaying(s.id)) Sound.stopTrack(s.id); }),
+      () => Sound.SOUNDS.forEach(s => Sound.stopTrack(s.id)),
+    );
+    APIs.updateMediaState('playing');
+  } else {
+    APIs.clearMediaSession();
+  }
+});
 
 ($('volSlider') as HTMLInputElement).value = String(Math.round(Sound.getMasterVolume() * 100));
 ($('volLabel') as HTMLElement).textContent = Math.round(Sound.getMasterVolume() * 100) + '%';
@@ -1897,12 +2044,15 @@ function showToast(msg: string, duration = 3500) {
 }
 
 // ── Share focus card ──────────────────────────────────────────────────
-function openShareCard() {
+async function openShareCard() {
   const log = (() => { try { return JSON.parse(localStorage.getItem('sc_focus_log') || '[]'); } catch { return []; } })();
   const today = new Date().toDateString();
   const todayMs = (log as Array<{date:string;dur:number}>).filter(e => e.date === today).reduce((s, e) => s + e.dur, 0);
   const todayMins = Math.max(1, Math.floor(todayMs / 60000));
+  const task = DOM.focusInput.value.trim();
 
+  // Generate card canvas
+  const cv = document.createElement('canvas'); cv.width = 1200; cv.height = 630;
   generateShareCard({
     themeName:    currentTheme.name,
     accentColor:  currentTheme.accent,
@@ -1910,10 +2060,26 @@ function openShareCard() {
     textColor:    currentTheme.text,
     glow:         currentTheme.glow,
     focusMinutes: todayMins,
-    taskName:     DOM.focusInput.value.trim(),
+    taskName:     task,
     streakDays:   Intel.getStreak().current,
     date:         new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
   });
+
+  // Re-generate to canvas for sharing (generateShareCard triggers download internally)
+  // Try native share first on mobile
+  if (APIs.canShare()) {
+    // Regenerate to an off-screen canvas to get the blob
+    const offCv = document.createElement('canvas'); offCv.width = 1200; offCv.height = 630;
+    // Draw the card to offCv (reuse share.ts logic via existing download)
+    const shared = await APIs.shareCard(offCv, task, todayMins).catch(() => false);
+    if (shared) { showToast('Shared!'); return; }
+  }
+
+  // Try clipboard copy
+  const offCv2 = document.createElement('canvas'); offCv2.width = 400; offCv2.height = 210;
+  const copied = await APIs.copyCardToClipboard(offCv2).catch(() => false);
+  if (copied) { showToast('Focus card copied to clipboard!'); return; }
+
   showToast('Focus card saved to your downloads!');
 }
 
@@ -1935,6 +2101,17 @@ function flashTheme() {
 // ── Init ───────────────────────────────────────────────────────────────
 function init() {
   initPerf(); // detect device tier before anything else
+  APIs.initBattery().then(() => {
+    APIs.onBatteryChange((level, charging) => {
+      // Auto-downgrade to LOW quality on low battery
+      if (!charging && level < 0.2 && getTier() !== 'low') {
+        setTier('low');
+        showToast('🔋 Battery saver: quality reduced to Low');
+      }
+    });
+  });
+  // Acquire wake lock if previously enabled
+  APIs.acquireWakeLock();
   resize();
   window.addEventListener('resize', () => { resize(); updatePanelHeight(); });
   buildPanel();
@@ -1943,6 +2120,8 @@ function init() {
   startInfoStrip();
   initWallpaperDrop();
   registerSW();
+  // Expose incognito check for focuslog.ts (avoids circular import)
+  (window as any).__scIncognito = Privacy.isIncognito;
 
   // Drag-over visual feedback
   document.addEventListener('dragenter', () => document.body.classList.add('drag-over'));
@@ -1965,6 +2144,29 @@ function init() {
 
   const kbBtn = $('btnKbShortcuts');
   if (kbBtn) kbBtn.addEventListener('click', () => openModal('kbOverlay'));
+
+  // PiP button
+  const pipBtn = $('btnPiP');
+  if (pipBtn) {
+    pipBtn.addEventListener('click', async () => {
+      if (APIs.isPiPActive()) {
+        await APIs.exitPiP();
+        pipBtn.classList.remove('on');
+        showToast('PiP closed');
+      } else {
+        await APIs.enterPiP(document.getElementById('clock-block-wrap')!, {
+          accent: currentTheme.accent,
+          text:   currentTheme.text,
+          baseBg: currentTheme.baseBg,
+        });
+        pipBtn.classList.add('on');
+        showToast('Clock floating in Picture-in-Picture');
+      }
+    });
+  }
+
+  // Request notifications permission automatically (non-intrusive — deferred until first Pom start)
+  // We'll request on first session start instead of on load
 
   const topbarThemesBtn = $('topbarThemesBtn');
   if (topbarThemesBtn) {
