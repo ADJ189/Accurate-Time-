@@ -1724,3 +1724,80 @@ body.privacy-activating::after {
 body.light-theme .feat-dock { background: rgba(240,244,252,.9); border-color: rgba(0,0,0,.08); }
 body.light-theme .feat-btn  { color: var(--clr-text); }
 
+
+/* ════════════════════════════════════════════════════════════
+   EASTER EGGS & SECRET MODES
+════════════════════════════════════════════════════════════ */
+
+/* Egg flash (keyword trigger) */
+@keyframes eggFlash {
+  0%   { opacity: .9; }
+  100% { opacity: 0; }
+}
+
+/* Hyperfocus mode — nearly black, only clock & timer visible */
+body.hyperfocus { transition: filter .8s ease; }
+body.hyperfocus::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.82);
+  pointer-events: none;
+  animation: hypnoFade .8s ease forwards;
+}
+@keyframes hypnoFade { from { opacity: 0; } to { opacity: 1; } }
+body.hyperfocus #themePanel  { opacity: 0; pointer-events: none; transition: opacity .6s; }
+body.hyperfocus .topbar      { opacity: .08; transition: opacity .6s; }
+body.hyperfocus .topbar:hover{ opacity: .6; }
+body.hyperfocus .session-card{ position: relative; z-index: 201; }
+body.hyperfocus #clock-block-wrap { position: relative; z-index: 201; }
+body.hyperfocus .digit-pair,
+body.hyperfocus #minimalHr,
+body.hyperfocus #analogueClock,
+body.hyperfocus #segmentClock,
+body.hyperfocus #wordClockGrid { filter: brightness(1.4); }
+
+/* Dev console */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+#devConsole { user-select: text; cursor: text; }
+
+/* 8-bit theme overrides */
+[data-theme='8bit'] .digit-pair,
+body.theme-8bit     .digit-pair {
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: clamp(1.2rem, 6vw, 5rem) !important;
+  image-rendering: pixelated;
+}
+
+/* Phoenix theme — animated ember glow on digits */
+body.theme-phoenix .digit-pair {
+  text-shadow: 0 0 20px #ff6600, 0 0 40px #ff3300, 0 0 60px #ff6600;
+  animation: emberPulse 2s ease-in-out infinite;
+}
+@keyframes emberPulse {
+  0%,100% { text-shadow: 0 0 20px #ff6600, 0 0 40px #ff3300; }
+  50%     { text-shadow: 0 0 30px #ffaa00, 0 0 60px #ff6600, 0 0 80px #ff2200; }
+}
+
+/* Mr Robot — glitch on digits */
+body.theme-mrrobot .digit-pair {
+  animation: mrGlitch 8s ease infinite;
+}
+@keyframes mrGlitch {
+  0%,88%,100% { transform: none; filter: none; }
+  89%  { transform: translateX(-2px) skewX(-1deg); filter: hue-rotate(90deg); }
+  90%  { transform: translateX(2px)  skewX(1deg);  filter: hue-rotate(-90deg); }
+  91%  { transform: none; filter: none; }
+  92%  { transform: translateX(-1px); filter: brightness(1.5); }
+  93%  { transform: none; filter: none; }
+}
+
+/* Oppenheimer — sepia tone on body */
+body.theme-oppenheimer {
+  filter: sepia(.15) contrast(1.05);
+}
+
+/* Reduced motion overrides for easter egg animations */
+body.reduced-motion .digit-pair { animation: none !important; filter: none !important; }
