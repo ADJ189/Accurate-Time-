@@ -4,11 +4,12 @@
 
 **The most feature-complete focus timer on the open web.**
 
-*48+ animated themes · Easter eggs · Pomodoro · Binaural beats · Session intelligence · Token shop · PWA · Zero backend*
+*48+ animated themes · ⌘K Command palette · Easter eggs · Pomodoro · Binaural beats · Session intelligence · Token shop · PWA · Zero backend*
 
 [![Deploy](https://img.shields.io/github/actions/workflow/status/ADJ189/Accurate-Time-/deploy.yml?label=Deploy&style=flat-square)](https://github.com/ADJ189/Accurate-Time-/actions)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-5-646cff?style=flat-square&logo=vite)](https://vitejs.dev/)
+[![Svelte](https://img.shields.io/badge/Svelte-5-ff3e00?style=flat-square&logo=svelte)](https://svelte.dev/)
 [![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)](LICENSE)
 
 [**Live Demo →**](https://ADJ189.github.io/Accurate-Time-)
@@ -32,38 +33,17 @@ Most focus timers are bare-bones Pomodoro counters with a start button and a bee
 
 ---
 
-## Themes — 42 total
+## 🖥️ Command Palette
 
-### Natural
-Aurora · Sunrise · Forest · Ocean · Candy · Nordic · Midnight (+ shooting stars) · Lemon · Blueprint · Living (Conway's Game of Life) · Common Room · SMPTE Timeline · Air-Gapped Terminal
+Press **⌘K** (Mac) or **Ctrl+K** (Windows/Linux) to open the command palette — a searchable interface for all easter eggs and theme triggers.
 
-### Literary
-Literary Clock — 288 prose sentences, one for every 5-minute slot (00:00–23:55)
-
-### TV Shows
-**Severance** · **Mr. Robot** · **House of the Dragon** · **Moon Knight** · Supernatural · The Mentalist · The Sopranos · Dark · Breaking Bad · Stranger Things
-
-### Movies
-**Cyberpunk 2077** · **2001: A Space Odyssey** · **Tenet** · Interstellar (+ wormhole rings) · **Oppenheimer** · Dune · The Matrix · Blade Runner 2049 · Inception · The Godfather
-
-### F1 Teams
-Red Bull Racing · Scuderia Ferrari · Mercedes-AMG · McLaren · Aston Martin
-
-### Anime ⛩
-**One Piece** · **Attack on Titan** · **Death Note**
-
-### Secret / Unlockable
-**8-BIT** (Konami Code) · **Phoenix** (100 sessions milestone) · **The Bear**
-
-> **Bold** = new themes added in v9.a
-
-> **Bold** = new themes added in v9.a
+No more memorising secret keywords. Type to filter, use ↑↓ to navigate, and press Enter to activate any easter egg instantly.
 
 ---
 
 ## 🥚 Easter Eggs
 
-There are 8 hidden easter eggs. Discover them yourself — or read on.
+There are 8 hidden easter eggs. Discover them yourself — or use the Command Palette, or read on.
 
 <details>
 <summary>Reveal all easter eggs</summary>
@@ -97,6 +77,31 @@ There are 8 hidden easter eggs. Discover them yourself — or read on.
 
 ---
 
+## Themes — 42 total
+
+### Natural
+Aurora · Sunrise · Forest · Ocean · Candy · Nordic · Midnight (+ shooting stars) · Lemon · Blueprint · Living (Conway's Game of Life) · Common Room · SMPTE Timeline · Air-Gapped Terminal
+
+### Literary
+Literary Clock — 288 prose sentences, one for every 5-minute slot (00:00–23:55)
+
+### TV Shows
+**Severance** · **Mr. Robot** · **House of the Dragon** · **Moon Knight** · Supernatural · The Mentalist · The Sopranos · Dark · Breaking Bad · Stranger Things
+
+### Movies
+**Cyberpunk 2077** · **2001: A Space Odyssey** · **Tenet** · Interstellar (+ wormhole rings) · **Oppenheimer** · Dune · The Matrix · Blade Runner 2049 · Inception · The Godfather
+
+### F1 Teams
+Red Bull Racing · Scuderia Ferrari · Mercedes-AMG · McLaren · Aston Martin
+
+### Anime ⛩
+**One Piece** · **Attack on Titan** · **Death Note**
+
+### Secret / Unlockable
+**8-BIT** (Konami Code) · **Phoenix** (100 sessions milestone) · **The Bear**
+
+---
+
 ## Features
 
 ### Session Intelligence
@@ -115,35 +120,21 @@ There are 8 hidden easter eggs. Discover them yourself — or read on.
 ### Audio
 - **6 Ambient Soundscapes** — Rain, Brown Noise, Forest (+ bird chirps), Café, Ocean (3-layer waves), Fireplace — all Web Audio API synthesis, zero audio files
 - **Binaural Beats** — Gamma (40Hz), Beta (18Hz), Alpha (10Hz), Theta (6Hz), Delta (2Hz)
-- **ILD+ITD Spatial Audio** — real Inter-aural Level Difference + Inter-aural Time Difference (0.65ms max) via StereoPannerNode + DelayNode — not just pan, actual headphone spatial positioning
-- **Per-sound spatial profiles** — rain sweeps wide, fire stays slightly right, forest birds dart unexpectedly, café wanders fast
+- **ILD+ITD Spatial Audio** — real Inter-aural Level Difference + Inter-aural Time Difference via StereoPannerNode + DelayNode
 - **Saveable Mixer Presets** — save up to 5 named sound mixes
-- **MediaSession API** — lock screen media controls show active tracks; play/pause from headphone buttons
+- **MediaSession API** — lock screen media controls show active tracks
 
 ### OS Integration
-- **Picture-in-Picture** — Document PiP (Chrome/Edge) floats a live themed clock above any app; Canvas PiP fallback for Safari/Firefox
+- **Picture-in-Picture** — Document PiP (Chrome/Edge) floats a live themed clock above any app
 - **OS Notifications** — Pomodoro phase changes fire system notifications even when the tab is hidden
-- **Wake Lock** — keeps screen on during sessions; releases on break
+- **Wake Lock** — keeps screen on during sessions
 - **PWA** — fully installable on desktop and mobile, works offline via service worker
 
 ### Privacy
 - **Zero Backend** — everything in `localStorage`. No server, no accounts, no analytics
-- **Privacy Mode** — disables geolocation, weather, time sync, and Google Fonts (system fonts fallback)
+- **Privacy Mode** — disables geolocation, weather, time sync, and Google Fonts
 - **Incognito Sessions** — sessions run in memory only, nothing persisted
 - **Auto-Clear on Close** — optionally wipe session log when the tab closes
-- **Data Management Panel** — view all stored data by category with size, delete selectively, export as JSON
-
-### Sharing
-- **Share Focus Card** — 1200×630 PNG with theme art, focus time, task, streak, decorative clock; uses native OS share sheet on mobile
-- **QR Handoff** — pure-TypeScript QR encoder; scan to resume session on another device
-- **Cross-Tab Sync** — BroadcastChannel keeps theme + session in sync across all open tabs
-
-### Display
-- **6 Clock Styles** — Digital · Analogue · Flip (3D) · Word · Minimal · 7-Segment LED
-- **Parallax Depth** — mouse and gyroscope drive a multi-layer canvas parallax
-- **Adaptive Quality** — auto-detects device tier (LOW/MED/HIGH) from RAM/CPU/DPR; auto-degrades on low FPS
-- **Reduce Motion** — respects `prefers-reduced-motion` and has a manual override in Settings
-- **Battery Saver** — below 20% battery → auto-downgrades to LOW quality tier
 
 ---
 
@@ -151,6 +142,7 @@ There are 8 hidden easter eggs. Discover them yourself — or read on.
 
 | Key | Action |
 |---|---|
+| `⌘K` / `Ctrl+K` | **Command palette** — search all easter eggs & themes |
 | `Space` | Start / Pause |
 | `R` | Reset timer |
 | `T` | Cycle next theme |
@@ -165,21 +157,17 @@ There are 8 hidden easter eggs. Discover them yourself — or read on.
 
 ---
 
-## Security
-
-Session Clock is CodeQL-verified — zero `innerHTML` injections of user-supplied data. All dynamic content uses `textContent`, developer-authored SVG constants, or canvas rendering. See the GitHub Security tab for the clean CodeQL report.
-
 ## Getting Started
 
 ```bash
-npm install          # install dev deps (TypeScript + Vite only)
+npm install          # install dev deps
 npm run dev          # dev server at localhost:5173
 npm run typecheck    # type-check without building
 npm run build        # production build → dist/
 npm run preview      # preview production build
 ```
 
-## Deploy to GitHub Pages
+## Deploy to Cloudflare Pages / GitHub Pages
 
 ```bash
 git init && git add . && git commit -m "feat: session clock"
@@ -188,9 +176,9 @@ git remote add origin https://github.com/YOUR_USERNAME/session-clock.git
 git push -u origin main
 ```
 
-Then: **Settings → Pages → Source → GitHub Actions**
+For GitHub Pages: **Settings → Pages → Source → GitHub Actions**
 
-The included `deploy.yml` type-checks, builds, and deploys automatically on every push.
+The included `deploy.yml` type-checks, builds, and deploys automatically on every push to `main`.
 
 ---
 
@@ -204,12 +192,21 @@ session-clock/
 │   ├── icon-192.svg      App icon
 │   └── icon-512.svg      App icon
 ├── src/
-│   ├── main.ts           App entry: render loop, UI, all feature orchestration
+│   ├── main.ts           App entry: RAF loop, session timer, theme engine (~620 lines)
+│   ├── ui/               UI layer — extracted from main.ts, Svelte components
+│   │   ├── modals.ts         Modal open/close helpers
+│   │   ├── panel.ts          Theme panel with tabs & feature bar
+│   │   ├── settings.ts       5-tab settings modal
+│   │   ├── shop-ui.ts        Token shop panel + SVG art
+│   │   ├── sound-ui.ts       Sound mixer panel + presets
+│   │   ├── log-ui.ts         Focus log panel
+│   │   ├── theme-builder.ts  Custom theme colour picker
+│   │   └── CommandPalette.svelte  ⌘K command palette (Svelte 5)
 │   ├── renderer.ts       Canvas engine: 42 theme backgrounds, transitions, parallax
 │   ├── themes.ts         42 typed theme definitions
 │   ├── easter.ts         Easter eggs: Konami, keywords, midnight, shake, hyperfocus
 │   ├── intelligence.ts   Streak, velocity score, peak hours, flow state, smart break
-│   ├── apis.ts           Notifications, MediaSession, Wake Lock, PiP, Share, Clipboard, Battery
+│   ├── apis.ts           Notifications, MediaSession, Wake Lock, PiP, Share, Battery
 │   ├── privacy.ts        Data management, incognito sessions, auto-clear, export
 │   ├── perf.ts           Adaptive quality tier, FPS tracker, visibility API
 │   ├── sound.ts          Web Audio: 6 tracks + binaural + ILD+ITD spatial + compressor
@@ -225,18 +222,16 @@ session-clock/
 │   └── types.ts          TypeScript interfaces
 ├── index.html            HTML shell + all modal scaffolding
 ├── style.css             ~1400 lines: CSS custom properties, animations, themes
+├── svelte.config.js      Svelte preprocessor config
 └── .github/workflows/
     └── deploy.yml        CI/CD: typecheck → build → GitHub Pages
 ```
 
-### Performance
-
-- **Single RAF loop** — one `requestAnimationFrame` drives everything
-- **Gradient cache** — background gradients recomputed only on theme/resize change
-- **Adaptive particles** — 100% → 55% → 25% count on HIGH/MED/LOW tier
-- **Frame skip** — expensive draws skip 1–2 frames on MED/LOW
-- **Tab hidden** — canvas render fully paused when tab is not visible
-- **DynamicsCompressor** — prevents clipping at 200% volume boost
+### main.ts size history
+| Version | Lines | Notes |
+|---|---|---|
+| v8 original | 2,387 | Everything in one file |
+| v9 refactored | **621** | UI extracted to `src/ui/`, Svelte palette added |
 
 ---
 
@@ -245,7 +240,9 @@ session-clock/
 | Layer | Technology |
 |---|---|
 | Language | TypeScript 5 — strict mode |
+| UI components | Svelte 5 — command palette |
 | Build | Vite 5 + Terser (2-pass, toplevel mangle, console drop) |
+| UI Components | Svelte 5 (command palette) |
 | Canvas | HTML5 2D Canvas — bgCanvas (backgrounds) + transCanvas (transitions) |
 | Audio | Web Audio API — zero audio files; ILD+ITD spatial via StereoPannerNode + DelayNode |
 | Time | Cloudflare multi-probe NTP + WorldTimeAPI fallback |
@@ -255,7 +252,7 @@ session-clock/
 | Cross-tab | BroadcastChannel API |
 | PWA | Manifest + service worker |
 | Storage | localStorage only — no backend, no cookies, no tracking |
-| Deployment | GitHub Actions → GitHub Pages |
+| Deployment | GitHub Actions → GitHub Pages / Cloudflare Pages |
 
 ---
 
@@ -266,5 +263,5 @@ MIT — use it, fork it, ship it.
 ---
 
 <div align="center">
-<sub>21 TypeScript modules · Zero runtime dependencies · Everything runs in your browser</sub>
+<sub>22 TypeScript/Svelte modules · Zero runtime dependencies · Everything runs in your browser</sub>
 </div>
