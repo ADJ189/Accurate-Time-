@@ -1,3 +1,5 @@
+export type ClockMode = 'digital' | 'analogue' | 'flip' | 'word' | 'minimal' | 'segment';
+
 export interface Theme {
   id: string;
   name: string;
