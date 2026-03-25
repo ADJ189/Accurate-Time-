@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
 
   // ── All easter egg commands ───────────────────────────────────────────
   interface Command {
@@ -18,7 +18,7 @@
   const COMMANDS: Command[] = [
     // Themes — TV
     { id: 'breakingbad',   label: 'Breaking Bad',        icon: '⚗️',  desc: 'You\'re goddamn right.',           keywords: ['heisenberg', 'breakingbad'],   action: () => onAction('heisenberg') },
-    { id: 'supernatural',  label: 'Supernatural',        icon: '🔥',  desc: 'The Road So Far…',                 keywords: ['winchester', 'supernatural'],  action: () => onAction('winchester') },
+    { id: 'supernatural',  label: 'Supernatural',        icon: '🔥',  desc: 'The Road So Far…',                 keywords: ['winchester', 'supernatural'], action: () => onAction('winchester') },
     { id: 'mentalist',     label: 'The Mentalist',       icon: '🔴',  desc: 'He\'s been here.',                 keywords: ['redjohn', 'mentalist'],        action: () => onAction('redjohn') },
     { id: 'sopranos',      label: 'The Sopranos',        icon: '🥃',  desc: 'Bada bing.',                       keywords: ['bada bing', 'sopranos'],       action: () => onAction('bada bing') },
     { id: 'dark',          label: 'Dark',                icon: '⏳',  desc: 'Sic Mundus Creatus Est.',          keywords: ['winden', 'dark'],              action: () => onAction('winden') },
@@ -39,7 +39,7 @@
     { id: 'dragonfire',    label: 'House of the Dragon', icon: '🐉',  desc: 'Dracarys.',                        keywords: ['dracarys', 'targaryen'],       action: () => onAction('dracarys') },
     { id: 'moonknight',    label: 'Moon Knight',         icon: '🌙',  desc: 'I am the Fist of Khonshu.',        keywords: ['moonknight', 'khonshu'],       action: () => onAction('moonknight') },
     // Anime
-    { id: 'onepiece',      label: 'One Piece',           icon: '🏴‍☠️', desc: 'King of the Pirates!',           keywords: ['luffy', 'onepiece', 'gomu gomu'], action: () => onAction('luffy') },
+    { id: 'onepiece',      label: 'One Piece',           icon: '🏴‍☠️', desc: 'King of the Pirates!',            keywords: ['luffy', 'onepiece', 'gomu gomu'], action: () => onAction('luffy') },
     { id: 'attackontitan', label: 'Attack on Titan',     icon: '⚔️',  desc: 'Dedicate your heart!',             keywords: ['dedicate', 'eren'],            action: () => onAction('dedicate') },
     { id: 'deathnote',     label: 'Death Note',          icon: '📓',  desc: 'I am justice.',                    keywords: ['lightyagami', 'kira'],         action: () => onAction('lightyagami') },
     // Special effects
@@ -54,22 +54,27 @@
   let selectedIdx = 0;
   let inputEl: HTMLInputElement;
 
-  $: filtered = query.trim() === ''
+  // Optimized search logic: cache lowercase query and safely check keywords
+  $: lowerQuery = query.trim().toLowerCase();
+  $: filtered = lowerQuery === ''
     ? COMMANDS
     : COMMANDS.filter(c =>
-        c.label.toLowerCase().includes(query.toLowerCase()) ||
-        c.desc.toLowerCase().includes(query.toLowerCase()) ||
-        c.keywords.some(k => k.includes(query.toLowerCase()))
+        c.label.toLowerCase().includes(lowerQuery) ||
+        c.desc.toLowerCase().includes(lowerQuery) ||
+        c.keywords.some(k => k.toLowerCase().includes(lowerQuery))
       );
 
-  $: selectedIdx = 0; // reset selection on query change — reactive
+  // Svelte reactivity fix: trigger when lowerQuery changes
+  $: lowerQuery, selectedIdx = 0; 
 
-  function openPalette() {
+  async function openPalette() {
     open = true;
     query = '';
     selectedIdx = 0;
-    // Focus input next tick
-    setTimeout(() => inputEl?.focus(), 30);
+    
+    // Idiomatic Svelte DOM focus
+    await tick();
+    inputEl?.focus();
   }
 
   function closePalette() {
@@ -84,9 +89,26 @@
 
   function onKeydown(e: KeyboardEvent) {
     if (!open) return;
-    if (e.key === 'Escape')     { e.preventDefault(); closePalette(); return; }
-    if (e.key === 'ArrowDown')  { e.preventDefault(); selectedIdx = Math.min(selectedIdx + 1, filtered.length - 1); return; }
-    if (e.key === 'ArrowUp')    { e.preventDefault(); selectedIdx = Math.max(selectedIdx - 1, 0); return; }
+
+    if (e.key === 'Escape') { 
+      e.preventDefault(); 
+      closePalette(); 
+      return;
+    }
+    
+    // Array bounds protected
+    if (e.key === 'ArrowDown') { 
+      e.preventDefault(); 
+      selectedIdx = Math.min(selectedIdx + 1, Math.max(0, filtered.length - 1)); 
+      return;
+    }
+    
+    if (e.key === 'ArrowUp') { 
+      e.preventDefault(); 
+      selectedIdx = Math.max(selectedIdx - 1, 0); 
+      return;
+    }
+    
     if (e.key === 'Enter' && filtered[selectedIdx]) {
       e.preventDefault();
       runCommand(filtered[selectedIdx]!);
@@ -104,18 +126,16 @@
   onMount(() => {
     window.addEventListener('keydown', onGlobalKey);
   });
+
   onDestroy(() => {
     window.removeEventListener('keydown', onGlobalKey);
   });
 </script>
 
 {#if open}
-  <!-- Backdrop -->
-  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
   <div class="cp-backdrop" on:click={closePalette}></div>
 
   <div class="cp-panel" role="dialog" aria-label="Command palette" tabindex="-1" on:keydown={onKeydown}>
-    <!-- Search input -->
     <div class="cp-search">
       <span class="cp-search-icon">⌕</span>
       <input
@@ -129,13 +149,11 @@
       <button class="cp-esc" on:click={closePalette}>Esc</button>
     </div>
 
-    <!-- Results -->
     <div class="cp-results">
       {#if filtered.length === 0}
         <div class="cp-empty">No commands match "{query}"</div>
       {:else}
         {#each filtered as cmd, i}
-          <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
           <div
             class="cp-item"
             class:cp-item--selected={i === selectedIdx}
@@ -155,7 +173,6 @@
       {/if}
     </div>
 
-    <!-- Footer -->
     <div class="cp-footer">
       <span>↑↓ navigate</span>
       <span>↵ run</span>
@@ -325,6 +342,9 @@
 
   @keyframes cpSlideIn {
     from { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(0.97); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  }
+</style>
     to   { opacity: 1; transform: translateX(-50%) translateY(0)     scale(1);    }
   }
 </style>
