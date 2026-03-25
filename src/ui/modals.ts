@@ -1,11 +1,11 @@
 // ── Modal helpers ─────────────────────────────────────────────────────
 // Shared across all UI modules.
 
-export const $ = <T extends HTMLElement>(id: string) =>
-  document.getElementById(id) as T;
+export const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
+  document.getElementById(id) as T | null;
 
-export const openModal  = (id: string) => $(id).classList.add('open');
-export const closeModal = (id: string) => $(id).classList.remove('open');
+export const openModal  = (id: string) => $(id)?.classList.add('open');
+export const closeModal = (id: string) => $(id)?.classList.remove('open');
 
 // Expose to HTML onclick attributes and legacy SC.modals references
 export function initModalClickOutside() {
