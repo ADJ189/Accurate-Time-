@@ -53,7 +53,7 @@ function setupKonami() {
 let typedBuffer = '';
 let typedTimer  = 0;
 
-export const KEYWORD_ACTIONS: Record<string, () => void> = {
+const KEYWORD_ACTIONS: Record<string, () => void> = {
   'matrix':      () => { triggerMatrixRain(); _showToast('💊 Wake up, Neo…', 3000); },
   'heisenberg':  () => { triggerThemeEasterEgg('breakingbad', '⚗️ You\'re goddamn right.'); },
   'winchester':  () => { triggerThemeEasterEgg('supernatural', '🔥 The Road So Far…'); },
@@ -461,11 +461,4 @@ function check100Sessions() {
 export function isPhoenixUnlocked(): boolean {
   return localStorage.getItem('sc_phoenix_unlocked') === '1' ||
     ((() => { try { return JSON.parse(localStorage.getItem('sc_focus_log')||'[]').length >= 100; } catch { return false; } })());
-}
-
-// ── Direct trigger — used by command palette to bypass keydown simulation ─
-export function triggerKeyword(keyword: string): boolean {
-  const action = KEYWORD_ACTIONS[keyword];
-  if (action) { action(); return true; }
-  return false;
 }

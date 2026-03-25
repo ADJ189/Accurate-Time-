@@ -1,6 +1,5 @@
 import type { Theme } from './types';
-import type { ClockMode } from './types';
-import { THEMES, THEME_BY_ID, NAT_QUOTES } from './themes';
+import { THEMES, THEME_BY_ID, THEMES_BY_CAT, NAT_QUOTES } from './themes';
 import { LIT_CLOCK } from './litclock';
 import { p2, p3, fmtSession, DAYS, MONTHS, GREETS } from './utils';
 import { clockOffset, synced, syncTime, setSyncHandler } from './timesync';
@@ -13,41 +12,69 @@ import { drawQR } from './qr';
 import * as Shop from './shop';
 import * as Intel from './intelligence';
 import { generateShareCard } from './share';
-import { initPerf, getTier, setTier, tickFps, getFps } from './perf';
-import type { QualityTier } from './perf';
+import { initPerf, getTier, setTier, tickFps, getFps, type QualityTier } from './perf';
 import * as APIs from './apis';
 import * as Privacy from './privacy';
 import * as Easter from './easter';
-import { triggerKeyword } from './easter';
-// ── UI modules ────────────────────────────────────────────────────────
-import { $, openModal, closeModal, initModalClickOutside } from './ui/modals';
-import { openLog, initLogUI, switchLogTab } from './ui/log-ui';
-import { initSoundUI, buildSoundUI } from './ui/sound-ui';
-import { openThemeBuilder, initThemeBuilder, previewCustomTheme } from './ui/theme-builder';
-import { openShop, buildShopUI, awardTokens, coinHTML } from './ui/shop-ui';
-import { buildPanel, initPanel, setCurrentThemeId } from './ui/panel';
-import { openSettings, initSettings } from './ui/settings';
-// ── Svelte command palette ─────────────────────────────────────────────
-import CommandPalette from './ui/CommandPalette.svelte';
-
-export type { ClockMode };
 
 // ── Clock mode ────────────────────────────────────────────────────────
+export type ClockMode = 'digital' | 'analogue' | 'flip' | 'word' | 'minimal' | 'segment';
 let clockMode: ClockMode = (localStorage.getItem('sc_clock_mode') as ClockMode) || 'digital';
 function setClockMode(m: ClockMode) {
   clockMode = m;
   localStorage.setItem('sc_clock_mode', m);
-  document.querySelectorAll('.clock-mode-btn').forEach(b =>
-    (b as HTMLElement).classList.toggle('active', (b as HTMLElement).dataset.mode === m)
-  );
+  updateClockModeDOM();
+}
+function updateClockModeDOM() {
+  const cb = document.getElementById('clock-block-wrap');
+  if (cb) cb.dataset.mode = clockMode;
+  document.querySelectorAll('.clock-mode-btn').forEach(b => {
+    (b as HTMLElement).classList.toggle('active', (b as HTMLElement).dataset.mode === clockMode);
+  });
 }
 
-// ── Cached DOM refs ───────────────────────────────────────────────────
+// ── SVG Logos ─────────────────────────────────────────────────────────
+const LOGOS: Record<string, string> = {
+  supernatural: `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#1a0800"/><path d="M6 17L16 5L26 17" stroke="#e05500" stroke-width="1.5" fill="none"/><path d="M10 17L16 9L22 17" stroke="#ff9944" stroke-width="1" fill="none" opacity=".6"/><circle cx="16" cy="14" r="2" fill="#e05500" opacity=".8"/></svg>`,
+  mentalist:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#180800"/><circle cx="16" cy="11" r="7" stroke="#cc1100" stroke-width="1.2" fill="none"/><circle cx="13" cy="9.5" r="1.2" fill="#cc1100"/><circle cx="19" cy="9.5" r="1.2" fill="#cc1100"/><path d="M12 14Q16 17 20 14" stroke="#cc1100" stroke-width="1.2" fill="none"/></svg>`,
+  sopranos:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#080808"/><rect x="4" y="6" width="24" height="10" rx="1" stroke="#c8a000" stroke-width="1" fill="none" opacity=".7"/><text x="16" y="14.5" text-anchor="middle" fill="#c8a000" font-size="6" font-family="Georgia,serif" font-weight="700">TS</text></svg>`,
+  dark:         `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000004"/><circle cx="16" cy="11" r="8" stroke="#4488cc" stroke-width=".8" fill="none" opacity=".5"/><circle cx="16" cy="11" r="5" stroke="#4488cc" stroke-width=".6" fill="none" opacity=".35"/><circle cx="16" cy="11" r="2" fill="#4488cc" opacity=".7"/></svg>`,
+  breakingbad:  `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#040900"/><text x="4" y="10" fill="#7ec800" font-size="7.5" font-family="Arial,sans-serif" font-weight="900">Br</text><text x="4" y="19" fill="#b8f040" font-size="6" font-family="Arial,sans-serif" font-weight="700" letter-spacing="2">BAD</text></svg>`,
+  strangerthings:`<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#04000e"/><text x="16" y="9" text-anchor="middle" fill="#cc44ff" font-size="5.5" font-family="Georgia,serif" font-weight="700" letter-spacing="-.5">STRANGER</text><text x="16" y="17" text-anchor="middle" fill="#ee88ff" font-size="5.5" font-family="Georgia,serif" font-weight="700" letter-spacing="-.5">THINGS</text></svg>`,
+  interstellar: `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000305"/><circle cx="16" cy="11" r="6" fill="none" stroke="#4499ee" stroke-width=".8" opacity=".6"/><ellipse cx="16" cy="11" rx="9" ry="2.5" fill="none" stroke="#88ccff" stroke-width=".7" opacity=".4"/><circle cx="16" cy="11" r="1.2" fill="#4499ee" opacity=".6"/></svg>`,
+  dune:         `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#1a1000"/><path d="M2 16Q8 8 16 10Q24 12 30 6" stroke="#d4a020" stroke-width="1.2" fill="none" opacity=".7"/><text x="16" y="21" text-anchor="middle" fill="#d4a020" font-size="4.5" font-family="Georgia,serif" letter-spacing="3" opacity=".8">DUNE</text></svg>`,
+  matrix:       `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000a00"/><text x="4" y="8" fill="#00ee00" font-size="5" font-family="monospace" opacity=".9">10110</text><text x="4" y="14" fill="#00ee00" font-size="5" font-family="monospace" opacity=".6">01001</text><text x="24.5" y="13" text-anchor="middle" fill="#00ee00" font-size="7" font-family="monospace" font-weight="700">M</text></svg>`,
+  bladerunner:  `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0a0500"/><rect x="2" y="14" width="28" height="6" fill="#050200"/><path d="M2 5L5 2L27 2L30 5" stroke="#e87020" stroke-width=".6" fill="none" opacity=".5"/></svg>`,
+  inception:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#060608"/><circle cx="16" cy="11" r="9" stroke="#9090ee" stroke-width=".6" fill="none" opacity=".35"/><circle cx="16" cy="11" r="5" stroke="#9090ee" stroke-width=".6" fill="none" opacity=".3"/><circle cx="16" cy="11" r="1.5" fill="#9090ee" opacity=".6"/></svg>`,
+  godfather:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#050500"/><path d="M16 4Q10 8 10 12Q10 17 16 18Q22 17 22 12Q22 8 16 4Z" fill="none" stroke="#b09040" stroke-width=".8" opacity=".6"/></svg>`,
+  redbull:      `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#1c1f26"/><text x="16" y="10" text-anchor="middle" fill="#e8002d" font-size="5" font-family="Arial Black,sans-serif" font-weight="900">RED BULL</text><text x="16" y="17" text-anchor="middle" fill="#1e41ff" font-size="3.8" font-family="Arial,sans-serif" font-weight="700" letter-spacing="1">RACING</text></svg>`,
+  ferrari:      `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#dc0000"/><text x="16" y="13" text-anchor="middle" fill="#ffed00" font-size="8" font-family="Arial Black,sans-serif" font-weight="900">SF</text></svg>`,
+  mercedes:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#00d2be"/><text x="16" y="13" text-anchor="middle" fill="#fff" font-size="5" font-family="Arial Black,sans-serif" font-weight="900" letter-spacing=".5">AMG</text><path d="M16 5 L19 9 L16 8 L13 9 Z" fill="white" opacity=".9"/></svg>`,
+  mclaren:      `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#ff8000"/><path d="M3 11 Q16 4 29 11 Q16 18 3 11Z" fill="#c86000" opacity=".7"/><text x="16" y="13" text-anchor="middle" fill="white" font-size="5.5" font-family="Arial Black,sans-serif" font-weight="900">MCL</text></svg>`,
+  astonmartin:  `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#006f62"/><path d="M8 14 Q16 6 24 14" stroke="#cedc00" stroke-width="1.5" fill="none"/><text x="16" y="19" text-anchor="middle" fill="#cedc00" font-size="3.5" font-family="Arial,sans-serif" font-weight="700" letter-spacing=".5">ASTON MARTIN</text></svg>`,
+  severance:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000408"/><rect x="2" y="9" width="28" height="4" rx=".5" fill="#0088cc" opacity=".15"/><text x="16" y="12.5" text-anchor="middle" fill="#0088cc" font-size="5.5" font-family="'Josefin Sans',Arial,sans-serif" font-weight="300" letter-spacing="3" opacity=".9">LUMON</text><line x1="2" y1="16" x2="30" y2="16" stroke="#0088cc" stroke-width=".4" opacity=".3"/></svg>`,
+  blueprint:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#040d1a"/><line x1="4" y1="4" x2="28" y2="4" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="4" y1="11" x2="28" y2="11" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="4" y1="18" x2="28" y2="18" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="4" y1="4" x2="4" y2="18" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="16" y1="4" x2="16" y2="18" stroke="#00cfff" stroke-width=".6" opacity=".4"/><line x1="28" y1="4" x2="28" y2="18" stroke="#00cfff" stroke-width=".6" opacity=".4"/><circle cx="16" cy="11" r="4" stroke="#00cfff" stroke-width="1" fill="none" opacity=".9"/><line x1="12" y1="11" x2="20" y2="11" stroke="#00cfff" stroke-width=".7" opacity=".7"/><line x1="16" y1="7" x2="16" y2="15" stroke="#00cfff" stroke-width=".7" opacity=".7"/></svg>`,
+  commonroom:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0d0603"/><path d="M6 18 Q10 8 16 12 Q22 8 26 18" stroke="#e07030" stroke-width="1.2" fill="rgba(200,60,10,.3)"/><circle cx="16" cy="10" r="2.5" fill="#e8a040" opacity=".8"/><path d="M13 14 Q16 10 19 14" stroke="#ff8020" stroke-width=".8" fill="none" opacity=".6"/></svg>`,
+  smpte:        `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0d0d0d"/><rect x="2" y="14" width="28" height="5" rx=".5" fill="#222"/><rect x="14" y="11" width="2" height="9" fill="#e94560" opacity=".9"/><line x1="2" y1="14" x2="30" y2="14" stroke="#444" stroke-width=".4"/><text x="16" y="9" text-anchor="middle" fill="#e94560" font-size="4" font-family="monospace" opacity=".8">TIMELINE</text></svg>`,
+  terminal:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000a00"/><text x="4" y="9" fill="#00ff41" font-size="4.5" font-family="monospace" opacity=".7">0f3a 88c1</text><text x="4" y="16" fill="#00ff41" font-size="4.5" font-family="monospace" opacity=".4">b72d 0044</text><rect x="25" y="11" width="2.5" height="5" fill="#00ff41" opacity=".9"/></svg>`,
+  gameoflife:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#050a05"/><rect x="5" y="5" width="2" height="2" fill="#00e87a" opacity=".8"/><rect x="9" y="5" width="2" height="2" fill="#00e87a" opacity=".8"/><rect x="7" y="7" width="2" height="2" fill="#00e87a" opacity=".8"/><rect x="5" y="9" width="2" height="2" fill="#00e87a" opacity=".5"/><rect x="7" y="9" width="2" height="2" fill="#00e87a" opacity=".8"/><rect x="17" y="6" width="2" height="2" fill="#00e87a" opacity=".7"/><rect x="19" y="8" width="2" height="2" fill="#00e87a" opacity=".7"/><rect x="15" y="8" width="2" height="2" fill="#00e87a" opacity=".7"/><rect x="15" y="10" width="2" height="2" fill="#00e87a" opacity=".5"/><rect x="17" y="10" width="2" height="2" fill="#00e87a" opacity=".7"/></svg>`,
+  cyberpunk:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#030010"/><rect x="2" y="14" width="28" height="6" fill="#060020" rx="1"/><rect x="3" y="4" width="6" height="8" fill="#0a0030" rx="1"/><rect x="12" y="5" width="4" height="7" fill="#0a0030" rx="1"/><rect x="20" y="3" width="8" height="9" fill="#0a0030" rx="1"/><rect x="5" y="7" width="1" height="1" fill="#ff0090" opacity=".9"/><rect x="14" y="6" width="1" height="1" fill="#00eeff" opacity=".9"/><rect x="22" y="5" width="1" height="2" fill="#ff0090" opacity=".8"/><text x="16" y="21" text-anchor="middle" fill="#ff0090" font-size="3.5" font-family="monospace" opacity=".7" letter-spacing="1">NIGHT CITY</text></svg>`,
+  hal9000:      `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000000"/><radialGradient id="halG" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ff0000"/><stop offset="60%" stop-color="#880000"/><stop offset="100%" stop-color="#330000"/></radialGradient><circle cx="16" cy="11" r="7" fill="url(#halG)"/><circle cx="13.5" cy="9" r="1.5" fill="rgba(255,200,200,.15)"/><circle cx="16" cy="11" r="2" fill="#cc0000" opacity=".5"/></svg>`,
+  tenet:        `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#040408"/><text x="16" y="9" text-anchor="middle" fill="#8888ff" font-size="5" font-family="sans-serif" letter-spacing="2" opacity=".8">TENET</text><text x="16" y="18" text-anchor="middle" fill="#ff8800" font-size="5" font-family="sans-serif" letter-spacing="2" opacity=".5" transform="scale(-1,1) translate(-32,0)">TENET</text></svg>`,
+  dragonfire:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0e0200"/><path d="M10 18 Q12 10 16 8 Q20 10 22 18" fill="#e84000" opacity=".6"/><path d="M13 18 Q14 13 16 11 Q18 13 19 18" fill="#ffa020" opacity=".5"/><circle cx="16" cy="6" r="2.5" fill="#e84000" opacity=".4"/><path d="M11 8 Q13 5 16 4 Q19 5 21 8" fill="none" stroke="#ffa020" stroke-width=".8" opacity=".5"/></svg>`,
+  moonknight:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#04060e"/><circle cx="21" cy="8" r="5.5" fill="#c8d8ff" opacity=".85"/><circle cx="24" cy="7" r="4.5" fill="#04060e"/><line x1="16" y1="14" x2="16" y2="20" stroke="#c8d8ff" stroke-width="1" opacity=".4"/><line x1="13" y1="16" x2="19" y2="16" stroke="#c8d8ff" stroke-width="1" opacity=".4"/><circle cx="16" cy="14" r="1.5" fill="none" stroke="#c8d8ff" stroke-width=".8" opacity=".4"/></svg>`,
+  onepiece:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000d1a"/><circle cx="16" cy="8" r="4" fill="#ffcc00" opacity=".9"/><path d="M4 16 Q8 12 16 14 Q24 12 28 16 L28 22 L4 22 Z" fill="#003d8f" opacity=".8"/><circle cx="8" cy="6" r="1.5" fill="#ffcc00" opacity=".5"/><circle cx="24" cy="6" r="1.5" fill="#ffcc00" opacity=".5"/></svg>`,
+  attackontitan:`<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0a0800"/><path d="M22 22 L26 8 L28 22" fill="#1a1400" stroke="#c8a000" stroke-width=".8"/><path d="M22 22 L20 14 L24 14 Z" fill="#c8a000" opacity=".6"/><path d="M24 14 L28 14 L26 8 Z" fill="#884400" opacity=".5"/><line x1="4" y1="10" x2="18" y2="10" stroke="#c8a000" stroke-width=".5" opacity=".3" stroke-dasharray="2 2"/></svg>`,
+  deathnote:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#060006"/><rect x="8" y="3" width="16" height="16" rx="2" fill="#0c000c" stroke="#cc00cc" stroke-width=".8"/><text x="16" y="11" text-anchor="middle" font-size="5" fill="#cc00cc" font-family="serif" opacity=".8">死</text><text x="16" y="17" text-anchor="middle" font-size="3.5" fill="#880088" font-family="serif" opacity=".6">神</text></svg>`,
+};
+
+// ── Cached DOM refs ────────────────────────────────────────────────────
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const DOM = {
   digitHr:        $('digitHr'),
   digitMin:       $('digitMin'),
   digitSec:       $('digitSec'),
-  timeDis:        $('timeDis'),
+  timeDis:        $('timeDis'),   // hidden, kept for compat
   ampmDis:        $('ampmDis'),
   secMs:          $('secMs'),
   dateDis:        $('dateDis'),
@@ -74,21 +101,23 @@ const DOM = {
   infoSlide:      $('infoSlide'),
 };
 
-// ── Session timer ─────────────────────────────────────────────────────
+// ── Session timer ──────────────────────────────────────────────────────
 let sessionRunning = false;
-let sessionStart   = 0;
+let sessionStart = 0;
 let sessionElapsed = 0;
 
 function startTimer() {
   sessionRunning = true;
-  sessionStart   = performance.now() - sessionElapsed;
+  sessionStart = performance.now() - sessionElapsed;
   DOM.btnStart.textContent = 'Pause';
   DOM.focusInputWrap.classList.add('visible');
   if (Pom.isActive()) Pom.onStart();
   Intel.onSessionStart();
   Intel.onFlowInterrupt();
   bcBroadcast('session', { running: true });
+  // Request notification permission on first user interaction (feels natural)
   APIs.requestNotifications();
+  // Keep screen on during session
   APIs.acquireWakeLock();
 }
 
@@ -106,7 +135,7 @@ function resetTimer() {
   if (dur > 60_000) {
     awardTokens(Math.floor(dur / 60000));
     Intel.recordCompleted();
-    const streak    = Intel.updateStreak();
+    const streak = Intel.updateStreak();
     const milestone = Intel.getStreakMilestone(streak.current);
     if (milestone) showToast(milestone);
     Intel.onBreakTaken();
@@ -116,7 +145,7 @@ function resetTimer() {
   Intel.onFlowInterrupt();
   sessionRunning = false; sessionStart = sessionElapsed = 0;
   DOM.btnStart.textContent = 'Start';
-  DOM.sTmr.textContent     = '00:00:00';
+  DOM.sTmr.textContent = '00:00:00';
   DOM.focusInputWrap.classList.remove('visible');
   DOM.focusInput.value = '';
   if (Pom.isActive()) Pom.reset();
@@ -126,17 +155,19 @@ function resetTimer() {
 DOM.btnStart.addEventListener('click', () => sessionRunning ? pauseTimer() : startTimer());
 DOM.btnReset.addEventListener('click', resetTimer);
 
-// ── Privacy ───────────────────────────────────────────────────────────
-let privacyMode           = localStorage.getItem('sc_privacy') === '1';
-let breathingBreakEnabled = localStorage.getItem('sc_breathing_break') !== '0';
+// ── Privacy toggle ────────────────────────────────────────────────────
+let privacyMode = localStorage.getItem('sc_privacy') === '1';
+let breathingBreakEnabled = localStorage.getItem('sc_breathing_break') !== '0'; // on by default
 function isPrivacyMode() { return privacyMode; }
-
 function togglePrivacy() {
   privacyMode = !privacyMode;
   localStorage.setItem('sc_privacy', privacyMode ? '1' : '0');
   if (privacyMode) {
-    updateSyncDisplay('failed'); stopWeather();
-    const wp = $('weatherPill'); if (wp) wp.classList.remove('loaded');
+    updateSyncDisplay('failed');
+    stopWeather();
+    const wp = $('weatherPill');
+    if (wp) { wp.classList.remove('loaded'); }
+    // Apply system fonts — no Google Fonts in privacy mode
     document.body.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
     showToast('🔒 Privacy Mode: fonts, weather & sync disabled');
   } else {
@@ -145,92 +176,114 @@ function togglePrivacy() {
     document.body.style.fontFamily = '';
     showToast('Privacy Mode off — reconnected');
   }
-  document.getElementById('togglePrivacyS')?.classList.toggle('on', privacyMode);
+  // Sync settings toggle state
+  const settingsToggle = document.getElementById('togglePrivacyS');
+  if (settingsToggle) settingsToggle.classList.toggle('on', privacyMode);
 }
 
-// ── Data panel ────────────────────────────────────────────────────────
+// ── Data Management Panel ─────────────────────────────────────────────
 function openDataPanel() { buildDataPanel(); openModal('dataOverlay'); }
 
 function buildDataPanel() {
-  const el = $('dataContent'); if (!el) return;
+  const el = $('dataContent');
+  if (!el) return;
   el.innerHTML = '';
+
+  const totalBytes = Privacy.getTotalSize();
+
+  // Header summary
   const summary = document.createElement('div'); summary.className = 'data-summary';
-  const totalEl = document.createElement('p');   totalEl.className  = 'data-total';
-  totalEl.textContent = `Total stored: ${Privacy.formatBytes(Privacy.getTotalSize())} — all on your device, never sent anywhere.`;
+  const totalEl = document.createElement('p'); totalEl.className = 'data-total';
+  totalEl.textContent = `Total stored: ${Privacy.formatBytes(totalBytes)} — all on your device, never sent anywhere.`;
   summary.appendChild(totalEl);
 
-  // Incognito row
+  // Incognito mode toggle
   const incogRow = document.createElement('div'); incogRow.className = 'settings-row';
   const incogInfo = document.createElement('div'); incogInfo.className = 'settings-row-info';
   const incogLbl = document.createElement('span'); incogLbl.className = 'settings-row-label'; incogLbl.textContent = '🕵 Incognito Sessions';
   const incogDesc = document.createElement('span'); incogDesc.className = 'settings-row-desc'; incogDesc.textContent = 'Sessions run in memory only — nothing written to storage';
   incogInfo.append(incogLbl, incogDesc);
-  const incogToggle = document.createElement('button'); incogToggle.className = 'settings-toggle' + (Privacy.isIncognito() ? ' on' : '');
-  incogToggle.addEventListener('click', () => { Privacy.setIncognito(!Privacy.isIncognito()); incogToggle.classList.toggle('on', Privacy.isIncognito()); showToast(Privacy.isIncognito() ? '🕵 Incognito mode on' : 'Incognito mode off'); });
-  incogRow.append(incogInfo, incogToggle); summary.appendChild(incogRow);
+  const incogToggle = document.createElement('button');
+  incogToggle.className = 'settings-toggle' + (Privacy.isIncognito() ? ' on' : '');
+  incogToggle.addEventListener('click', () => {
+    Privacy.setIncognito(!Privacy.isIncognito());
+    incogToggle.classList.toggle('on', Privacy.isIncognito());
+    showToast(Privacy.isIncognito() ? '🕵 Incognito mode on' : 'Incognito mode off');
+  });
+  incogRow.append(incogInfo, incogToggle);
+  summary.appendChild(incogRow);
 
-  // Auto-clear row
+  // Auto-clear toggle
   const clearRow = document.createElement('div'); clearRow.className = 'settings-row';
   const clearInfo = document.createElement('div'); clearInfo.className = 'settings-row-info';
   const clearLbl = document.createElement('span'); clearLbl.className = 'settings-row-label'; clearLbl.textContent = '🗑 Auto-Clear on Close';
   const clearDesc = document.createElement('span'); clearDesc.className = 'settings-row-desc'; clearDesc.textContent = 'Wipe session log & focus data when you close the tab';
   clearInfo.append(clearLbl, clearDesc);
-  const clearToggle = document.createElement('button'); clearToggle.className = 'settings-toggle' + (Privacy.isAutoClear() ? ' on' : '');
-  clearToggle.addEventListener('click', () => { Privacy.setAutoClear(!Privacy.isAutoClear()); clearToggle.classList.toggle('on', Privacy.isAutoClear()); showToast(Privacy.isAutoClear() ? 'Auto-clear enabled' : 'Auto-clear disabled'); });
-  clearRow.append(clearInfo, clearToggle); summary.appendChild(clearRow);
+  const clearToggle = document.createElement('button');
+  clearToggle.className = 'settings-toggle' + (Privacy.isAutoClear() ? ' on' : '');
+  clearToggle.addEventListener('click', () => {
+    Privacy.setAutoClear(!Privacy.isAutoClear());
+    clearToggle.classList.toggle('on', Privacy.isAutoClear());
+    showToast(Privacy.isAutoClear() ? 'Auto-clear enabled' : 'Auto-clear disabled');
+  });
+  clearRow.append(clearInfo, clearToggle);
+  summary.appendChild(clearRow);
+
   el.appendChild(summary);
 
-  const catTitle = document.createElement('div'); catTitle.className = 'settings-section-title'; catTitle.textContent = 'Data Categories';
-  el.appendChild(catTitle);
+  // Per-category breakdown
+  const catTitle = document.createElement('div'); catTitle.className = 'settings-section-title';
+  catTitle.textContent = 'Data Categories'; el.appendChild(catTitle);
 
   Privacy.DATA_CATEGORIES.forEach(cat => {
     const size = Privacy.getCategorySize(cat);
-    const row  = document.createElement('div'); row.className = 'data-cat-row';
+    const row = document.createElement('div'); row.className = 'data-cat-row';
+
     const left = document.createElement('div'); left.className = 'data-cat-info';
     const icon = document.createElement('span'); icon.className = 'data-cat-icon'; icon.textContent = cat.icon;
     const info = document.createElement('div');
     const name = document.createElement('span'); name.className = 'data-cat-name'; name.textContent = cat.label;
-    if (cat.sensitive) { const b = document.createElement('span'); b.className = 'data-sensitive-badge'; b.textContent = 'Personal'; name.appendChild(b); }
     const desc = document.createElement('span'); desc.className = 'data-cat-desc'; desc.textContent = cat.desc;
-    info.append(name, desc); left.append(icon, info);
-    const right  = document.createElement('div');  right.className  = 'data-cat-right';
-    const sizeEl = document.createElement('span'); sizeEl.className = 'data-cat-size'; sizeEl.textContent = size > 0 ? Privacy.formatBytes(size) : 'empty';
-    const delBtn = document.createElement('button'); delBtn.className = 'data-del-btn'; delBtn.textContent = 'Clear'; delBtn.disabled = size === 0;
-    delBtn.addEventListener('click', () => { if (!confirm(`Clear "${cat.label}"?`)) return; Privacy.deleteCategory(cat); showToast(`${cat.icon} ${cat.label} cleared`); buildDataPanel(); });
-    right.append(sizeEl, delBtn); row.append(left, right); el.appendChild(row);
+    if (cat.sensitive) {
+      const badge = document.createElement('span'); badge.className = 'data-sensitive-badge'; badge.textContent = 'Personal';
+      name.appendChild(badge);
+    }
+    info.append(name, desc);
+    left.append(icon, info);
+
+    const right = document.createElement('div'); right.className = 'data-cat-right';
+    const sizeEl = document.createElement('span'); sizeEl.className = 'data-cat-size';
+    sizeEl.textContent = size > 0 ? Privacy.formatBytes(size) : 'empty';
+    const delBtn = document.createElement('button'); delBtn.className = 'data-del-btn';
+    delBtn.textContent = 'Clear'; delBtn.disabled = size === 0;
+    delBtn.addEventListener('click', () => {
+      if (!confirm(`Clear "${cat.label}"? This cannot be undone.`)) return;
+      Privacy.deleteCategory(cat);
+      showToast(`${cat.icon} ${cat.label} cleared`);
+      buildDataPanel(); // rebuild
+    });
+    right.append(sizeEl, delBtn);
+    row.append(left, right);
+    el.appendChild(row);
   });
 
-  const actions   = document.createElement('div'); actions.className = 'data-actions';
-  const exportBtn = document.createElement('button'); exportBtn.className = 'btn btn-ghost'; exportBtn.textContent = '⬇ Export All Data';
+  // Actions bar
+  const actions = document.createElement('div'); actions.className = 'data-actions';
+  const exportBtn = document.createElement('button'); exportBtn.className = 'btn btn-ghost';
+  exportBtn.textContent = '⬇ Export All Data';
   exportBtn.addEventListener('click', () => { Privacy.exportAllData(); showToast('Data exported as JSON'); });
-  const nukeBtn = document.createElement('button'); nukeBtn.className = 'btn btn-ghost data-nuke-btn'; nukeBtn.textContent = '🗑 Delete Everything';
-  nukeBtn.addEventListener('click', () => { if (!confirm('Delete ALL Session Clock data?')) return; Privacy.deleteAll(); showToast('All data deleted'); buildDataPanel(); });
-  actions.append(exportBtn, nukeBtn); el.appendChild(actions);
-}
 
-// ── Focus lock ────────────────────────────────────────────────────────
-let focusLockEnabled  = localStorage.getItem('sc_focus_lock') === '1';
-let focusLockTimer: number | null = null;
-let focusLockBar: HTMLElement | null = null;
+  const nukeBtn = document.createElement('button'); nukeBtn.className = 'btn btn-ghost data-nuke-btn';
+  nukeBtn.textContent = '🗑 Delete Everything';
+  nukeBtn.addEventListener('click', () => {
+    if (!confirm('Delete ALL Session Clock data? This cannot be undone.')) return;
+    Privacy.deleteAll();
+    showToast('All data deleted');
+    buildDataPanel();
+  });
 
-function isFocusLocked() { return focusLockEnabled && Pom.isActive() && sessionRunning; }
-
-function focusLockIntercept(action: () => void) {
-  if (!isFocusLocked()) { action(); return; }
-  if (focusLockTimer !== null) {
-    clearTimeout(focusLockTimer); focusLockTimer = null;
-    if (focusLockBar) { focusLockBar.remove(); focusLockBar = null; }
-    action(); return;
-  }
-  const bar  = document.createElement('div'); bar.className  = 'focus-lock-bar';
-  const fill = document.createElement('div'); fill.className = 'focus-lock-fill';
-  const lbl  = document.createElement('span'); lbl.className = 'focus-lock-label'; lbl.textContent = 'Stay focused… click again to open';
-  bar.append(fill, lbl); document.body.appendChild(bar); focusLockBar = bar;
-  requestAnimationFrame(() => { fill.style.transition = 'width 3s linear'; fill.style.width = '100%'; });
-  focusLockTimer = window.setTimeout(() => {
-    if (focusLockBar) { focusLockBar.remove(); focusLockBar = null; }
-    focusLockTimer = null; action();
-  }, 3000);
+  actions.append(exportBtn, nukeBtn);
+  el.appendChild(actions);
 }
 
 function toggleFocusLock() {
@@ -238,15 +291,14 @@ function toggleFocusLock() {
   localStorage.setItem('sc_focus_lock', focusLockEnabled ? '1' : '0');
 }
 
-// ── Current theme ─────────────────────────────────────────────────────
-let currentTheme: Theme = THEMES[0]!;
-const root   = document.documentElement;
+// ── Current theme ──────────────────────────────────────────────────────
+let currentTheme: Theme = THEMES[0];
+const root = document.documentElement;
 const cssVar = (name: string, val: string) => root.style.setProperty(name, val);
 
 function applyTheme(theme: Theme, instant = false) {
   const doApply = () => {
     currentTheme = theme;
-    setCurrentThemeId(theme.id);
     buildParticles(theme);
     cssVar('--clr-text',    theme.text);
     cssVar('--clr-accent',  theme.accent);
@@ -258,11 +310,16 @@ function applyTheme(theme: Theme, instant = false) {
     cssVar('--clr-panel',   theme.panel);
     cssVar('--font-main',   theme.font);
     cssVar('--glow', theme.glow === 'none' ? 'none' : `0 0 45px ${theme.accent}44,0 0 100px ${theme.accent}18`);
-    cssVar('--btn-radius', theme.isMedia ? '3px' : '99px');
+    cssVar('--btn-radius',  theme.isMedia ? '3px' : '99px');
     cssVar('--lb-h', (theme.isMedia && theme.lb) ? '3.8vh' : '0px');
+
+    // Light theme body class (Nordic, Lemon)
     document.body.classList.toggle('light-theme', !!theme.light);
-    document.body.className = document.body.className.replace(/\btheme-\S+/g, '').trim();
+    // Theme body class for CSS selectors (easter egg animations etc.)
+    document.body.className = document.body.className
+      .replace(/\btheme-\S+/g, '').trim();
     document.body.classList.add(`theme-${theme.id}`);
+
     $('overlay').style.background  = theme.overlay  === 'none' ? '' : theme.overlay;
     $('vignette').style.background = theme.vignette === 'none' ? '' : theme.vignette;
     ($('scanlines') as HTMLElement).style.opacity = theme.scanlines ? '1' : '0';
@@ -272,12 +329,16 @@ function applyTheme(theme: Theme, instant = false) {
     const hdrEl = $('hdrBloom');
     if (theme.hdr) { hdrEl.style.background = `radial-gradient(ellipse at 50% 50%,${theme.accent}09 0%,transparent 65%)`; hdrEl.style.opacity = '1'; }
     else hdrEl.style.opacity = '0';
+
+    // Show badge for media themes
     if (theme.isMedia && theme.tagline) { DOM.showBadge.textContent = theme.tagline; DOM.showBadge.classList.add('visible'); }
     else DOM.showBadge.classList.remove('visible');
+
+    // Literary mode
     if (theme.id === 'literary') {
       DOM.quoteText.style.fontFamily = "'Lora',serif";
-      DOM.quoteText.style.fontSize   = 'clamp(.75rem,1.4vw,.95rem)';
-      DOM.litMeta.style.display      = 'block';
+      DOM.quoteText.style.fontSize = 'clamp(.75rem,1.4vw,.95rem)';
+      DOM.litMeta.style.display = 'block';
     } else {
       DOM.quoteText.style.fontFamily = DOM.quoteText.style.fontSize = '';
       DOM.litMeta.style.display = 'none';
@@ -285,97 +346,137 @@ function applyTheme(theme: Theme, instant = false) {
       DOM.quoteText.style.opacity = '0';
       setTimeout(() => { DOM.quoteText.textContent = `"${qs[0]}"`; DOM.quoteText.style.opacity = '.38'; }, 420);
     }
+
     updateSyncDisplay(synced ? 'ok' : 'failed');
     document.querySelectorAll<HTMLElement>('.nat-btn,.media-card').forEach(b => b.classList.toggle('active', b.dataset.id === theme.id));
     lastQKey = '';
     localStorage.setItem('sc_last_theme', theme.id);
     bcBroadcast('theme', { id: theme.id });
+    // Common Room: auto-start rain + fire
     if (theme.id === 'commonroom') setTimeout(() => Sound.autoStartCommonRoom(), 400);
+    // Rebuild clock canvas so font/colours update for current theme
     updateClockCanvas();
   };
+
   if (instant || !theme.isMedia) { doApply(); if (!instant) flashTheme(); return; }
   runTransition(theme.transition ?? 'defaultFade', doApply);
 }
 
-// ── Sync display ──────────────────────────────────────────────────────
+// ── Sync UI ────────────────────────────────────────────────────────────
 function updateSyncDisplay(state: 'syncing' | 'ok' | 'failed', rtt?: number) {
   if (!DOM.syncDot) return;
   if (state === 'syncing') { DOM.syncDot.style.background = '#f59e0b'; DOM.syncLabel.textContent = 'Syncing…'; }
   else if (state === 'ok') {
     DOM.syncDot.style.background = currentTheme.accent;
-    DOM.syncLabel.textContent = `Synced · ±${Math.abs(Math.round(clockOffset))}ms${rtt != null ? ` · ${Math.round(rtt)}ms RTT` : ''}`;
+    const ms = Math.abs(Math.round(clockOffset));
+    DOM.syncLabel.textContent = `Synced · ±${ms}ms${rtt != null ? ` · ${Math.round(rtt)}ms RTT` : ''}`;
   } else { DOM.syncDot.style.background = '#ef4444'; DOM.syncLabel.textContent = 'Local clock'; }
 }
 setSyncHandler(updateSyncDisplay);
 
-// ── Render loop ───────────────────────────────────────────────────────
+// ── Render loop ────────────────────────────────────────────────────────
 let lastTs = 0, lastSec = -1, lastQKey = '';
 
 function tickDigit(el: HTMLElement, val: string) {
   if (el.textContent === val) return;
-  el.classList.remove('tick'); void el.offsetWidth; el.textContent = val; el.classList.add('tick');
+  el.classList.remove('tick');
+  void (el as HTMLElement).offsetWidth;
+  el.textContent = val;
+  el.classList.add('tick');
 }
 
 function renderFrame(ts: number) {
   requestAnimationFrame(renderFrame);
   const dt = Math.min((ts - lastTs) / 1000, 0.05); lastTs = ts;
+
+  // FPS tracking + auto quality tier
   tickFps(ts);
+
+  // Parallax — skip on LOW tier, reduce-motion, or user disabled
   const tier = getTier();
-  const parallaxEnabled = localStorage.getItem('sc_parallax') !== '0' && !document.body.classList.contains('reduced-motion');
+  const parallaxEnabled = localStorage.getItem('sc_parallax') !== '0' &&
+    !document.body.classList.contains('reduced-motion');
   if (tier !== 'low' && parallaxEnabled) {
-    parallaxX += (targetPX - parallaxX) * 0.06; parallaxY += (targetPY - parallaxY) * 0.06;
+    parallaxX += (targetPX - parallaxX) * 0.06;
+    parallaxY += (targetPY - parallaxY) * 0.06;
     setParallax(parallaxX, parallaxY);
-  } else { setParallax(0, 0); }
+  } else {
+    setParallax(0, 0);
+  }
+
   drawBg(dt, currentTheme);
+
+  // Spatial audio tick — throttle on LOW
   if (tier !== 'low') Sound.tickSpatial(ts / 1000);
 
-  const now   = new Date(Date.now() + clockOffset);
-  const ms    = now.getMilliseconds(), sec = now.getSeconds(), min = now.getMinutes(), hr = now.getHours();
-  const hr12  = hr % 12 || 12;
+  const now = new Date(Date.now() + clockOffset);
+  const ms = now.getMilliseconds(), sec = now.getSeconds(), min = now.getMinutes(), hr = now.getHours();
+  const hr12 = hr % 12 || 12;
   const hrStr = p2(hr12), minStr = p2(min), secStr = p2(sec);
 
+  // Route to correct clock renderer
   switch (clockMode) {
-    case 'analogue': renderAnalogue(hr, min, sec, ms);   break;
-    case 'flip':     renderFlip(hrStr, minStr, secStr);  break;
-    case 'word':     renderWord(hr, min);                break;
-    case 'minimal':  renderMinimal(hr12, hr);            break;
-    case 'segment':  renderSegment(hrStr, minStr, secStr); break;
+    case 'analogue':  renderAnalogue(hr, min, sec, ms);  break;
+    case 'flip':      renderFlip(hrStr, minStr, secStr); break;
+    case 'word':      renderWord(hr, min);               break;
+    case 'minimal':   renderMinimal(hr12, hr);           break;
+    case 'segment':   renderSegment(hrStr, minStr, secStr); break;
     default:
-      tickDigit(DOM.digitHr,  hrStr);
+      tickDigit(DOM.digitHr, hrStr);
       tickDigit(DOM.digitMin, minStr);
       tickDigit(DOM.digitSec, secStr);
       DOM.ampmDis.textContent = hr >= 12 ? 'PM' : 'AM';
-      DOM.secMs.textContent   = '.' + p3(ms);
+      DOM.secMs.textContent = '.' + p3(ms);
   }
-  if (currentTheme.id === 'smpte' && clockMode === 'digital') DOM.secMs.textContent = ':' + p2(Math.floor(ms / (1000/24)) % 24);
-  if (currentTheme.id === 'terminal' && clockMode === 'digital') tickDigit(DOM.digitHr, p2(hr));
+
+  // SMPTE: override seconds-ms display with frame counter
+  if (currentTheme.id === 'smpte' && clockMode === 'digital') {
+    const frame = Math.floor(ms / (1000 / 24)) % 24;
+    DOM.secMs.textContent = ':' + p2(frame);
+  }
+  // Terminal: show 24hr time
+  if (currentTheme.id === 'terminal' && clockMode === 'digital') {
+    tickDigit(DOM.digitHr, p2(hr));
+  }
+
   DOM.timeDis.textContent = `${hrStr}:${minStr}:${secStr}`;
   const dp = ((hr * 3600 + min * 60 + sec) * 1000 + ms) / 864e5 * 100;
   DOM.pFill.style.width = dp.toFixed(4) + '%';
+
   if (sessionRunning) {
     if (Pom.isActive()) Pom.tick(performance.now());
     else DOM.sTmr.textContent = fmtSession(performance.now() - sessionStart);
   }
+
   if (sec !== lastSec) {
     lastSec = sec;
+    // Midnight confetti check
     (window as any).__checkMidnight?.();
     const uh = now.getUTCHours(), um = now.getUTCMinutes(), us = now.getUTCSeconds();
-    DOM.utcPill.textContent = Easter.isSiderealMode()
-      ? Easter.getSiderealTime((window as any).__scLat ?? 0)
-      : `UTC ${p2(uh)}:${p2(um)}:${p2(us)}`;
-    DOM.dateDis.textContent  = `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+    // Sidereal time easter egg
+    if (Easter.isSiderealMode()) {
+      const lat = (window as any).__scLat ?? 0;
+      DOM.utcPill.textContent = Easter.getSiderealTime(lat);
+    } else {
+      DOM.utcPill.textContent = `UTC ${p2(uh)}:${p2(um)}:${p2(us)}`;
+    }
+    DOM.dateDis.textContent = `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
     DOM.greeting.textContent = GREETS.find(([s, e]) => hr >= s && hr < e)?.[2] ?? '';
-    DOM.dayPct.textContent   = dp.toFixed(1) + '%';
+    DOM.dayPct.textContent = dp.toFixed(1) + '%';
+
     if (currentTheme.id === 'literary') {
       const key = p2(hr) + ':' + p2(Math.floor(min / 5) * 5);
       if (key !== lastQKey) {
         lastQKey = key;
         const entry = LIT_CLOCK[key];
-        if (entry) { DOM.quoteText.style.opacity = '0'; setTimeout(() => { DOM.quoteText.textContent = `"${entry.quote}"`; DOM.litMeta.textContent = entry.source; DOM.quoteText.style.opacity = '.55'; }, 400); }
+        if (entry) {
+          DOM.quoteText.style.opacity = '0';
+          setTimeout(() => { DOM.quoteText.textContent = `"${entry.quote}"`; DOM.litMeta.textContent = entry.source; DOM.quoteText.style.opacity = '.55'; }, 400);
+        }
       }
     } else {
-      const qs  = currentTheme.quotes?.length ? currentTheme.quotes : NAT_QUOTES;
-      const qi  = (((hr * 60 + min) / 5) | 0) % qs.length;
+      const qs = currentTheme.quotes?.length ? currentTheme.quotes : NAT_QUOTES;
+      const qi = (((hr * 60 + min) / 5) | 0) % qs.length;
       const qKey = String(qi);
       if (qKey !== lastQKey) { lastQKey = qKey; DOM.quoteText.style.opacity = '0'; setTimeout(() => { DOM.quoteText.textContent = `"${qs[qi]}"`; DOM.quoteText.style.opacity = '.38'; }, 400); }
     }
@@ -383,242 +484,1904 @@ function renderFrame(ts: number) {
 }
 
 // ── Clock renderers ───────────────────────────────────────────────────
+
+// ANALOGUE — SVG hands drawn into #analogueClock canvas element
 function renderAnalogue(hr: number, min: number, sec: number, ms: number) {
-  const el = document.getElementById('analogueClock') as HTMLCanvasElement | null; if (!el) return;
-  const sz  = el.width; const cx = sz/2, cy = sz/2, R = sz/2 - 4;
-  const ctx = el.getContext('2d')!; ctx.clearRect(0,0,sz,sz);
+  const el = document.getElementById('analogueClock') as HTMLCanvasElement | null;
+  if (!el) return;
+  const size = el.width; const cx = size / 2, cy = size / 2, R = size / 2 - 4;
+  const ctx2 = el.getContext('2d')!;
+  ctx2.clearRect(0, 0, size, size);
   const acc = currentTheme.accent;
-  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.strokeStyle = acc+'30'; ctx.lineWidth = 1.5; ctx.stroke();
-  for (let i=0;i<12;i++) { const a=(i/12)*Math.PI*2-Math.PI/2, inner=i%3===0?R*.82:R*.88; ctx.beginPath(); ctx.moveTo(cx+Math.cos(a)*inner,cy+Math.sin(a)*inner); ctx.lineTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R); ctx.strokeStyle=acc+(i%3===0?'cc':'55'); ctx.lineWidth=i%3===0?2:1; ctx.stroke(); }
-  const sA = ((sec+ms/1000)/60)*Math.PI*2-Math.PI/2, mA = ((min+sec/60)/60)*Math.PI*2-Math.PI/2, hA = (((hr%12)+min/60)/12)*Math.PI*2-Math.PI/2;
-  const hand = (a: number, l: number, w: number, c: string) => { ctx.beginPath(); ctx.moveTo(cx-Math.cos(a)*R*.12,cy-Math.sin(a)*R*.12); ctx.lineTo(cx+Math.cos(a)*l,cy+Math.sin(a)*l); ctx.strokeStyle=c; ctx.lineWidth=w; ctx.lineCap='round'; ctx.stroke(); };
-  hand(hA,R*.55,3.5,currentTheme.text); hand(mA,R*.78,2.2,currentTheme.text); hand(sA,R*.88,1.2,acc);
-  ctx.beginPath(); ctx.arc(cx,cy,4,0,Math.PI*2); ctx.fillStyle=acc; ctx.fill();
+
+  // Dial face
+  ctx2.beginPath(); ctx2.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx2.strokeStyle = acc + '30'; ctx2.lineWidth = 1.5; ctx2.stroke();
+
+  // Hour ticks
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    const inner = i % 3 === 0 ? R * 0.82 : R * 0.88;
+    ctx2.beginPath();
+    ctx2.moveTo(cx + Math.cos(a) * inner, cy + Math.sin(a) * inner);
+    ctx2.lineTo(cx + Math.cos(a) * R,     cy + Math.sin(a) * R);
+    ctx2.strokeStyle = acc + (i % 3 === 0 ? 'cc' : '55');
+    ctx2.lineWidth = i % 3 === 0 ? 2 : 1;
+    ctx2.stroke();
+  }
+
+  // Smooth second hand — interpolate with ms
+  const secAngle = ((sec + ms / 1000) / 60) * Math.PI * 2 - Math.PI / 2;
+  const minAngle = ((min + sec / 60) / 60) * Math.PI * 2 - Math.PI / 2;
+  const hrAngle  = (((hr % 12) + min / 60) / 12) * Math.PI * 2 - Math.PI / 2;
+
+  const drawHand = (angle: number, length: number, width: number, color: string) => {
+    ctx2.beginPath();
+    ctx2.moveTo(cx - Math.cos(angle) * R * 0.12, cy - Math.sin(angle) * R * 0.12);
+    ctx2.lineTo(cx + Math.cos(angle) * length,   cy + Math.sin(angle) * length);
+    ctx2.strokeStyle = color; ctx2.lineWidth = width;
+    ctx2.lineCap = 'round'; ctx2.stroke();
+  };
+
+  drawHand(hrAngle,  R * 0.55, 3.5, currentTheme.text);
+  drawHand(minAngle, R * 0.78, 2.2, currentTheme.text);
+  drawHand(secAngle, R * 0.88, 1.2, acc);
+
+  // Centre dot
+  ctx2.beginPath(); ctx2.arc(cx, cy, 4, 0, Math.PI * 2);
+  ctx2.fillStyle = acc; ctx2.fill();
 }
 
-let flipPrev = { hr:'', min:'', sec:'' };
+// FLIP — CSS 3D card flip per digit group
+let flipPrev = { hr: '', min: '', sec: '' };
 function renderFlip(hr: string, min: string, sec: string) {
-  const up = (id: string, v: string, p: string) => { const el=document.getElementById(id); if(!el||v===p) return; const top=el.querySelector<HTMLElement>('.flip-top'), bot=el.querySelector<HTMLElement>('.flip-bot'), tb=el.querySelector<HTMLElement>('.flip-top-back'); if(!top||!bot||!tb) return; top.textContent=p; bot.textContent=v; tb.textContent=v; el.classList.remove('flipping'); void el.offsetWidth; el.classList.add('flipping'); };
-  up('flipHr',hr,flipPrev.hr); up('flipMin',min,flipPrev.min); up('flipSec',sec,flipPrev.sec);
-  flipPrev={hr,min,sec};
+  const update = (id: string, val: string, prev: string) => {
+    const el = document.getElementById(id);
+    if (!el || val === prev) return;
+    const top = el.querySelector<HTMLElement>('.flip-top');
+    const bot = el.querySelector<HTMLElement>('.flip-bot');
+    const topBack = el.querySelector<HTMLElement>('.flip-top-back');
+    if (!top || !bot || !topBack) return;
+    top.textContent = prev;
+    bot.textContent = val;
+    topBack.textContent = val;
+    el.classList.remove('flipping');
+    void el.offsetWidth;
+    el.classList.add('flipping');
+  };
+  update('flipHr',  hr,  flipPrev.hr);
+  update('flipMin', min, flipPrev.min);
+  update('flipSec', sec, flipPrev.sec);
+  flipPrev = { hr, min, sec };
 }
 
-const WORD_GRID=['ITLISASTIME','ACQUARTERDC','TWENTYFIVEX','HALFSTENFTO','PASTERUNINE','ONESIXTHREE','FOURFIVETWO','EIGHTELEVEN','SEVENTWELVE','TENSEOCLOCK'];
-const WORDS: Record<string,[number,number,number][]> = { IT:[[0,0,1]],IS:[[0,3,4]],A:[[0,5,5]],QUARTER:[[1,2,8]],TWENTY:[[2,0,5]],FIVE:[[2,6,9]],HALF:[[3,0,3]],TEN:[[3,5,7]],TO:[[3,9,10]],PAST:[[4,0,3]],ONE:[[5,0,2]],SIX:[[5,3,5]],THREE:[[5,6,10]],FOUR:[[6,0,3]],FIVE2:[[6,4,7]],TWO:[[6,8,10]],EIGHT:[[7,0,4]],ELEVEN:[[7,5,10]],SEVEN:[[8,0,4]],TWELVE:[[8,5,10]],TEN2:[[9,0,2]],OCLOCK:[[9,4,9]] };
-const HOUR_WORDS=['TWELVE','ONE','TWO','THREE','FOUR','FIVE2','SIX','SEVEN','EIGHT','NINE','TEN2','ELEVEN'];
+// WORD CLOCK — 10×11 letter grid, lit words
+const WORD_GRID = [
+  'ITLISASTIME',
+  'ACQUARTERDC',
+  'TWENTYFIVEX',
+  'HALFSTENFTO',
+  'PASTERUNINE',
+  'ONESIXTHREE',
+  'FOURFIVETWO',
+  'EIGHTELEVEN',
+  'SEVENTWELVE',
+  'TENSEOCLOCK',
+];
+// Word positions [row, colStart, colEnd] (inclusive)
+const WORDS: Record<string, [number,number,number][]> = {
+  IT:       [[0,0,1]], IS:      [[0,3,4]], A:   [[0,5,5]],
+  QUARTER:  [[1,2,8]], TWENTY:  [[2,0,5]], FIVE:[[2,6,9]],
+  HALF:     [[3,0,3]], TEN:     [[3,5,7]], TO:  [[3,9,10]],
+  PAST:     [[4,0,3]],
+  ONE:      [[5,0,2]], SIX:     [[5,3,5]], THREE:[[5,6,10]],
+  FOUR:     [[6,0,3]], FIVE2:   [[6,4,7]], TWO: [[6,8,10]],
+  EIGHT:    [[7,0,4]], ELEVEN:  [[7,5,10]],
+  SEVEN:    [[8,0,4]], TWELVE:  [[8,5,10]],
+  TEN2:     [[9,0,2]], OCLOCK:  [[9,4,9]],
+};
+const HOUR_WORDS = ['TWELVE','ONE','TWO','THREE','FOUR','FIVE2','SIX','SEVEN','EIGHT','NINE','TEN2','ELEVEN'];
+
 function getWordClockWords(hr: number, min: number): Set<string> {
-  const lit=new Set<string>(['IT','IS']); const m5=Math.round(min/5)*5;
-  if(m5===0){lit.add('OCLOCK');}else if(m5===5){lit.add('FIVE');lit.add('PAST');}else if(m5===10){lit.add('TEN');lit.add('PAST');}else if(m5===15){lit.add('A');lit.add('QUARTER');lit.add('PAST');}else if(m5===20){lit.add('TWENTY');lit.add('PAST');}else if(m5===25){lit.add('TWENTY');lit.add('FIVE');lit.add('PAST');}else if(m5===30){lit.add('HALF');lit.add('PAST');}else if(m5===35){lit.add('TWENTY');lit.add('FIVE');lit.add('TO');}else if(m5===40){lit.add('TWENTY');lit.add('TO');}else if(m5===45){lit.add('A');lit.add('QUARTER');lit.add('TO');}else if(m5===50){lit.add('TEN');lit.add('TO');}else if(m5===55){lit.add('FIVE');lit.add('TO');}
-  lit.add(HOUR_WORDS[(m5>=35?(hr%12)+1:hr%12)%12]!); return lit;
+  const lit = new Set<string>(['IT','IS']);
+  const m5 = Math.round(min / 5) * 5;
+  if      (m5 === 0)  { lit.add('OCLOCK'); }
+  else if (m5 === 5)  { lit.add('FIVE');  lit.add('PAST'); }
+  else if (m5 === 10) { lit.add('TEN');   lit.add('PAST'); }
+  else if (m5 === 15) { lit.add('A'); lit.add('QUARTER'); lit.add('PAST'); }
+  else if (m5 === 20) { lit.add('TWENTY'); lit.add('PAST'); }
+  else if (m5 === 25) { lit.add('TWENTY'); lit.add('FIVE'); lit.add('PAST'); }
+  else if (m5 === 30) { lit.add('HALF'); lit.add('PAST'); }
+  else if (m5 === 35) { lit.add('TWENTY'); lit.add('FIVE'); lit.add('TO'); }
+  else if (m5 === 40) { lit.add('TWENTY'); lit.add('TO'); }
+  else if (m5 === 45) { lit.add('A'); lit.add('QUARTER'); lit.add('TO'); }
+  else if (m5 === 50) { lit.add('TEN'); lit.add('TO'); }
+  else if (m5 === 55) { lit.add('FIVE'); lit.add('TO'); }
+  const hIdx = (m5 >= 35 ? (hr % 12) + 1 : hr % 12) % 12;
+  lit.add(HOUR_WORDS[hIdx]);
+  return lit;
 }
-let wordPrevKey='';
+
+let wordPrevKey = '';
 function renderWord(hr: number, min: number) {
-  const key=`${hr}:${Math.floor(min/5)}`; if(key===wordPrevKey) return; wordPrevKey=key;
-  const lit=getWordClockWords(hr,min); const el=document.getElementById('wordClockGrid'); if(!el) return; el.innerHTML='';
-  WORD_GRID.forEach((row,ri)=>[...row].forEach((ch,ci)=>{ const span=document.createElement('span'); span.textContent=ch; span.className='wc-char'; let isLit=false; for(const [w,pos] of Object.entries(WORDS)){if(!lit.has(w)) continue; for(const [r,cs,ce] of pos){if(r===ri&&ci>=cs&&ci<=ce){isLit=true;break;}} if(isLit) break;} span.classList.toggle('wc-lit',isLit); el.appendChild(span); }));
-}
-function renderMinimal(hr12: number, hr: number) { const el=document.getElementById('minimalHr'),ap=document.getElementById('minimalAP'); if(el) el.textContent=String(hr12); if(ap) ap.textContent=hr>=12?'PM':'AM'; }
-const SEG_PATHS: Record<string,number[]> = {'0':[1,1,1,1,1,1,0],'1':[0,1,1,0,0,0,0],'2':[1,1,0,1,1,0,1],'3':[1,1,1,1,0,0,1],'4':[0,1,1,0,0,1,1],'5':[1,0,1,1,0,1,1],'6':[1,0,1,1,1,1,1],'7':[1,1,1,0,0,0,0],'8':[1,1,1,1,1,1,1],'9':[1,1,1,1,0,1,1]};
-function drawSegDigit(ctx: CanvasRenderingContext2D,digit: string,x: number,y: number,w: number,h: number,color: string,dim: string) {
-  const segs=SEG_PATHS[digit]??SEG_PATHS['8']!,t=4,g=3,iw=w-t*2-g*2,ih=(h-t*3-g*4)/2;
-  const s=(on: number,draw: ()=>void)=>{ctx.fillStyle=on?color:dim;draw();};
-  s(segs[0]!,()=>ctx.fillRect(x+t+g,y,iw,t)); s(segs[1]!,()=>ctx.fillRect(x+w-t,y+t+g,t,ih)); s(segs[2]!,()=>ctx.fillRect(x+w-t,y+t*2+g*3+ih,t,ih));
-  s(segs[3]!,()=>ctx.fillRect(x+t+g,y+h-t,iw,t)); s(segs[4]!,()=>ctx.fillRect(x,y+t*2+g*3+ih,t,ih)); s(segs[5]!,()=>ctx.fillRect(x,y+t+g,t,ih)); s(segs[6]!,()=>ctx.fillRect(x+t+g,y+t+g*3+ih,iw,t));
-}
-function renderSegment(hr: string,min: string,sec: string) {
-  const el=document.getElementById('segmentClock') as HTMLCanvasElement|null; if(!el) return;
-  const ctx=el.getContext('2d')!; ctx.clearRect(0,0,el.width,el.height);
-  const acc=currentTheme.accent,dim=acc+'18',dw=42,dh=80,gap=12,cW=18,tot=6*dw+5*gap+2*cW;
-  let ox=(el.width-tot)/2,oy=(el.height-dh)/2;
-  [hr[0]!,hr[1]!,min[0]!,min[1]!,sec[0]!,sec[1]!].forEach((d,i)=>{
-    if(i===2||i===4){ctx.fillStyle=Math.floor(Date.now()/500)%2===0?acc:dim;ctx.beginPath();ctx.arc(ox+cW/2,oy+dh*.33,3,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(ox+cW/2,oy+dh*.67,3,0,Math.PI*2);ctx.fill();ox+=cW+gap;}
-    drawSegDigit(ctx,d,ox,oy,dw,dh,acc,dim); ox+=dw+gap;
+  const key = `${hr}:${Math.floor(min / 5)}`;
+  if (key === wordPrevKey) return;
+  wordPrevKey = key;
+  const lit = getWordClockWords(hr, min);
+  const el = document.getElementById('wordClockGrid');
+  if (!el) return;
+  el.innerHTML = '';
+  WORD_GRID.forEach((row, ri) => {
+    [...row].forEach((ch, ci) => {
+      const span = document.createElement('span');
+      span.textContent = ch;
+      span.className = 'wc-char';
+      // Check if this char is part of a lit word
+      let isLit = false;
+      for (const [word, positions] of Object.entries(WORDS)) {
+        if (!lit.has(word)) continue;
+        for (const [r, cs, ce] of positions) {
+          if (r === ri && ci >= cs && ci <= ce) { isLit = true; break; }
+        }
+        if (isLit) break;
+      }
+      span.classList.toggle('wc-lit', isLit);
+      el.appendChild(span);
+    });
   });
 }
 
-// ── Clock canvas DOM manager ──────────────────────────────────────────
-function updateClockCanvas() {
-  const block=document.getElementById('clock-block-wrap'); if(!block) return;
-  block.dataset.mode=clockMode;
-  ['analogueClock','flipClockWrap','wordClockGrid','minimalClockWrap','segmentClock'].forEach(id=>document.getElementById(id)?.remove());
-  const dr=document.querySelector<HTMLElement>('.clock-row'),as=document.querySelector<HTMLElement>('.ampm-stack');
-  if(dr) dr.style.display=clockMode==='digital'?'':'none'; if(as) as.style.display=clockMode==='digital'?'':'none';
-  if(clockMode==='analogue'){const c=document.createElement('canvas');c.id='analogueClock';const sz=Math.min(Math.min(window.innerWidth*.65,window.innerHeight*.38),340);c.width=c.height=sz;block.appendChild(c);}
-  else if(clockMode==='flip'){const w=document.createElement('div');w.id='flipClockWrap';w.className='flip-clock-wrap';['Hr','Min','Sec'].forEach((p,i)=>{if(i>0){const s=document.createElement('span');s.className='flip-sep';s.textContent=':';w.appendChild(s);}const c=document.createElement('div');c.id=`flip${p}`;c.className='flip-card';c.innerHTML=`<div class="flip-top">00</div><div class="flip-bot">00</div><div class="flip-top-back">00</div>`;w.appendChild(c);});block.appendChild(w);}
-  else if(clockMode==='word'){const g=document.createElement('div');g.id='wordClockGrid';g.className='word-clock-grid';block.appendChild(g);wordPrevKey='';}
-  else if(clockMode==='minimal'){const w=document.createElement('div');w.id='minimalClockWrap';w.className='minimal-clock-wrap';w.innerHTML=`<span id="minimalHr" class="minimal-hr">--</span><span id="minimalAP" class="minimal-ap">AM</span>`;block.appendChild(w);}
-  else if(clockMode==='segment'){const c=document.createElement('canvas');c.id='segmentClock';c.width=Math.min(window.innerWidth*.88,520);c.height=110;block.appendChild(c);}
+// MINIMAL — just the hour, enormous
+function renderMinimal(hr12: number, hr: number) {
+  const el = document.getElementById('minimalHr');
+  const ap = document.getElementById('minimalAP');
+  if (el) el.textContent = String(hr12);
+  if (ap) ap.textContent = hr >= 12 ? 'PM' : 'AM';
 }
 
-// ── Keyboard shortcuts ────────────────────────────────────────────────
+// SEGMENT — 7-segment style per digit
+const SEG_PATHS: Record<string, number[]> = {
+  // Which of 7 segments [top,topR,botR,bot,botL,topL,mid] are ON per digit
+  '0':[1,1,1,1,1,1,0], '1':[0,1,1,0,0,0,0], '2':[1,1,0,1,1,0,1],
+  '3':[1,1,1,1,0,0,1], '4':[0,1,1,0,0,1,1], '5':[1,0,1,1,0,1,1],
+  '6':[1,0,1,1,1,1,1], '7':[1,1,1,0,0,0,0], '8':[1,1,1,1,1,1,1],
+  '9':[1,1,1,1,0,1,1],
+};
+function drawSegDigit(ctx2: CanvasRenderingContext2D, digit: string, x: number, y: number, w: number, h: number, color: string, dimColor: string) {
+  const segs = SEG_PATHS[digit] ?? SEG_PATHS['8'];
+  const t = 4, g = 3; // thickness, gap
+  const iw = w - t * 2 - g * 2, ih = (h - t * 3 - g * 4) / 2;
+  // top, topR, botR, bot, botL, topL, mid
+  const drawSeg = (on: number, draw: () => void) => {
+    ctx2.fillStyle = on ? color : dimColor; draw();
+  };
+  // top
+  drawSeg(segs[0], () => { ctx2.fillRect(x + t + g, y, iw, t); });
+  // topR
+  drawSeg(segs[1], () => { ctx2.fillRect(x + w - t, y + t + g, t, ih); });
+  // botR
+  drawSeg(segs[2], () => { ctx2.fillRect(x + w - t, y + t * 2 + g * 3 + ih, t, ih); });
+  // bot
+  drawSeg(segs[3], () => { ctx2.fillRect(x + t + g, y + h - t, iw, t); });
+  // botL
+  drawSeg(segs[4], () => { ctx2.fillRect(x, y + t * 2 + g * 3 + ih, t, ih); });
+  // topL
+  drawSeg(segs[5], () => { ctx2.fillRect(x, y + t + g, t, ih); });
+  // mid
+  drawSeg(segs[6], () => { ctx2.fillRect(x + t + g, y + t + g * 3 + ih, iw, t); });
+}
+
+function renderSegment(hr: string, min: string, sec: string) {
+  const el = document.getElementById('segmentClock') as HTMLCanvasElement | null;
+  if (!el) return;
+  const ctx2 = el.getContext('2d')!;
+  ctx2.clearRect(0, 0, el.width, el.height);
+  const acc = currentTheme.accent;
+  const dim = acc + '18';
+  const dw = 42, dh = 80, gap = 12, colonW = 18;
+  const totalW = 6 * dw + 5 * gap + 2 * colonW;
+  let ox = (el.width - totalW) / 2, oy = (el.height - dh) / 2;
+  const digits = [hr[0], hr[1], min[0], min[1], sec[0], sec[1]];
+  digits.forEach((d, i) => {
+    if (i === 2 || i === 4) {
+      // Colon
+      ctx2.fillStyle = Math.floor(Date.now() / 500) % 2 === 0 ? acc : dim;
+      ctx2.beginPath(); ctx2.arc(ox + colonW / 2, oy + dh * 0.33, 3, 0, Math.PI * 2); ctx2.fill();
+      ctx2.beginPath(); ctx2.arc(ox + colonW / 2, oy + dh * 0.67, 3, 0, Math.PI * 2); ctx2.fill();
+      ox += colonW + gap;
+    }
+    drawSegDigit(ctx2, d, ox, oy, dw, dh, acc, dim);
+    ox += dw + gap;
+  });
+}
+
+// Generate a tiny canvas logo for themes without a LOGOS entry (safe — no user data)
+function makeFallbackLogo(t: Theme): string {
+  const cv = document.createElement('canvas'); cv.width = 32; cv.height = 22;
+  const cx2 = cv.getContext('2d')!;
+  cx2.fillStyle = t.baseBg[0]; cx2.fillRect(0,0,32,22);
+  cx2.fillStyle = t.accent; cx2.font = 'bold 8px system-ui';
+  cx2.textAlign = 'center'; cx2.textBaseline = 'middle';
+  cx2.fillText(t.name.slice(0,2).toUpperCase(), 16, 11);
+  const img = document.createElement('img');
+  img.src = cv.toDataURL(); img.style.cssText = 'width:32px;height:22px;display:block';
+  const wrap = document.createElement('div');
+  wrap.appendChild(img);
+  return wrap.innerHTML; // returns only <img src="data:..."> — safe data URL, no user content
+}
+
+// ── Theme panel ────────────────────────────────────────────────────────
+let activePanelTab = 'nat';
+
+function buildPanel() {
+  const panelRows = $('themePanelRows'); panelRows.innerHTML = '';
+  const featBar   = $('featBar');       featBar.innerHTML   = '';
+
+  // ── Tab bar ──────────────────────────────────────────────────────────
+  const tabs = document.createElement('div');
+  tabs.className = 'panel-tabs';
+  const tabDefs: [string, string, string][] = [
+    ['nat',   '🌿', 'Natural'],
+    ['tv',    '📺', 'TV Shows'],
+    ['movie', '🎬', 'Movies'],
+    ['anime', '⛩', 'Anime'],
+    ['f1',    '🏎', 'F1 Teams'],
+  ];
+  const contents: Record<string, HTMLElement> = {};
+  tabDefs.forEach(([id, icon, label]) => {
+    const btn = document.createElement('button');
+    btn.className = 'panel-tab' + (id === activePanelTab ? ' active' : '');
+    btn.dataset.tab = id;
+    const iconEl = document.createElement('span'); iconEl.className = 'tab-icon'; iconEl.textContent = icon;
+    const lblEl  = document.createElement('span'); lblEl.className  = 'tab-label'; lblEl.textContent  = label;
+    btn.append(iconEl, lblEl);
+    btn.addEventListener('click', () => switchPanelTab(id));
+    tabs.appendChild(btn);
+  });
+  panelRows.appendChild(tabs);
+
+  // ── Tab contents ──────────────────────────────────────────────────────
+  const makeNatBtn = (t: Theme) => {
+    const btn = document.createElement('button');
+    btn.className = 'nat-btn' + (t.id === currentTheme.id ? ' active' : '');
+    btn.dataset.id = t.id; btn.title = t.name;
+    btn.style.background = t.swatch ?? t.accent;
+    const tip = document.createElement('span'); tip.className = 'nat-tip'; tip.textContent = t.name;
+    btn.appendChild(tip);
+    btn.addEventListener('click', () => applyTheme(t));
+    return btn;
+  };
+
+  const makeCard = (t: Theme) => {
+    const card = document.createElement('button');
+    card.className = 'media-card' + (t.id === currentTheme.id ? ' active' : '');
+    card.dataset.id = t.id;
+    card.addEventListener('click', () => applyTheme(t));
+    const logo = document.createElement('div'); logo.className = 'media-logo';
+    logo.innerHTML = LOGOS[t.id] ?? makeFallbackLogo(t);
+    const nm = document.createElement('div'); nm.className = 'media-name'; nm.textContent = t.name;
+    const sb = document.createElement('div'); sb.className = 'media-sub'; sb.style.color = t.accent; sb.textContent = t.sub ?? '';
+    const txt = document.createElement('div'); txt.className = 'media-card-text'; txt.append(nm, sb);
+
+    // Shop badge — show item count for this theme
+    const shopItems = Shop.getItemsForTheme(t.id);
+    if (shopItems.length > 0) {
+      const owned = Shop.getOwned();
+      const ownedCount = shopItems.filter(i => owned.has(i.id)).length;
+      const badge = document.createElement('span');
+      badge.className = 'shop-badge';
+      badge.textContent = ownedCount > 0 ? `${ownedCount}/${shopItems.length}` : `${shopItems.length}`;
+      badge.title = 'Shop items';
+      txt.appendChild(badge);
+    }
+
+    card.append(logo, txt); return card;
+  };
+
+  // Natural tab
+  const natContent = document.createElement('div');
+  natContent.className = 'tab-content' + (activePanelTab === 'nat' ? ' active' : '');
+  natContent.dataset.tab = 'nat';
+
+  const pureNat = THEMES_BY_CAT.nat.filter(t => !['literary'].includes(t.id));
+  const specialNat = THEMES_BY_CAT.nat.filter(t => ['literary'].includes(t.id));
+
+  const natGrid = document.createElement('div'); natGrid.className = 'nat-grid';
+  pureNat.forEach(t => natGrid.appendChild(makeNatBtn(t)));
+  natContent.appendChild(natGrid);
+
+  if (specialNat.length) {
+    const specLabel = document.createElement('div'); specLabel.className = 'tab-sub-label'; specLabel.textContent = 'Special';
+    const specRow = document.createElement('div'); specRow.className = 'media-grid';
+    specialNat.forEach(t => specRow.appendChild(makeCard(t)));
+    natContent.append(specLabel, specRow);
+  }
+  contents['nat'] = natContent;
+
+  // TV, Movie, Anime, F1 tabs
+  (['tv','movie','anime','f1'] as const).forEach(cat => {
+    const content = document.createElement('div');
+    content.className = 'tab-content' + (activePanelTab === cat ? ' active' : '');
+    content.dataset.tab = cat;
+    const grid = document.createElement('div'); grid.className = 'media-grid';
+    THEMES_BY_CAT[cat].forEach(t => grid.appendChild(makeCard(t)));
+    content.appendChild(grid);
+    contents[cat] = content;
+  });
+
+  Object.values(contents).forEach(c => panelRows.appendChild(c));
+
+  // ── Feature bar — 5 essential actions ────────────────────────────────
+  const featDefs: [string, string, string, () => void][] = [
+    // [id, emoji, label, action]
+    ['btnSound',   '🎵', 'Sound',    () => { buildSoundUI(); openModal('soundOverlay'); }],
+    ['btnLog',     '📋', 'Log',      openLog],
+    ['btnShare',   '🖼', 'Share',    () => { openShareCard(); }],
+    ['btnShop',    '🛒', 'Shop',     openShop],
+    ['btnSettings','⚙️', 'Settings', openSettings],
+  ];
+  featDefs.forEach(([id, emoji, label, action]) => {
+    const b = document.createElement('button');
+    b.className = 'feat-btn'; b.id = id;
+    const iconEl = document.createElement('span'); iconEl.className = 'feat-icon'; iconEl.textContent = emoji;
+    const lblEl  = document.createElement('span'); lblEl.className  = 'feat-label';
+    if (id === 'btnShop') {
+      lblEl.textContent = 'Shop ';
+      lblEl.appendChild(createCoinEl(Shop.getTokens()));
+    } else {
+      lblEl.textContent = label;
+    }
+    b.append(iconEl, lblEl);
+    b.addEventListener('click', action);
+    featBar.appendChild(b);
+  });
+}
+
+function switchPanelTab(id: string) {
+  activePanelTab = id;
+  document.querySelectorAll<HTMLElement>('.panel-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
+  document.querySelectorAll<HTMLElement>('.tab-content').forEach(c => c.classList.toggle('active', c.dataset.tab === id));
+}
+
+// ── Modals ─────────────────────────────────────────────────────────────
+const openModal  = (id: string) => $(id).classList.add('open');
+const closeModal = (id: string) => $(id).classList.remove('open');
+document.querySelectorAll('.sc-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) (el as HTMLElement).classList.remove('open'); });
+});
+(window as any).SC = { modals: { open: openModal, close: closeModal } };
+
+// ── Keyboard shortcuts ─────────────────────────────────────────────────
 const SHORTCUTS: [string, string, () => void][] = [
-  ['Space','Start / Pause',            () => DOM.btnStart.click()],
-  ['R',    'Reset timer',              () => DOM.btnReset.click()],
-  ['T',    'Cycle theme',              () => { const i=THEMES.indexOf(currentTheme); applyTheme(THEMES[(i+1)%THEMES.length]!); }],
-  ['F',    'Toggle fullscreen',        toggleKiosk],
-  ['P',    'Toggle Pomodoro',          () => $('btnPomToggle').click()],
-  ['M',    'Sound mixer',              () => { buildSoundUI(); openModal('soundOverlay'); }],
-  ['L',    'Focus log',                openLog],
-  ['K',    'Collapse panel',           () => { DOM.themePanel.classList.toggle('collapsed'); updateRevealBtn(); }],
-  ['G',    'Custom theme builder',     openThemeBuilder],
-  ['?',    'Show shortcuts',           () => openModal('kbOverlay')],
-  ['Escape','Close panel',             () => document.querySelectorAll<HTMLElement>('.sc-overlay.open').forEach(el => el.classList.remove('open'))],
+  ['Space', 'Start / Pause session timer', () => DOM.btnStart.click()],
+  ['R',     'Reset timer',                  () => DOM.btnReset.click()],
+  ['T',     'Cycle to next theme',          () => { const idx = THEMES.indexOf(currentTheme); applyTheme(THEMES[(idx+1)%THEMES.length]); }],
+  ['F',     'Toggle fullscreen / kiosk',    toggleKiosk],
+  ['P',     'Toggle Pomodoro mode',         () => $('btnPomToggle').click()],
+  ['M',     'Open ambient sound mixer',     () => { buildSoundUI(); openModal('soundOverlay'); }],
+  ['L',     'Open session focus log',       () => { Log.render($('logEntries')); openModal('logOverlay'); }],
+  ['K',     'Collapse / expand panel',      () => { DOM.themePanel.classList.toggle('collapsed'); updateRevealBtn(); }],
+  ['G',     'Open custom theme builder',    openThemeBuilder],
+  ['?',     'Show shortcuts',               () => openModal('kbOverlay')],
+  ['Escape','Close any open panel',         () => document.querySelectorAll<HTMLElement>('.sc-overlay.open').forEach(el => el.classList.remove('open'))],
 ];
-const kbGrid=$('kbGrid'); kbGrid.innerHTML='';
-SHORTCUTS.forEach(([key,desc])=>{ const k=document.createElement('kbd');k.textContent=key;const d=document.createElement('span');d.className='kb-desc';d.textContent=desc;kbGrid.append(k,d); });
-// Add Cmd+K palette entry to the KB grid
-{ const k=document.createElement('kbd');k.textContent='⌘K';const d=document.createElement('span');d.className='kb-desc';d.textContent='Command palette — easter eggs & themes';kbGrid.append(k,d); }
-document.addEventListener('keydown',e=>{
-  const tag=(document.activeElement as HTMLElement).tagName;
-  if(tag==='INPUT'||tag==='TEXTAREA'){if(e.key==='Escape')(document.activeElement as HTMLElement).blur();return;}
-  if((e.metaKey||e.ctrlKey)&&e.key==='k') return; // CommandPalette owns Cmd+K
-  if(document.querySelector('.sc-overlay.open')&&e.key!=='Escape') return;
-  for(const [key,,action] of SHORTCUTS){const ek=e.key.toLowerCase();const match=(key==='Space'&&e.code==='Space')||(key==='?'&&(e.key==='?'||(e.code==='Slash'&&e.shiftKey)))||(key==='Escape'&&e.key==='Escape')||(key.length===1&&key.toLowerCase()===ek&&key!=='?');if(match){e.preventDefault();action();return;}}
+
+// Build keyboard grid
+const kbGrid = $('kbGrid'); kbGrid.innerHTML = '';
+SHORTCUTS.forEach(([key, desc]) => {
+  const k = document.createElement('kbd'); k.textContent = key;
+  const d = document.createElement('span'); d.className = 'kb-desc'; d.textContent = desc;
+  kbGrid.append(k, d);
 });
 
-// ── Display modes ─────────────────────────────────────────────────────
-let kioskOn=false,presentOn=false;
-function updateRevealBtn(){const btn=$('themesRevealBtn'),hidden=kioskOn||presentOn||DOM.themePanel.classList.contains('collapsed');btn.style.opacity=hidden?'1':'0';btn.style.transform=hidden?'translateX(-50%) translateY(0)':'translateX(-50%) translateY(80px)';(btn as HTMLButtonElement).disabled=!hidden;}
-function toggleKiosk(){kioskOn=!kioskOn;document.body.classList.toggle('kiosk',kioskOn);if(kioskOn)document.documentElement.requestFullscreen?.().catch(()=>{});else document.exitFullscreen?.().catch(()=>{});updateRevealBtn();}
-document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&kioskOn){kioskOn=false;document.body.classList.remove('kiosk');updateRevealBtn();}});
-function togglePresent(){presentOn=!presentOn;document.body.classList.toggle('present',presentOn);updateRevealBtn();}
-$('themesRevealBtn').addEventListener('click',()=>{if(kioskOn){toggleKiosk();return;}if(presentOn){togglePresent();return;}focusLockIntercept(()=>{DOM.themePanel.classList.remove('collapsed');updateRevealBtn();});});
-$('panelToggle').onclick=()=>focusLockIntercept(()=>{DOM.themePanel.classList.toggle('collapsed');updateRevealBtn();});
-
-// ── Pomodoro ──────────────────────────────────────────────────────────
-let animedoroActive=false,theaterTimer: number|null=null,theaterRemainMs=20*60_000;
-Pom.init({ isRunning:()=>sessionRunning, getStart:()=>sessionStart, timer:DOM.sTmr, arc:DOM.pomRingArc as unknown as SVGCircleElement, ring:DOM.pomRingSvg as unknown as SVGSVGElement, pill:DOM.pomPill, label:DOM.sessionLabel,
-  onPhase:txt=>{
-    DOM.pomPill.textContent=txt;
-    if(txt.includes('Work')){Sound.adaptOnWorkStart();setBreathing(false);APIs.acquireWakeLock();APIs.sendNotification('🍅 Work Session Started',"Stay focused. You've got this.",'pom-work');}
-    else{awardTokens(Pom.getSettings().workMins);Sound.adaptOnBreak();APIs.releaseWakeLock();const isLong=txt.includes('Long'),mins=isLong?Pom.getSettings().longBreakMins:Pom.getSettings().breakMins;APIs.sendNotification(isLong?'💤 Long Break Time!':'☕ Break Time!',`Take a ${mins}-minute break.`,'pom-break');if(breathingBreakEnabled&&!animedoroActive){setBreathing(true);setTimeout(()=>setBreathing(false),mins*60_000);}if(animedoroActive)triggerTheaterMode(mins);}
+document.addEventListener('keydown', e => {
+  const tag = (document.activeElement as HTMLElement).tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') { if (e.key === 'Escape') (document.activeElement as HTMLElement).blur(); return; }
+  const hasOpen = document.querySelector('.sc-overlay.open');
+  if (hasOpen && e.key !== 'Escape') return;
+  for (const [key, , action] of SHORTCUTS) {
+    const ek = e.key.toLowerCase();
+    const match =
+      (key === 'Space'  && e.code === 'Space') ||
+      (key === '?'      && (e.key === '?' || (e.code === 'Slash' && e.shiftKey))) ||
+      (key === 'Escape' && e.key === 'Escape') ||
+      (key.length === 1 && key.toLowerCase() === ek && key !== '?');
+    if (match) { e.preventDefault(); action(); return; }
   }
 });
-$('btnPomToggle').addEventListener('click',()=>{Pom.toggle();buildPomUI();openModal('pomOverlay');});
-function buildPomUI(){const s=Pom.getSettings();const ce=$('pomCountToday');if(ce)ce.textContent=String(Pom.todayCount());(['pomWorkBtns','pomBreakBtns','pomLongBtns']as const).forEach((id,i)=>{const el=$(id);if(!el)return;el.innerHTML='';const opts=i===0?[15,20,25,30,45,60]:i===1?[5,10,15]:[3,4,5,6];const cur=i===0?s.workMins:i===1?s.breakMins:s.longBreakAfter;opts.forEach(v=>{const b=document.createElement('button');b.className='btn'+(cur===v?' active-btn':'');b.textContent=i<2?`${v}m`:`${v}`;b.onclick=()=>{if(i===0)Pom.updateSettings({workMins:v});else if(i===1)Pom.updateSettings({breakMins:v});else Pom.updateSettings({longBreakAfter:v});buildPomUI();};el.appendChild(b);});});}
-function startAnimedoro(){Pom.updateSettings({workMins:50,breakMins:20});animedoroActive=true;if(!Pom.isActive()){Pom.toggle();buildPomUI();}}
-function triggerTheaterMode(breakMins: number){const o=document.getElementById('theaterOverlay'),t=document.getElementById('theaterTimer'),m=document.getElementById('theaterMinutes');if(!o)return;theaterRemainMs=breakMins*60_000;if(m)m.textContent=String(breakMins);o.classList.add('visible');const tick=()=>{theaterRemainMs-=1000;if(t){const mm=Math.floor(theaterRemainMs/60000),ss=Math.floor((theaterRemainMs%60000)/1000);t.textContent=`${p2(mm)}:${p2(ss)}`;}if(theaterRemainMs<=0){o.classList.remove('visible');if(theaterTimer)clearInterval(theaterTimer);}};if(theaterTimer)clearInterval(theaterTimer);theaterTimer=window.setInterval(tick,1000);const sk=document.getElementById('theaterSkip');if(sk)sk.onclick=()=>{o.classList.remove('visible');if(theaterTimer)clearInterval(theaterTimer);};}
 
-// ── Info strip ────────────────────────────────────────────────────────
-const BASE_INFO=[()=>{const n=new Date(),s=new Date(n.getFullYear(),0,0),d=Math.floor((n.getTime()-s.getTime())/86400000);return`Week ${Math.ceil(d/7)} · Day ${d} of ${n.getFullYear()}`;},()=>{const n=new Date(),e=new Date(n.getFullYear(),11,31);return`${Math.ceil((e.getTime()-n.getTime())/86400000)} days left in ${n.getFullYear()}`;},()=>{const n=new Date();return`${((n.getHours()*3600+n.getMinutes()*60+n.getSeconds())/86400*100).toFixed(1)}% of today complete`;}];
-function getAllInfo(){return[...Intel.getIntelligenceInsights(),...BASE_INFO];}
-let infoIdx=0;
-function rotateInfo(){const sl=DOM.infoSlide,lb=DOM.infoLabel;if(!sl||!lb)return;sl.classList.add('leaving');setTimeout(()=>{const items=getAllInfo();infoIdx=(infoIdx+1)%items.length;lb.textContent=items[infoIdx]!();sl.classList.remove('leaving');sl.style.animation='none';void sl.offsetWidth;sl.style.animation='';},420);}
-function startInfoStrip(){const items=getAllInfo();if(DOM.infoLabel)DOM.infoLabel.textContent=items[0]!();setInterval(rotateInfo,6000);}
+// ── Display modes ──────────────────────────────────────────────────────
+let kioskOn = false, presentOn = false;
 
-// ── Parallax ──────────────────────────────────────────────────────────
-let parallaxX=0,parallaxY=0,targetPX=0,targetPY=0;
-const PS=18;
-window.addEventListener('mousemove',e=>{targetPX=(e.clientX/window.innerWidth-.5)*PS;targetPY=(e.clientY/window.innerHeight-.5)*PS;});
-if(window.DeviceOrientationEvent)window.addEventListener('deviceorientation',e=>{if(e.gamma!=null&&e.beta!=null){targetPX=Math.max(-PS,Math.min(PS,e.gamma/2));targetPY=Math.max(-PS,Math.min(PS,(e.beta-45)/2));}});
+function updateRevealBtn() {
+  const btn = $('themesRevealBtn');
+  const hidden = kioskOn || presentOn || DOM.themePanel.classList.contains('collapsed');
+  btn.style.opacity = hidden ? '1' : '0';
+  btn.style.transform = hidden ? 'translateX(-50%) translateY(0)' : 'translateX(-50%) translateY(80px)';
+  (btn as HTMLButtonElement).disabled = !hidden;
+}
 
-// ── BroadcastChannel ──────────────────────────────────────────────────
-const bc=typeof BroadcastChannel!=='undefined'?new BroadcastChannel('sc_sync'):null;
-function bcBroadcast(type: string,payload: Record<string,unknown>={}){bc?.postMessage({type,...payload});}
-if(bc)bc.onmessage=(e)=>{const{type}=e.data;if(type==='theme')applyTheme(THEME_BY_ID[e.data.id]??currentTheme,true);if(type==='session'){if(e.data.running&&!sessionRunning)DOM.btnStart.click();if(!e.data.running&&sessionRunning)DOM.btnStart.click();}};
+function toggleKiosk() {
+  kioskOn = !kioskOn;
+  document.body.classList.toggle('kiosk', kioskOn);
+  if (kioskOn) document.documentElement.requestFullscreen?.().catch(() => {});
+  else document.exitFullscreen?.().catch(() => {});
+  updateRevealBtn();
+}
+// Sync kioskOn if user exits fullscreen via browser Escape (bypasses toggleKiosk)
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && kioskOn) {
+    kioskOn = false;
+    document.body.classList.remove('kiosk');
+    updateRevealBtn();
+  }
+});
+function togglePresent() {
+  presentOn = !presentOn;
+  document.body.classList.toggle('present', presentOn);
+  updateRevealBtn();
+}
 
-// ── Flow state ────────────────────────────────────────────────────────
-let flowUIActive=false;
-function updateFlowState(){const isFlow=Intel.checkFlowState(sessionRunning);if(isFlow===flowUIActive)return;flowUIActive=isFlow;if(isFlow){DOM.themePanel.classList.add('collapsed');updateRevealBtn();document.body.classList.add('flow-state');let b=document.getElementById('flowBadge');if(!b){b=document.createElement('div');b.id='flowBadge';b.className='flow-badge';document.body.appendChild(b);}b.textContent='⚡ Flow State';b.classList.add('visible');}else{document.body.classList.remove('flow-state');document.getElementById('flowBadge')?.classList.remove('visible');}}
-let breakBadgeShown=false;
-function checkSmartBreak(){if(!Intel.checkBreakNeeded(sessionRunning)||breakBadgeShown)return;breakBadgeShown=true;const p=document.querySelector<HTMLElement>('.sync-pill');if(!p)return;p.classList.add('break-hint');p.title="You've been focused for 90+ minutes — consider a short break";setTimeout(()=>{p.classList.remove('break-hint');breakBadgeShown=false;},30_000);}
+// ── Focus Lock Delay ──────────────────────────────────────────────────
+// When Pomodoro work is active, intercept distracting UI with a 3s delay
+let focusLockEnabled = localStorage.getItem('sc_focus_lock') === '1';
+let focusLockTimer: number | null = null;
+let focusLockBar: HTMLElement | null = null;
+
+function isFocusLocked(): boolean {
+  return focusLockEnabled && Pom.isActive() && sessionRunning;
+}
+
+function focusLockIntercept(action: () => void): void {
+  if (!isFocusLocked()) { action(); return; }
+
+  // Already counting down — cancel it (double-click = immediate)
+  if (focusLockTimer !== null) {
+    clearTimeout(focusLockTimer);
+    focusLockTimer = null;
+    if (focusLockBar) { focusLockBar.remove(); focusLockBar = null; }
+    action();
+    return;
+  }
+
+  // Create progress bar overlay
+  const bar = document.createElement('div');
+  bar.className = 'focus-lock-bar';
+  const fill = document.createElement('div'); fill.className = 'focus-lock-fill';
+  const lbl  = document.createElement('span'); lbl.className = 'focus-lock-label';
+  lbl.textContent = 'Stay focused… click again to open';
+  bar.append(fill, lbl);
+  document.body.appendChild(bar);
+  focusLockBar = bar;
+
+  requestAnimationFrame(() => {
+    fill.style.transition = 'width 3s linear'; fill.style.width = '100%';
+  });
+
+  focusLockTimer = window.setTimeout(() => {
+    if (focusLockBar) { focusLockBar.remove(); focusLockBar = null; }
+    focusLockTimer = null;
+    action();
+  }, 3000);
+}
+
+// THEMES reveal button
+$('themesRevealBtn').addEventListener('click', () => {
+  if (kioskOn) { toggleKiosk(); return; }
+  if (presentOn) { togglePresent(); return; }
+  focusLockIntercept(() => {
+    DOM.themePanel.classList.remove('collapsed');
+    updateRevealBtn();
+  });
+});
+
+// Hook panel toggle to also update reveal button
+$('panelToggle').onclick = () => {
+  focusLockIntercept(() => {
+    DOM.themePanel.classList.toggle('collapsed');
+    updateRevealBtn();
+  });
+};
+
+// ── Pomodoro UI ────────────────────────────────────────────────────────
+Pom.init({
+  isRunning: () => sessionRunning,
+  getStart:  () => sessionStart,
+  timer:     DOM.sTmr,
+  arc:       DOM.pomRingArc as unknown as SVGCircleElement,
+  ring:      DOM.pomRingSvg as unknown as SVGSVGElement,
+  pill:      DOM.pomPill,
+  label:     DOM.sessionLabel,
+  onPhase: txt => {
+    DOM.pomPill.textContent = txt;
+    if (txt.includes('Work')) {
+      Sound.adaptOnWorkStart();
+      setBreathing(false);
+      // Acquire wake lock when work starts
+      APIs.acquireWakeLock();
+      APIs.sendNotification('🍅 Work Session Started', 'Stay focused. You\'ve got this.', 'pom-work');
+    } else {
+      // Work phase just ended → award tokens
+      awardTokens(Pom.getSettings().workMins);
+      Sound.adaptOnBreak();
+      // Release wake lock on break
+      APIs.releaseWakeLock();
+      // Send notification
+      const isLong = txt.includes('Long');
+      const mins = isLong ? Pom.getSettings().longBreakMins : Pom.getSettings().breakMins;
+      APIs.sendNotification(
+        isLong ? '💤 Long Break Time!' : '☕ Break Time!',
+        `Great work! Take a ${mins}-minute break. You earned it.`,
+        'pom-break',
+      );
+      if (breathingBreakEnabled && !animedoroActive) {
+        setBreathing(true);
+        const s = Pom.getSettings();
+        const dur = isLong ? s.longBreakMins : s.breakMins;
+        setTimeout(() => setBreathing(false), dur * 60_000);
+      }
+      if (animedoroActive) {
+        const s = Pom.getSettings();
+        const dur = isLong ? s.longBreakMins : s.breakMins;
+        triggerTheaterMode(dur);
+      }
+    }
+  },
+});
+
+$('btnPomToggle').addEventListener('click', () => {
+  Pom.toggle();
+  buildPomUI();
+  openModal('pomOverlay');
+});
+
+function buildPomUI() {
+  const s = Pom.getSettings();
+  const countEl = $('pomCountToday');
+  if (countEl) countEl.textContent = String(Pom.todayCount());
+  (['pomWorkBtns','pomBreakBtns','pomLongBtns'] as const).forEach((id, i) => {
+    const el = $(id); if (!el) return; el.innerHTML = '';
+    const opts = i===0?[15,20,25,30,45,60]:i===1?[5,10,15]:[3,4,5,6];
+    const cur  = i===0?s.workMins:i===1?s.breakMins:s.longBreakAfter;
+    opts.forEach(v => {
+      const b = document.createElement('button');
+      b.className = 'btn' + (cur===v?' active-btn':'');
+      b.textContent = i<2?`${v}m`:`${v}`;
+      b.onclick = () => {
+        if (i===0) Pom.updateSettings({workMins:v});
+        else if (i===1) Pom.updateSettings({breakMins:v});
+        else Pom.updateSettings({longBreakAfter:v});
+        buildPomUI();
+      };
+      el.appendChild(b);
+    });
+  });
+}
+
+// ── Sound UI ───────────────────────────────────────────────────────────
+function makeSoundTrack(
+  id: string, icon: string, name: string, desc: string,
+  active: boolean, vol: number, isBinaural = false
+): HTMLDivElement {
+  const track = document.createElement('div');
+  track.className = ['sound-track', isBinaural ? 'binaural-track' : '', active ? 'active' : ''].filter(Boolean).join(' ');
+
+  const iconEl = document.createElement('div'); iconEl.className = 'sound-track-icon';
+  iconEl.textContent = icon;
+
+  const info = document.createElement('div'); info.className = 'sound-track-info';
+  const nm = document.createElement('div'); nm.className = 'sound-track-name'; nm.textContent = name;
+  const ds = document.createElement('div'); ds.className = 'sound-track-desc';  ds.textContent = desc;
+  info.append(nm, ds);
+
+  const toggle = document.createElement('button');
+  toggle.className = 'track-toggle' + (active ? ' on' : '');
+  toggle.dataset.id = id;
+  toggle.title = active ? 'Stop' : 'Play';
+
+  if (!isBinaural) {
+    const volWrap = document.createElement('div'); volWrap.className = 'sound-track-vol';
+    const slider = document.createElement('input') as HTMLInputElement;
+    slider.type = 'range'; slider.className = 'track-vol-slider';
+    slider.min = '0'; slider.max = '200'; slider.value = String(vol);
+    slider.dataset.id = id;
+    const pct = document.createElement('span'); pct.className = 'sound-vol-pct';
+    pct.id = 'tvp_' + id; pct.textContent = vol + '%';
+    slider.addEventListener('input', e => {
+      const p = +(e.target as HTMLInputElement).value; // 0–200
+      const v = p / 100;                               // 0.0–2.0
+      Sound.setTrackVolume(id, v);
+      pct.textContent = p + '%';
+      pct.style.color = p > 100 ? 'var(--clr-accent)' : '';
+    });
+    volWrap.append(slider, pct);
+    track.append(iconEl, info, volWrap, toggle);
+    toggle.addEventListener('click', () => Sound.toggleTrack(id));
+  } else {
+    track.append(iconEl, info, toggle);
+    toggle.addEventListener('click', () => Sound.toggleBinaural(id));
+  }
+
+  return track;
+}
+
+function buildSoundUI() {
+  const container = $('soundGrid'); container.innerHTML = '';
+
+  Sound.SOUNDS.forEach(s => {
+    const vol = Math.round(Sound.getTrackVolume(s.id) * 100);
+    container.appendChild(makeSoundTrack(s.id, s.icon, s.name, s.desc ?? '', Sound.isPlaying(s.id), vol));
+  });
+
+  // Binaural section header
+  const binHeader = document.createElement('div'); binHeader.className = 'sound-section-header';
+  const binTitle = document.createElement('span'); binTitle.className = 'sound-section-title'; binTitle.textContent = '🧠 Binaural Beats';
+  const binNote  = document.createElement('span'); binNote.className  = 'sound-section-note';  binNote.textContent  = 'Requires headphones';
+  binHeader.append(binTitle, binNote);
+  container.appendChild(binHeader);
+
+  Sound.BINAURAL_PRESETS.forEach(p => {
+    container.appendChild(makeSoundTrack(p.id, p.icon, p.name, p.desc, Sound.binauralPresetId === p.id, 100, true));
+  });
+
+  // ── Sound Presets ─────────────────────────────────────────────────────
+  const presetsSection = document.createElement('div'); presetsSection.className = 'sound-presets';
+
+  const saveChip = document.createElement('button');
+  saveChip.className = 'preset-chip save-btn'; saveChip.textContent = '+ Save Mix';
+  saveChip.addEventListener('click', () => {
+    const name = prompt('Name this preset (e.g. "Late Night"):');
+    if (!name?.trim()) return;
+    saveSoundPreset(name.trim());
+    buildSoundUI(); // rebuilds presets row
+    showToast(`Saved "${name.trim()}" mix`);
+  });
+  presetsSection.appendChild(saveChip);
+
+  getSoundPresets().forEach(p => {
+    const chip = document.createElement('button');
+    chip.className = 'preset-chip'; chip.textContent = p.name;
+    chip.title = 'Click to load, right-click to delete';
+    chip.addEventListener('click',        () => { loadSoundPreset(p); showToast(`Loaded "${p.name}"`); });
+    chip.addEventListener('contextmenu',  e  => {
+      e.preventDefault();
+      const presets = getSoundPresets().filter(pr => pr.name !== p.name);
+      localStorage.setItem('sc_sound_presets', JSON.stringify(presets));
+      buildSoundUI();
+    });
+    presetsSection.appendChild(chip);
+  });
+  container.appendChild(presetsSection);
+}
+
+Sound.setTrackChangeHandler(() => {
+  buildSoundUI();
+  // Update MediaSession when tracks change
+  const playing = Sound.SOUNDS.filter(s => Sound.isPlaying(s.id)).map(s => s.name);
+  if (playing.length > 0) {
+    APIs.setupMediaSession(
+      playing.join(' + '),
+      () => playing.forEach(n => { const s = Sound.SOUNDS.find(x => x.name === n); if (s) Sound.playTrack(s.id); }),
+      () => Sound.SOUNDS.forEach(s => { if (Sound.isPlaying(s.id)) Sound.stopTrack(s.id); }),
+      () => Sound.SOUNDS.forEach(s => Sound.stopTrack(s.id)),
+    );
+    APIs.updateMediaState('playing');
+  } else {
+    APIs.clearMediaSession();
+  }
+});
+
+($('volSlider') as HTMLInputElement).value = String(Math.round(Sound.getMasterVolume() * 100));
+($('volLabel') as HTMLElement).textContent = Math.round(Sound.getMasterVolume() * 100) + '%';
+($('volSlider') as HTMLInputElement).style.setProperty('--boost-pct', '50%');
+($('volSlider') as HTMLInputElement).addEventListener('input', e => {
+  const pct = +(e.target as HTMLInputElement).value; // 0–200
+  const v   = pct / 100;                             // 0.0–2.0
+  Sound.setMasterVolume(v);
+  const label = $('volLabel');
+  label.textContent = pct + '%';
+  label.style.color = pct > 100 ? 'var(--clr-accent)' : '';
+  label.title = pct > 100 ? 'Boosted — compressor prevents clipping' : '';
+});
+($('fadeSlider') as HTMLInputElement).addEventListener('input', e => {
+  const v = +(e.target as HTMLInputElement).value;
+  Sound.setFade(v);
+  $('fadeLabel').textContent = v === 0 ? 'Off' : `${v}m`;
+});
+
+// ── Focus log UI ───────────────────────────────────────────────────────
+let logView: 'list' | 'heatmap' = 'list';
+
+function openLog() {
+  renderLogView();
+  openModal('logOverlay');
+}
+
+function renderLogView() {
+  const listBtn = $('logTabList');
+  const heatBtn = $('logTabHeat');
+  const container = $('logEntries');
+  if (listBtn) listBtn.classList.toggle('active', logView === 'list');
+  if (heatBtn) heatBtn.classList.toggle('active', logView === 'heatmap');
+  if (logView === 'heatmap') Log.renderHeatmap(container);
+  else Log.render(container);
+}
+
+
+// Tab buttons wired via onclick in HTML — expose via SC
+(window as any).SC = {
+  ...(window as any).SC,
+  focusLog: {
+    exportCSV: Log.exportCSV,
+    clear: () => { Log.clear(); renderLogView(); },
+    switchTab: (tab: 'list' | 'heatmap') => { logView = tab; renderLogView(); },
+  },
+};
+
+// ── Custom Theme Builder ───────────────────────────────────────────────
+const THEME_FIELDS = [
+  { key: 'text', label: 'Text color' }, { key: 'accent', label: 'Accent (main)' },
+  { key: 'accent2', label: 'Accent 2' }, { key: 'btnFg', label: 'Button text' },
+  { key: 'panel', label: 'Panel BG' }, { key: 'baseBg0', label: 'Background' },
+];
+let draft: Record<string, string> = { text:'#e0f2fe', accent:'#6ee7b7', accent2:'#818cf8', btnFg:'#6ee7b7', panel:'rgba(4,3,18,.7)', baseBg0:'#06030f' };
+const rgbaToHex = (s: string) => { const m = s.match(/[\d.]+/g); return m ? '#'+[m[0],m[1],m[2]].map(v=>parseInt(v).toString(16).padStart(2,'0')).join('') : '#ffffff'; };
+
+function buildColorRows() {
+  const container = $('colorRows'); if (!container) return;
+  container.innerHTML = '';
+  THEME_FIELDS.forEach(f => {
+    const raw = draft[f.key] ?? '#ffffff';
+    const hex = (raw.startsWith('rgba')||raw.startsWith('rgb')) ? rgbaToHex(raw) : raw;
+
+    const row   = document.createElement('div'); row.className = 'color-row';
+    const label = document.createElement('span'); label.className = 'color-label';
+    label.textContent = f.label;                          // ← textContent, not innerHTML
+
+    const wrap  = document.createElement('div'); wrap.className = 'color-picker-wrap';
+    const inp   = document.createElement('input') as HTMLInputElement;
+    inp.type = 'color'; inp.value = hex; inp.dataset.key = f.key;
+
+    const hexSpan = document.createElement('span');
+    hexSpan.className = 'color-hex'; hexSpan.id = 'hex_' + f.key;
+    hexSpan.textContent = hex;                            // ← textContent
+
+    wrap.appendChild(inp);
+    row.append(label, wrap, hexSpan);
+    container.appendChild(row);
+  });
+  container.querySelectorAll<HTMLInputElement>('input[type=color]').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const el = e.target as HTMLInputElement;
+      draft[el.dataset.key!] = el.value;
+      const hexEl = document.getElementById('hex_' + el.dataset.key);
+      if (hexEl) hexEl.textContent = el.value;
+    });
+  });
+  renderSavedSwatches();
+}
+
+function previewCustomTheme() {
+  cssVar('--clr-text', draft.text); cssVar('--clr-accent', draft.accent);
+  cssVar('--clr-accent2', draft.accent2); cssVar('--clr-btn-fg', draft.btnFg);
+  cssVar('--clr-panel', draft.panel);
+}
+
+function saveCustomTheme() {
+  const saved: {id:string; name:string; draft:typeof draft}[] = JSON.parse(localStorage.getItem('sc_custom_themes')||'[]');
+  saved.push({ id:'custom_'+Date.now(), name:'Custom '+saved.length, draft:{...draft} });
+  if (saved.length > 10) saved.shift();
+  localStorage.setItem('sc_custom_themes', JSON.stringify(saved));
+  renderSavedSwatches(); alert('Custom theme saved!');
+}
+
+function renderSavedSwatches() {
+  const row = $('savedThemeRow'); if (!row) return;
+  const saved: {id:string; name:string; draft:typeof draft}[] = JSON.parse(localStorage.getItem('sc_custom_themes')||'[]');
+  row.innerHTML = '';
+  if (!saved.length) {
+    const msg = document.createElement('span');
+    msg.style.cssText = 'font-size:.65rem;opacity:.3;color:var(--clr-text)';
+    msg.textContent = 'No saved themes yet';
+    row.appendChild(msg); return;
+  }
+  saved.forEach(item => {
+    const sw = document.createElement('div'); sw.className = 'saved-swatch'; sw.style.background = item.draft.accent; sw.title = item.name;
+    sw.onclick = () => { draft = {...item.draft}; previewCustomTheme(); buildColorRows(); };
+    row.appendChild(sw);
+  });
+}
+
+function openThemeBuilder() { buildColorRows(); openModal('themeBuilderOverlay'); }
+
+(window as any).SC = { ...(window as any).SC, themeBuilder: { preview: previewCustomTheme, save: saveCustomTheme, reset: () => applyTheme(currentTheme, true), openBuilder: openThemeBuilder } };
+
+// ── Settings modal ────────────────────────────────────────────────────
+let _lastSettingsTab = 'general';
+function openSettings() {
+  buildSettingsUI(_lastSettingsTab);
+  openModal('settingsOverlay');
+}
+
+function buildSettingsUI(activeTab = 'general') {
+  const tabBarEl = $('settingsTabBar');
+  const el       = $('settingsContent');
+  if (!el || !tabBarEl) return;
+  el.innerHTML = '';
+  tabBarEl.innerHTML = '';
+
+  // Animate content in
+  el.style.animation = 'none';
+  void el.offsetWidth; // reflow
+  el.style.animation = 'paneFadeIn .18s ease';
+
+  // ── Tab definitions ───────────────────────────────────────────────────
+  const tabs = [
+    { id: 'general',  icon: '✦',  label: 'General'  },
+    { id: 'sound',    icon: '🎵', label: 'Sound'    },
+    { id: 'focus',    icon: '⏱',  label: 'Focus'    },
+    { id: 'display',  icon: '🎨', label: 'Display'  },
+    { id: 'privacy',  icon: '🔒', label: 'Privacy'  },
+  ];
+
+  // Tab bar — written to #settingsTabBar (outside scroll container)
+  const tabBar = document.createElement('div'); tabBar.className = 'settings-tab-bar';
+  tabs.forEach(t => {
+    const btn = document.createElement('button'); btn.className = 'settings-tab-btn' + (t.id === activeTab ? ' active' : '');
+    btn.dataset.tab = t.id;
+    const ic = document.createElement('span'); ic.className = 'stb-icon'; ic.textContent = t.icon;
+    const lb = document.createElement('span'); lb.className = 'stb-label'; lb.textContent = t.label;
+    btn.append(ic, lb);
+    btn.addEventListener('click', () => { _lastSettingsTab = t.id; buildSettingsUI(t.id); });
+    tabBar.appendChild(btn);
+  });
+  tabBarEl.appendChild(tabBar);
+
+  // Pane container — scrollable body
+  const paneWrap = el; // write directly to settingsContent
+
+  const makeSection = (title: string) => {
+    const s = document.createElement('div'); s.className = 'settings-section';
+    const h = document.createElement('div'); h.className = 'settings-section-title'; h.textContent = title;
+    s.appendChild(h); return s;
+  };
+
+  const makeRow = (lText: string, dText: string, btnId: string, on: boolean, badge?: string) => {
+    const row = document.createElement('div'); row.className = 'settings-row';
+    const info = document.createElement('div'); info.className = 'settings-row-info';
+    const top  = document.createElement('div'); top.className  = 'settings-row-top';
+    const lbl  = document.createElement('span'); lbl.className = 'settings-row-label'; lbl.textContent = lText;
+    top.appendChild(lbl);
+    if (badge) {
+      const b = document.createElement('span'); b.className = 'settings-badge'; b.textContent = badge;
+      top.appendChild(b);
+    }
+    const dsc  = document.createElement('span'); dsc.className = 'settings-row-desc'; dsc.textContent = dText;
+    info.append(top, dsc);
+    const tog  = document.createElement('button'); tog.className = 'settings-toggle' + (on ? ' on' : ''); tog.id = btnId;
+    row.append(info, tog); return row;
+  };
+
+  const wireToggle = (id: string, fn: (on: boolean) => void) => {
+    paneWrap.querySelector<HTMLButtonElement>('#' + id)?.addEventListener('click', e => {
+      const btn = e.currentTarget as HTMLButtonElement;
+      const wasOn = btn.classList.contains('on');
+      btn.classList.toggle('on');
+      // Ripple animation on enable
+      if (!wasOn) {
+        const rip = document.createElement('span'); rip.className = 'toggle-ripple';
+        btn.appendChild(rip);
+        setTimeout(() => rip.remove(), 600);
+      }
+      fn(!wasOn);
+    });
+  };
+
+  // ══ GENERAL ════════════════════════════════════════════════════════════
+  if (activeTab === 'general') {
+    const clockModes: { mode: ClockMode; label: string; icon: string; desc: string }[] = [
+      { mode: 'digital',  label: 'Digital',  icon: '🔢', desc: 'Classic digits'   },
+      { mode: 'analogue', label: 'Analogue', icon: '🕐', desc: 'Sweep hands'      },
+      { mode: 'flip',     label: 'Flip',     icon: '📅', desc: '3D card flip'     },
+      { mode: 'word',     label: 'Word',     icon: '📝', desc: 'It is half past'  },
+      { mode: 'minimal',  label: 'Minimal',  icon: '○',  desc: 'Hour only, huge'  },
+      { mode: 'segment',  label: 'Segment',  icon: '📟', desc: 'LED 7-segment'    },
+    ];
+    const clockSec = makeSection('Clock Style');
+    const grid = document.createElement('div'); grid.className = 'clock-mode-grid';
+    clockModes.forEach(({ mode, label, icon, desc }) => {
+      const btn = document.createElement('button');
+      btn.className = 'clock-mode-btn' + (clockMode === mode ? ' active' : '');
+      btn.dataset.mode = mode;
+      const iEl = document.createElement('span'); iEl.className = 'cmb-icon';  iEl.textContent = icon;
+      const lEl = document.createElement('span'); lEl.className = 'cmb-label'; lEl.textContent = label;
+      const dEl = document.createElement('span'); dEl.className = 'cmb-desc';  dEl.textContent = desc;
+      btn.append(iEl, lEl, dEl);
+      btn.addEventListener('click', () => {
+        setClockMode(mode); updateClockCanvas();
+        grid.querySelectorAll('.clock-mode-btn').forEach(b => b.classList.toggle('active', (b as HTMLElement).dataset.mode === mode));
+      });
+      grid.appendChild(btn);
+    });
+    clockSec.appendChild(grid);
+    paneWrap.appendChild(clockSec);
+
+    // Quick actions
+    const actionSec = makeSection('Quick Actions');
+    const actionGrid = document.createElement('div'); actionGrid.className = 'settings-action-grid';
+    const quickActions = [
+      { label: '🎨 Custom Theme', fn: () => { closeModal('settingsOverlay'); openThemeBuilder(); } },
+      { label: '📱 QR Handoff',   fn: () => { closeModal('settingsOverlay'); openQRHandoff(); } },
+      { label: '🎬 Animedoro',    fn: () => { closeModal('settingsOverlay'); startAnimedoro(); openModal('pomOverlay'); } },
+      { label: '⛶ Kiosk Mode',   fn: () => { closeModal('settingsOverlay'); toggleKiosk(); } },
+      { label: '📺 Present',      fn: () => { closeModal('settingsOverlay'); togglePresent(); } },
+      { label: '🖼 Picture-in-Picture', fn: async () => {
+          closeModal('settingsOverlay');
+          if (APIs.isPiPActive()) { await APIs.exitPiP(); showToast('PiP closed'); }
+          else { await APIs.enterPiP(document.getElementById('clock-block-wrap')!, { accent: currentTheme.accent, text: currentTheme.text, baseBg: currentTheme.baseBg }); showToast('Clock floating in PiP'); }
+        }
+      },
+    ];
+    quickActions.forEach(({ label, fn }) => {
+      const btn = document.createElement('button'); btn.className = 'settings-action-btn';
+      btn.textContent = label; btn.addEventListener('click', fn as () => void);
+      actionGrid.appendChild(btn);
+    });
+    actionSec.appendChild(actionGrid);
+    paneWrap.appendChild(actionSec);
+  }
+
+  // ══ SOUND ═════════════════════════════════════════════════════════════
+  else if (activeTab === 'sound') {
+    const audioSec = makeSection('Audio');
+    audioSec.appendChild(makeRow('3D Spatial Audio', 'Sounds pan independently — best with headphones', 'toggleSpatial', Sound.isSpatialEnabled(), 'ILD+ITD'));
+    audioSec.appendChild(makeRow('Box Breathing on Break', 'Guided breathing overlay during Pomodoro breaks', 'toggleBreathing', breathingBreakEnabled));
+    paneWrap.appendChild(audioSec);
+
+    const soundBtnSec = makeSection('Mixer');
+    const openMixerBtn = document.createElement('button'); openMixerBtn.className = 'settings-action-btn settings-action-btn--full';
+    openMixerBtn.textContent = '🎵 Open Sound Mixer';
+    openMixerBtn.addEventListener('click', () => { closeModal('settingsOverlay'); buildSoundUI(); openModal('soundOverlay'); });
+    soundBtnSec.appendChild(openMixerBtn);
+    paneWrap.appendChild(soundBtnSec);
+
+    wireToggle('toggleSpatial',   (on) => Sound.setSpatial(on));
+    wireToggle('toggleBreathing', (on) => { breathingBreakEnabled = on; localStorage.setItem('sc_breathing_break', on ? '1' : '0'); });
+  }
+
+  // ══ FOCUS ═════════════════════════════════════════════════════════════
+  else if (activeTab === 'focus') {
+    const focusSec = makeSection('Pomodoro & Sessions');
+    focusSec.appendChild(makeRow('Focus Lock Delay', '3-second intentional friction before opening panels during Pomodoro', 'toggleFocusLockS', focusLockEnabled));
+    focusSec.appendChild(makeRow('Smart Break Reminder', 'Gently pulses after 90 uninterrupted minutes', 'toggleSmartBreak', localStorage.getItem('sc_smart_break') !== '0'));
+    paneWrap.appendChild(focusSec);
+
+    const pomBtn = document.createElement('button'); pomBtn.className = 'settings-action-btn settings-action-btn--full';
+    pomBtn.textContent = '⏱ Pomodoro Settings';
+    pomBtn.addEventListener('click', () => { closeModal('settingsOverlay'); openModal('pomOverlay'); });
+    const pomSec = makeSection('Timer'); pomSec.appendChild(pomBtn);
+    paneWrap.appendChild(pomSec);
+
+    wireToggle('toggleFocusLockS', () => toggleFocusLock());
+    wireToggle('toggleSmartBreak', (on) => { localStorage.setItem('sc_smart_break', on ? '1' : '0'); });
+  }
+
+  // ══ DISPLAY ═══════════════════════════════════════════════════════════
+  else if (activeTab === 'display') {
+    const animSec = makeSection('Motion & Animations');
+    const reduceMotion = localStorage.getItem('sc_reduce_motion') === '1' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    animSec.appendChild(makeRow('Reduce Motion', 'Simpler transitions, no parallax, no particle animations', 'toggleReduceMotion', reduceMotion));
+    animSec.appendChild(makeRow('Parallax Depth', 'Canvas layers shift with mouse/gyroscope movement', 'toggleParallax', localStorage.getItem('sc_parallax') !== '0'));
+    paneWrap.appendChild(animSec);
+
+    const perfSec = makeSection('Performance');
+    const qualityRow = document.createElement('div'); qualityRow.className = 'settings-row';
+    const qualInfo = document.createElement('div'); qualInfo.className = 'settings-row-info';
+    const qualTop  = document.createElement('div'); qualTop.className  = 'settings-row-top';
+    const qualLbl  = document.createElement('span'); qualLbl.className = 'settings-row-label'; qualLbl.textContent = 'Render Quality';
+    const fpsBadge = document.createElement('span'); fpsBadge.className = 'settings-badge'; fpsBadge.textContent = `${getFps()} fps`;
+    qualTop.append(qualLbl, fpsBadge);
+    const qualDesc = document.createElement('span'); qualDesc.className = 'settings-row-desc';
+    qualDesc.textContent = `Auto-detected: ${getTier().toUpperCase()}`;
+    qualInfo.append(qualTop, qualDesc);
+    const qualSelect = document.createElement('select'); qualSelect.className = 'settings-select';
+    (['auto','high','med','low'] as const).forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v === 'auto' ? '' : v; opt.textContent = v === 'auto' ? 'Auto' : v.charAt(0).toUpperCase() + v.slice(1);
+      const stored = localStorage.getItem('sc_quality');
+      if ((v === 'auto' && !stored) || stored === v) opt.selected = true;
+      qualSelect.appendChild(opt);
+    });
+    qualSelect.addEventListener('change', () => {
+      const val = qualSelect.value as QualityTier | '';
+      if (val) setTier(val as QualityTier); else localStorage.removeItem('sc_quality');
+      invalidateCache();
+      qualDesc.textContent = `Quality: ${getTier().toUpperCase()}`;
+      fpsBadge.textContent = `${getFps()} fps`;
+      showToast(`Quality set to ${getTier().toUpperCase()}`);
+    });
+    qualityRow.append(qualInfo, qualSelect);
+    perfSec.appendChild(qualityRow);
+    paneWrap.appendChild(perfSec);
+
+    wireToggle('toggleReduceMotion', (on) => {
+      localStorage.setItem('sc_reduce_motion', on ? '1' : '0');
+      document.body.classList.toggle('reduced-motion', on);
+      showToast(on ? 'Reduced motion on' : 'Full animations on');
+    });
+    wireToggle('toggleParallax', (on) => {
+      localStorage.setItem('sc_parallax', on ? '1' : '0');
+      showToast(on ? 'Parallax on' : 'Parallax off');
+    });
+  }
+
+  // ══ PRIVACY ══════════════════════════════════════════════════════════
+  else if (activeTab === 'privacy') {
+    const privSec = makeSection('Privacy Mode');
+    privSec.appendChild(makeRow('Privacy Mode', 'Disables weather, time sync & Google Fonts — local only', 'togglePrivacyS', privacyMode, privacyMode ? 'On' : undefined));
+    paneWrap.appendChild(privSec);
+
+    const sessionSec = makeSection('Sessions');
+    sessionSec.appendChild(makeRow('Incognito Sessions', 'Sessions run in memory — nothing written to storage', 'toggleIncognito', Privacy.isIncognito()));
+    sessionSec.appendChild(makeRow('Auto-Clear on Close', 'Wipe session log & focus data when tab closes', 'toggleAutoClear', Privacy.isAutoClear()));
+    paneWrap.appendChild(sessionSec);
+
+    const dataBtnSec = makeSection('Data');
+    const dataBtn = document.createElement('button'); dataBtn.className = 'settings-action-btn settings-action-btn--full';
+    dataBtn.textContent = '🛡 View & Manage My Data';
+    dataBtn.addEventListener('click', () => { closeModal('settingsOverlay'); openDataPanel(); });
+    dataBtnSec.appendChild(dataBtn);
+    paneWrap.appendChild(dataBtnSec);
+
+    // Privacy mode toggle with lock animation
+    wireToggle('togglePrivacyS', (on) => {
+      togglePrivacy();
+      // Lock-down animation
+      if (on) {
+        document.body.classList.add('privacy-activating');
+        setTimeout(() => document.body.classList.remove('privacy-activating'), 800);
+      }
+    });
+    wireToggle('toggleIncognito', (on) => { Privacy.setIncognito(on); showToast(on ? '🕵 Incognito on — sessions not saved' : 'Incognito off'); });
+    wireToggle('toggleAutoClear', (on) => { Privacy.setAutoClear(on); showToast(on ? 'Auto-clear on close enabled' : 'Auto-clear disabled'); });
+  }
+
+  // Add bottom padding so last row isn't flush against modal edge
+  const pad = document.createElement('div'); pad.style.height = '12px';
+  el.appendChild(pad);
+}
+
+
+// ── Shop SVG art (developer-authored, safe for innerHTML) ─────────────
+const SHOP_SVG: Record<string, string> = {
+  // Supernatural
+  sn_colt: `<svg viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="14" width="34" height="6" rx="1.5" fill="#8B6914"/><rect x="34" y="13" width="12" height="8" rx="1" fill="#7a5c10"/><rect x="2" y="16" width="30" height="2" rx="1" fill="#c8a850" opacity=".4"/><rect x="8" y="20" width="20" height="9" rx="2" fill="#6b4d0e"/><circle cx="40" cy="17" r="2.5" fill="#3d2c06"/><rect x="35" y="8" width="3" height="5" rx="1" fill="#6b4d0e"/><rect x="1" y="15" width="5" height="4" rx="1" fill="#5a3e09"/></svg>`,
+  sn_impala: `<svg viewBox="0 0 48 28" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="12" width="44" height="10" rx="2" fill="#111"/><path d="M8 12 Q12 5 20 5 L32 5 Q38 5 42 12Z" fill="#111"/><rect x="4" y="19" width="8" height="4" rx="2" fill="#222"/><rect x="36" y="19" width="8" height="4" rx="2" fill="#222"/><rect x="12" y="7" width="10" height="5" rx="1" fill="#1a3a5c" opacity=".8"/><rect x="26" y="7" width="10" height="5" rx="1" fill="#1a3a5c" opacity=".8"/><rect x="2" y="14" width="6" height="4" rx="1" fill="#e8b800" opacity=".9"/><rect x="40" y="14" width="6" height="4" rx="1" fill="#e8b800" opacity=".9"/><rect x="6" y="21" width="3" height="1" rx=".5" fill="#c0c0c0"/><rect x="39" y="21" width="3" height="1" rx=".5" fill="#c0c0c0"/></svg>`,
+  sn_pentagram: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="14" stroke="#c84000" stroke-width="1.5" fill="none"/><polygon points="16,3 19.5,13 30,13 21.5,19 24.5,30 16,23.5 7.5,30 10.5,19 2,13 12.5,13" fill="none" stroke="#e05500" stroke-width="1.2" stroke-linejoin="round"/><circle cx="16" cy="16" r="3" fill="#e05500" opacity=".6"/></svg>`,
+
+  // Mentalist
+  mn_redj: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="13" fill="#8b0000"/><circle cx="10" cy="12" r="2.5" fill="#ff2200"/><circle cx="22" cy="12" r="2.5" fill="#ff2200"/><path d="M8 22 Q16 28 24 22" stroke="#ff2200" stroke-width="2" fill="none" stroke-linecap="round"/></svg>`,
+  mn_card: `<svg viewBox="0 0 32 44" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="30" height="42" rx="3" fill="#f8f0e0" stroke="#ccc" stroke-width="1"/><text x="16" y="26" text-anchor="middle" font-size="20" fill="#cc1100">♠</text><text x="5" y="10" font-size="7" fill="#cc1100">A</text><text x="27" y="44" font-size="7" fill="#cc1100" transform="rotate(180,27,44)">A</text></svg>`,
+
+  // Breaking Bad
+  bb_hat: `<svg viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="24" cy="24" rx="22" ry="5" fill="#1a1a1a"/><path d="M6 24 Q6 8 24 8 Q42 8 42 24" fill="#0a0a0a"/><ellipse cx="24" cy="24" rx="22" ry="5" fill="none" stroke="#333" stroke-width="1"/></svg>`,
+  bb_crystal: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><polygon points="16,2 26,10 26,22 16,30 6,22 6,10" fill="#88ccff" opacity=".7" stroke="#5599ff" stroke-width="1"/><polygon points="16,2 26,10 16,14" fill="#aaddff" opacity=".5"/><polygon points="16,14 26,22 16,30 6,22" fill="#66aaee" opacity=".6"/><line x1="16" y1="2" x2="16" y2="30" stroke="white" stroke-width=".5" opacity=".4"/></svg>`,
+  bb_pizza: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 3 L30 28 Q16 30 2 28 Z" fill="#e8a820"/><path d="M16 3 L30 28 Q16 30 2 28 Z" fill="none" stroke="#c88010" stroke-width="1"/><circle cx="12" cy="20" r="2" fill="#cc2200"/><circle cx="20" cy="16" r="1.5" fill="#cc2200"/><circle cx="16" cy="24" r="1.5" fill="#cc2200"/><path d="M16 3 L30 28" stroke="#c88010" stroke-width=".8"/><path d="M16 3 L2 28" stroke="#c88010" stroke-width=".8"/></svg>`,
+
+  // Dark
+  dk_knot: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16 4 C24 4 28 10 26 16 C24 22 18 24 16 24 C14 24 8 22 6 16 C4 10 8 4 16 4 Z" fill="none" stroke="#8888ff" stroke-width="2"/><path d="M10 16 C10 20 13 24 16 24 C19 24 22 20 22 16 C22 12 19 8 16 8 C13 8 10 12 10 16 Z" fill="none" stroke="#6666cc" stroke-width="1.5"/><circle cx="16" cy="16" r="2" fill="#aaaaff"/></svg>`,
+  dk_clock: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="16" cy="16" r="13" stroke="#8888aa" stroke-width="1.5" fill="#0a0a14"/><circle cx="16" cy="16" r="1.5" fill="#aaaacc"/><line x1="16" y1="6" x2="16" y2="12" stroke="#aaaacc" stroke-width="1.5" stroke-linecap="round"/><line x1="16" y1="16" x2="22" y2="18" stroke="#888899" stroke-width="1.2" stroke-linecap="round"/><text x="16" y="26" text-anchor="middle" font-size="4.5" fill="#666688">33 YEARS</text></svg>`,
+
+  // Stranger Things
+  st_lights: `<svg viewBox="0 0 48 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 10 Q12 4 24 10 Q36 16 44 10" stroke="#555" stroke-width="1" fill="none"/>${[4,12,20,28,36,44].map((x,i)=>`<circle cx="${x}" cy="${i%2===0?8:12}" r="2.5" fill="${['#ff2200','#00cc00','#ffee00','#0088ff','#ff4400','#cc00cc'][i]}" opacity=".9"/>`).join('')}</svg>`,
+  st_eggo: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="26" height="26" rx="4" fill="#c8a020"/><line x1="16" y1="3" x2="16" y2="29" stroke="#a88010" stroke-width="1"/><line x1="3" y1="16" x2="29" y2="16" stroke="#a88010" stroke-width="1"/><rect x="5" y="5" width="10" height="10" rx="2" fill="#d4aa30" opacity=".5"/><rect x="17" y="5" width="10" height="10" rx="2" fill="#d4aa30" opacity=".5"/><rect x="5" y="17" width="10" height="10" rx="2" fill="#d4aa30" opacity=".5"/><rect x="17" y="17" width="10" height="10" rx="2" fill="#d4aa30" opacity=".5"/></svg>`,
+
+  // Movies — Interstellar
+  in_watch: `<svg viewBox="0 0 28 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="8" y="1" width="12" height="6" rx="2" fill="#333"/><rect x="8" y="33" width="12" height="6" rx="2" fill="#333"/><rect x="2" y="7" width="24" height="26" rx="5" fill="#222" stroke="#555" stroke-width="1"/><circle cx="14" cy="20" r="9" fill="#111" stroke="#444" stroke-width="1"/><line x1="14" y1="13" x2="14" y2="20" stroke="#888" stroke-width="1.2" stroke-linecap="round"/><line x1="14" y1="20" x2="19" y2="22" stroke="#666" stroke-width="1" stroke-linecap="round"/></svg>`,
+
+  // Dune
+  du_crysknife: `<svg viewBox="0 0 12 44" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 2 L9 20 L9 34 L6 42 L3 34 L3 20 Z" fill="#e8d8b0" stroke="#c8b880" stroke-width=".8"/><rect x="3" y="32" width="6" height="10" rx="1.5" fill="#8B6914"/><line x1="6" y1="4" x2="6" y2="32" stroke="white" stroke-width=".5" opacity=".3"/></svg>`,
+  du_spice: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="16" cy="20" rx="12" ry="8" fill="#c86420"/><ellipse cx="16" cy="18" rx="12" ry="8" fill="#d47830"/><ellipse cx="16" cy="16" rx="12" ry="8" fill="#e08840"/><ellipse cx="16" cy="14" rx="10" ry="5" fill="#e89040" opacity=".8"/><ellipse cx="16" cy="13" rx="6" ry="2.5" fill="#f0a050" opacity=".5"/></svg>`,
+
+  // Matrix
+  mx_pill: `<svg viewBox="0 0 32 16" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="14" height="14" rx="7" fill="#cc0000"/><rect x="17" y="1" width="14" height="14" rx="7" fill="#1a1a1a" stroke="#444" stroke-width="1"/><rect x="15" y="5" width="2" height="6" fill="#888"/></svg>`,
+
+  // Blade Runner
+  br_origami: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><polygon points="16,3 28,20 22,20 28,29 4,29 10,20 4,20" fill="#e8e0d0" stroke="#c8c0b0" stroke-width="1"/><line x1="16" y1="3" x2="16" y2="29" stroke="#c8c0b0" stroke-width=".8"/><line x1="4" y1="20" x2="28" y2="20" stroke="#c8c0b0" stroke-width=".8"/></svg>`,
+
+  // Inception
+  ic_totem: `<svg viewBox="0 0 20 36" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="10" cy="28" rx="8" ry="4" fill="#888" opacity=".3"/><path d="M4 28 L10 4 L16 28 Z" fill="#aaa" stroke="#888" stroke-width="1"/><ellipse cx="10" cy="28" rx="6" ry="3" fill="#999"/><line x1="10" y1="6" x2="10" y2="28" stroke="white" stroke-width=".6" opacity=".25"/></svg>`,
+
+  // Godfather
+  gf_offer: `<svg viewBox="0 0 32 28" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 14 C4 8 10 4 16 6 C22 4 28 8 28 14 C28 20 22 24 16 24 C10 24 4 20 4 14Z" fill="#1a0a00" stroke="#4a2000" stroke-width="1"/><path d="M10 14 L14 18 L22 10" stroke="#c8a060" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+
+  // F1
+  f1rb_trophy: `<svg viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="32" width="12" height="4" rx="1" fill="#c8a820"/><rect x="6" y="36" width="20" height="3" rx="1" fill="#a88810"/><path d="M8 4 L8 24 Q8 32 16 32 Q24 32 24 24 L24 4 Z" fill="#f0c020"/><path d="M8 12 L4 14 L4 20 Q4 24 8 24" fill="#e0b018" stroke="#c89010" stroke-width=".8"/><path d="M24 12 L28 14 L28 20 Q28 24 24 24" fill="#e0b018" stroke="#c89010" stroke-width=".8"/><ellipse cx="16" cy="4" rx="8" ry="2" fill="#f8d030"/></svg>`,
+  f1fe_horse: `<svg viewBox="0 0 28 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 28 C14 28 6 22 6 14 C6 8 10 4 14 4 C18 4 22 8 22 14 C22 22 14 28 14 28Z" fill="#ff2800"/><path d="M14 6 C14 6 10 10 10 14 L14 13 L18 14 C18 10 14 6 14 6Z" fill="#1a1a1a"/><path d="M12 14 L12 22 L14 24 L16 22 L16 14" fill="#1a1a1a" stroke="#ff2800" stroke-width=".5"/></svg>`,
+
+  // Cyberpunk 2077
+  cp_shard:    `<svg viewBox="0 0 24 32" fill="none"><rect x="2" y="1" width="20" height="30" rx="3" fill="#0a0020" stroke="#ff0090" stroke-width=".8"/><rect x="5" y="6" width="14" height="2" rx="1" fill="#ff0090" opacity=".7"/><rect x="5" y="10" width="10" height="2" rx="1" fill="#00eeff" opacity=".6"/><rect x="5" y="14" width="12" height="2" rx="1" fill="#ff0090" opacity=".5"/><circle cx="12" cy="26" r="2" fill="#ff0090" opacity=".8"/></svg>`,
+  cp_katana:   `<svg viewBox="0 0 8 44" fill="none"><rect x="2" y="2" width="4" height="32" rx="2" fill="#c0c0c0"/><rect x="1" y="32" width="6" height="2" rx="1" fill="#ff0090" opacity=".9"/><rect x="1.5" y="34" width="5" height="9" rx="1.5" fill="#1a0030"/></svg>`,
+  cp_ripperdoc:`<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" fill="#0a0020" stroke="#ff0090" stroke-width="1"/><path d="M10 16 L13 10 L16 16 L19 12 L22 16" stroke="#00eeff" stroke-width="1.5" fill="none" stroke-linecap="round"/><circle cx="16" cy="16" r="2" fill="#ff0090"/></svg>`,
+  // 2001
+  hal_eye:     `<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" fill="#000"/><circle cx="16" cy="16" r="10" fill="#880000"/><circle cx="16" cy="16" r="6" fill="#cc0000"/><circle cx="16" cy="16" r="2" fill="#ff0000"/><circle cx="11" cy="11" r="2.5" fill="rgba(255,150,150,.1)"/></svg>`,
+  hal_mono:    `<svg viewBox="0 0 12 28" fill="none"><rect x="1" y="1" width="10" height="26" rx="1" fill="#050505" stroke="rgba(255,220,100,.2)" stroke-width=".5"/></svg>`,
+  hal_pod:     `<svg viewBox="0 0 32 24" fill="none"><ellipse cx="16" cy="12" rx="14" ry="10" fill="#111" stroke="#444" stroke-width="1"/><circle cx="16" cy="12" r="5" fill="#222"/><circle cx="16" cy="12" r="1.5" fill="#cc0000" opacity=".7"/></svg>`,
+  // Tenet
+  tn_invert:   `<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" fill="#040408" stroke="#8888ff" stroke-width=".8"/><path d="M10 12 L22 12 L16 8 Z" fill="#8888ff" opacity=".7"/><path d="M10 20 L22 20 L16 24 Z" fill="#ff8800" opacity=".7"/></svg>`,
+  tn_alg:      `<svg viewBox="0 0 28 28" fill="none"><rect x="1" y="1" width="12" height="12" rx="2" fill="#040408" stroke="#8888ff" stroke-width=".8"/><rect x="15" y="1" width="12" height="12" rx="2" fill="#040408" stroke="#ff8800" stroke-width=".8"/><rect x="1" y="15" width="12" height="12" rx="2" fill="#040408" stroke="#ff8800" stroke-width=".8"/><rect x="15" y="15" width="12" height="12" rx="2" fill="#040408" stroke="#8888ff" stroke-width=".8"/></svg>`,
+  // House of the Dragon
+  hd_egg:      `<svg viewBox="0 0 20 28" fill="none"><ellipse cx="10" cy="15" rx="8" ry="12" fill="#1a0800" stroke="#e84000" stroke-width=".8"/><ellipse cx="10" cy="15" rx="5" ry="8" fill="none" stroke="#ffa020" stroke-width=".5" opacity=".4"/></svg>`,
+  hd_crown:    `<svg viewBox="0 0 32 20" fill="none"><path d="M2 18 L2 8 L8 14 L16 4 L24 14 L30 8 L30 18 Z" fill="#1a0800" stroke="#e84000" stroke-width="1"/><rect x="2" y="16" width="28" height="3" rx="1" fill="#e84000" opacity=".8"/><circle cx="16" cy="5" r="2" fill="#ffa020"/></svg>`,
+  hd_scale:    `<svg viewBox="0 0 24 20" fill="none"><path d="M12 2 L20 8 L20 14 L12 18 L4 14 L4 8 Z" fill="#e84000" opacity=".6" stroke="#ffa020" stroke-width=".8"/></svg>`,
+  // Moon Knight
+  mk_scarab:   `<svg viewBox="0 0 28 20" fill="none"><ellipse cx="14" cy="12" rx="7" ry="6" fill="#ffd080" opacity=".8"/><ellipse cx="14" cy="10" rx="4" ry="3" fill="#c8a000" opacity=".6"/><path d="M7 12 Q4 8 6 6 Q8 10 14 12" fill="#ffd080" opacity=".5"/><path d="M21 12 Q24 8 22 6 Q20 10 14 12" fill="#ffd080" opacity=".5"/></svg>`,
+  mk_ankh:     `<svg viewBox="0 0 16 28" fill="none"><circle cx="8" cy="7" r="4.5" fill="none" stroke="#c8d8ff" stroke-width="1.5"/><line x1="8" y1="11.5" x2="8" y2="26" stroke="#c8d8ff" stroke-width="1.5"/><line x1="3" y1="18" x2="13" y2="18" stroke="#c8d8ff" stroke-width="1.5"/></svg>`,
+  mk_crescent: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#c8d8ff" opacity=".8"/><circle cx="15.5" cy="10.5" r="8" fill="#04060e"/></svg>`,
+  
+    f1mc_papaya: `<svg viewBox="0 0 32 20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="4" width="30" height="12" rx="3" fill="#ff8000"/><path d="M1 10 L8 4 L8 16 Z" fill="#1a1a1a"/><text x="16" y="13" text-anchor="middle" font-size="7" font-weight="bold" fill="white">McLAREN</text></svg>`,
+};
+
+// ── Token Shop UI ─────────────────────────────────────────────────────
+let shopTab = 'tv';
+
+function openShop() { buildShopUI(); openModal('shopOverlay'); }
+
+function buildShopUI(tab?: string) {
+  if (tab) shopTab = tab;
+  const grid    = $('shopGrid');
+  const tabsEl  = $('shopTabs');
+  const tokenEl = $('shopTokenDisplay');
+  if (!grid || !tabsEl) return;
+  if (tokenEl) tokenEl.innerHTML = coinHTML(Shop.getTokens());
+
+  // Shop tab bar
+  const shopTabDefs: [string, string][] = [
+    ['tv','📺 TV'], ['movie','🎬 Movies'], ['f1','🏎 F1'], ['nat','🌿 Special'],
+  ];
+  tabsEl.innerHTML = '';
+  shopTabDefs.forEach(([id, label]) => {
+    const b = document.createElement('button');
+    b.className = 'shop-tab-btn' + (shopTab === id ? ' active' : '');
+    b.textContent = label; b.dataset.tab = id;
+    b.addEventListener('click', () => buildShopUI(id));
+    tabsEl.appendChild(b);
+  });
+
+  const catThemes = shopTab === 'nat'
+    ? THEMES_BY_CAT.nat.map(t => t.id)
+    : THEMES_BY_CAT[shopTab as 'tv'|'movie'|'f1'].map(t => t.id);
+
+  const items = Shop.SHOP_ITEMS.filter(i => catThemes.includes(i.themeId));
+  const owned    = Shop.getOwned();
+  const equipped = Shop.getEquipped();
+
+  grid.innerHTML = '';
+  if (items.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'shop-empty';
+    empty.textContent = 'No items in this category yet.';
+    grid.appendChild(empty); return;
+  }
+
+  // Group by theme
+  const byTheme = new Map<string, typeof items>();
+  items.forEach(item => {
+    if (!byTheme.has(item.themeId)) byTheme.set(item.themeId, []);
+    byTheme.get(item.themeId)!.push(item);
+  });
+
+  byTheme.forEach((themeItems, themeId) => {
+    const theme = THEME_BY_ID[themeId];
+    if (!theme) return;
+
+    const section = document.createElement('div'); section.className = 'shop-section';
+    const header  = document.createElement('div'); header.className = 'shop-section-header';
+    header.style.borderColor = theme.accent + '44';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'shop-section-name';
+    nameSpan.style.color = theme.accent;
+    nameSpan.textContent = theme.name;
+    header.appendChild(nameSpan);
+    section.appendChild(header);
+
+    const itemsGrid = document.createElement('div'); itemsGrid.className = 'shop-items-grid';
+    themeItems.forEach(item => {
+      const isOwned    = owned.has(item.id);
+      const isEquipped = equipped.has(item.id);
+      const card = document.createElement('div');
+      card.className = ['shop-item', isOwned ? 'owned' : '', isEquipped ? 'equipped' : ''].filter(Boolean).join(' ');
+
+      // Icon — use SVG art if available, else emoji
+      const iconEl = document.createElement('div'); iconEl.className = 'shop-item-icon';
+      const svgArt = SHOP_SVG[item.id];
+      if (svgArt) iconEl.innerHTML = svgArt;        // SVG strings are developer-authored, safe
+      else        iconEl.textContent = item.icon;   // emoji fallback
+
+      const info = document.createElement('div'); info.className = 'shop-item-info';
+      const nameEl = document.createElement('div'); nameEl.className = 'shop-item-name';
+      nameEl.textContent = item.name;
+      const descEl = document.createElement('div'); descEl.className = 'shop-item-desc';
+      descEl.textContent = item.desc;
+      info.append(nameEl, descEl);
+
+      const action = document.createElement('div'); action.className = 'shop-item-action';
+
+      if (isOwned) {
+        const equipBtn = document.createElement('button');
+        equipBtn.className = 'shop-equip-btn' + (isEquipped ? ' on' : '');
+        equipBtn.textContent = isEquipped ? '✓ On' : 'Equip';
+        equipBtn.addEventListener('click', () => { Shop.toggleEquip(item.id); buildShopUI(); });
+        action.appendChild(equipBtn);
+      } else {
+        const buyBtn = document.createElement('button');
+        buyBtn.className = 'shop-buy-btn';
+        buyBtn.disabled = Shop.getTokens() < item.cost;
+        const costSpan = document.createElement('span');
+        costSpan.className = 'shop-cost';
+        costSpan.textContent = `🪙 ${item.cost}`;
+        buyBtn.appendChild(costSpan);
+        buyBtn.addEventListener('click', () => {
+          const result = Shop.buyItem(item.id);
+          if (result === 'ok') { buildShopUI(); buildPanel(); }
+          else if (result === 'poor') {
+            card.classList.add('shake'); setTimeout(() => card.classList.remove('shake'), 500);
+          }
+        });
+        action.appendChild(buyBtn);
+      }
+
+      card.append(iconEl, info, action);
+      itemsGrid.appendChild(card);
+    });
+    section.appendChild(itemsGrid);
+    grid.appendChild(section);
+  });
+}
+
+// ── Coin SVG — Apple-style gold coin ────────────────────────────────
+const COIN_SVG = `<svg class="token-coin" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="coinGrad" cx="38%" cy="32%" r="65%">
+      <stop offset="0%"   stop-color="#ffe566"/>
+      <stop offset="45%"  stop-color="#f0b800"/>
+      <stop offset="100%" stop-color="#c88000"/>
+    </radialGradient>
+    <radialGradient id="coinShine" cx="35%" cy="28%" r="50%">
+      <stop offset="0%"   stop-color="white" stop-opacity=".45"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="10" cy="10" r="9.5" fill="#c88000"/>
+  <circle cx="10" cy="10" r="9"   fill="url(#coinGrad)"/>
+  <circle cx="10" cy="10" r="9"   fill="url(#coinShine)"/>
+  <circle cx="10" cy="10" r="7.2" fill="none" stroke="#c88000" stroke-width=".6" opacity=".4"/>
+  <text x="10" y="13.5" text-anchor="middle" font-size="8" font-weight="700"
+        fill="#8b5500" font-family="system-ui,sans-serif" opacity=".9">S</text>
+</svg>`;
+
+function createCoinEl(count: number): HTMLElement {
+  const wrap = document.createElement('span'); wrap.className = 'feat-tokens';
+  wrap.innerHTML = COIN_SVG; // developer-authored SVG constant — safe
+  const cnt = document.createElement('span'); cnt.className = 'token-count';
+  cnt.textContent = String(count);
+  wrap.appendChild(cnt);
+  return wrap;
+}
+
+function coinHTML(count: number): string {
+  return `${COIN_SVG}<span class="token-count">${count}</span>`;
+}
+
+// Award tokens on session events
+function awardTokens(minutes: number) {
+  const tokens = Math.max(1, Math.floor(minutes / 5));
+  Shop.addTokens(tokens);
+
+  // Animate +N tokens above the shop button
+  const shopBtn = $('btnShop');
+  if (shopBtn) {
+    shopBtn.innerHTML = `🛒 Shop ${coinHTML(Shop.getTokens())}`;
+    const pop = document.createElement('div');
+    pop.className = 'token-pop';
+    pop.textContent = `+${tokens}`;
+    shopBtn.appendChild(pop);
+    setTimeout(() => pop.remove(), 1200);
+  }
+  // Update open shop if visible
+  const tokenEl = $('shopTokenDisplay');
+  if (tokenEl) tokenEl.innerHTML = coinHTML(Shop.getTokens());
+}
 
 // ── QR Handoff ────────────────────────────────────────────────────────
-function openQRHandoff(){const canvas=$<HTMLCanvasElement>('qrCanvas'),label=$('qrLabel'),urlEl=$('qrUrl');if(!canvas)return;const state: Record<string,string>={theme:currentTheme.id,clock:clockMode};if(sessionRunning){state.ses='1';state.elapsed=String(Math.round(performance.now()-sessionStart));}if(Pom.isActive()){state.pom='1';const s=Pom.getSettings();state.pw=String(s.workMins);state.pb=String(s.breakMins);}if(DOM.focusInput.value.trim())state.task=DOM.focusInput.value.trim().slice(0,30);const url=`${location.origin}${location.pathname}?${new URLSearchParams(state).toString()}`;if(urlEl)urlEl.textContent=url.length>60?url.slice(0,57)+'…':url;drawQR(canvas,url,currentTheme.text,currentTheme.baseBg[1]??currentTheme.baseBg[0]!);if(label)label.textContent=url.length>77?'URL too long for QR — shorten task name':'Scan to continue this session on another device';openModal('qrOverlay');}
-function applyHandoffState(){const p=new URLSearchParams(location.search);if(!p.has('theme')&&!p.has('ses'))return;const tid=p.get('theme');if(tid&&THEME_BY_ID[tid])applyTheme(THEME_BY_ID[tid]!,true);const cm=p.get('clock') as ClockMode|null;if(cm){setClockMode(cm);updateClockCanvas();}if(p.get('task'))DOM.focusInput.value=p.get('task')!;if(p.get('ses')==='1'){sessionElapsed=parseInt(p.get('elapsed')??'0');setTimeout(()=>DOM.btnStart.click(),800);}history.replaceState({},'',location.pathname);}
+function openQRHandoff() {
+  const canvas = $<HTMLCanvasElement>('qrCanvas');
+  const label  = $('qrLabel');
+  const urlEl  = $('qrUrl');
+  if (!canvas) return;
 
-// ── Share card ────────────────────────────────────────────────────────
-async function openShareCard(){const log: Array<{date:string;dur:number}>=(() => {try{return JSON.parse(localStorage.getItem('sc_focus_log')||'[]');}catch{return [];}})();const today=new Date().toDateString(),todayMins=Math.max(1,Math.floor(log.filter(e=>e.date===today).reduce((s,e)=>s+e.dur,0)/60000));generateShareCard({themeName:currentTheme.name,accentColor:currentTheme.accent,bgColor:currentTheme.baseBg[0]!,textColor:currentTheme.text,glow:currentTheme.glow,focusMinutes:todayMins,taskName:DOM.focusInput.value.trim(),streakDays:Intel.getStreak().current,date:new Date().toLocaleDateString('en-GB',{weekday:'long',year:'numeric',month:'long',day:'numeric'})});if(APIs.canShare()){const offCv=document.createElement('canvas');offCv.width=1200;offCv.height=630;const shared=await APIs.shareCard(offCv,DOM.focusInput.value.trim(),todayMins).catch(()=>false);if(shared){showToast('Shared!');return;}}const offCv2=document.createElement('canvas');offCv2.width=400;offCv2.height=210;showToast(await APIs.copyCardToClipboard(offCv2).catch(()=>false)?'Focus card copied to clipboard!':'Focus card saved to your downloads!');}
+  // Build state URL
+  const state: Record<string, string> = {
+    theme: currentTheme.id,
+    clock: clockMode,
+  };
+  if (sessionRunning) {
+    state.ses = '1';
+    state.elapsed = String(Math.round(performance.now() - sessionStart));
+  }
+  if (Pom.isActive()) {
+    state.pom = '1';
+    const s = Pom.getSettings();
+    state.pw = String(s.workMins);
+    state.pb = String(s.breakMins);
+  }
+  if (DOM.focusInput.value.trim()) {
+    state.task = DOM.focusInput.value.trim().slice(0, 30);
+  }
 
-// ── Toast ─────────────────────────────────────────────────────────────
-function showToast(msg: string,duration=3500){document.getElementById('scToast')?.remove();const t=document.createElement('div');t.id='scToast';t.className='sc-toast';t.textContent=msg;document.body.appendChild(t);requestAnimationFrame(()=>t.classList.add('visible'));setTimeout(()=>{t.classList.remove('visible');setTimeout(()=>t.remove(),400);},duration);}
+  const params = new URLSearchParams(state).toString();
+  const url = `${location.origin}${location.pathname}?${params}`;
 
-// ── Wallpaper drop ────────────────────────────────────────────────────
-function initWallpaperDrop(){document.addEventListener('dragover',e=>e.preventDefault());document.addEventListener('drop',e=>{e.preventDefault();const file=e.dataTransfer?.files[0];if(!file?.type.startsWith('image/'))return;const reader=new FileReader();reader.onload=ev=>{const img=new Image();img.onload=()=>{const cv=document.createElement('canvas');cv.width=cv.height=16;const ctx=cv.getContext('2d')!;ctx.drawImage(img,0,0,16,16);const px=ctx.getImageData(0,0,16,16).data;let r=0,g=0,b=0,n=0;for(let i=0;i<px.length;i+=4){const l=.299*px[i]!+.587*px[i+1]!+.114*px[i+2]!;if(l<20||l>235)continue;r+=px[i]!;g+=px[i+1]!;b+=px[i+2]!;n++;}if(!n)return;const accent='#'+[Math.round(r/n),Math.round(g/n),Math.round(b/n)].map(v=>v.toString(16).padStart(2,'0')).join('');const dk=(h: string,a: number)=>{const n2=parseInt(h.slice(1),16);return'#'+[16,8,0].map(s=>Math.max(0,Math.round(((n2>>s)&0xff)*(1-a))).toString(16).padStart(2,'0')).join('');};const wt={...currentTheme,id:'wallpaper',name:'Wallpaper',accent,accent2:accent,btnBg:accent+'22',btnFg:'#ffffff',glow:`0 0 55px ${accent}44`,hdr:true,baseBg:[dk(accent,.9),dk(accent,.85),dk(accent,.92)]};document.body.style.backgroundImage=`url('${ev.target?.result as string}')`;document.body.style.backgroundSize='cover';document.body.style.backgroundPosition='center';document.getElementById('overlay')!.style.background='rgba(0,0,0,0.55)';applyTheme(wt as typeof currentTheme,true);showToast('Wallpaper theme applied!');};img.src=ev.target?.result as string;};reader.readAsDataURL(file);});}
+  if (urlEl) {
+    urlEl.textContent = url.length > 60 ? url.slice(0, 57) + '…' : url;
+  }
 
-// ── Misc ──────────────────────────────────────────────────────────────
-function registerSW(){if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});}
-function flashTheme(){document.body.classList.remove('theme-flash');void document.body.offsetWidth;document.body.classList.add('theme-flash');setTimeout(()=>document.body.classList.remove('theme-flash'),500);}
-function updatePanelHeight(){const p=$('themePanel');if(!p)return;document.documentElement.style.setProperty('--panel-h',p.offsetHeight+'px');}
+  // Draw QR using theme colours
+  const fg = currentTheme.text;
+  const bg = currentTheme.baseBg[1] ?? currentTheme.baseBg[0];
+  drawQR(canvas, url, fg, bg);
 
-// ── Init ──────────────────────────────────────────────────────────────
+  if (label) label.textContent = url.length > 77
+    ? 'URL too long for QR — shorten task name'
+    : 'Scan to continue this session on another device';
+
+  openModal('qrOverlay');
+}
+
+// Read handoff state from URL on load
+function applyHandoffState() {
+  const p = new URLSearchParams(location.search);
+  if (!p.has('theme') && !p.has('ses')) return;
+  const themeId = p.get('theme');
+  if (themeId && THEME_BY_ID[themeId]) applyTheme(THEME_BY_ID[themeId], true);
+  const cm = p.get('clock') as ClockMode | null;
+  if (cm) { setClockMode(cm); updateClockCanvas(); }
+  const task = p.get('task');
+  if (task) { DOM.focusInput.value = task; }
+  if (p.get('ses') === '1') {
+    const elapsed = parseInt(p.get('elapsed') ?? '0');
+    sessionElapsed = elapsed;
+    setTimeout(() => DOM.btnStart.click(), 800); // auto-resume
+  }
+  // Clean URL
+  history.replaceState({}, '', location.pathname);
+}
+
+// ── Animedoro mode ────────────────────────────────────────────────────
+let animedoroActive = false;
+let theaterTimer: number | null = null;
+let theaterRemainMs = 20 * 60_000;
+
+function startAnimedoro() {
+  // 50 min work / 20 min theater break variant
+  Pom.updateSettings({ workMins: 50, breakMins: 20 });
+  animedoroActive = true;
+  if (!Pom.isActive()) {
+    Pom.toggle();
+    buildPomUI();
+  }
+}
+
+function triggerTheaterMode(breakMins: number) {
+  const overlay = document.getElementById('theaterOverlay');
+  const timerEl = document.getElementById('theaterTimer');
+  const minEl   = document.getElementById('theaterMinutes');
+  if (!overlay) return;
+
+  theaterRemainMs = breakMins * 60_000;
+  if (minEl) minEl.textContent = String(breakMins);
+  overlay.classList.add('visible');
+
+  const tick = () => {
+    theaterRemainMs -= 1000;
+    if (timerEl) {
+      const m = Math.floor(theaterRemainMs / 60000);
+      const s = Math.floor((theaterRemainMs % 60000) / 1000);
+      timerEl.textContent = `${p2(m)}:${p2(s)}`;
+    }
+    if (theaterRemainMs <= 0) {
+      overlay.classList.remove('visible');
+      if (theaterTimer) clearInterval(theaterTimer);
+    }
+  };
+  if (theaterTimer) clearInterval(theaterTimer);
+  theaterTimer = window.setInterval(tick, 1000);
+
+  const skipBtn = document.getElementById('theaterSkip');
+  if (skipBtn) skipBtn.onclick = () => {
+    overlay.classList.remove('visible');
+    if (theaterTimer) clearInterval(theaterTimer);
+  };
+}
+
+function updatePanelHeight() {
+  const panel = $('themePanel');
+  if (!panel) return;
+  const h = panel.offsetHeight;
+  document.documentElement.style.setProperty('--panel-h', h + 'px');
+}
+
+// ── Info strip — intelligence-powered ────────────────────────────────
+const BASE_INFO_ITEMS = [
+  () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const dayOfYear = Math.floor((now.getTime() - start.getTime()) / 86400000);
+    const weekNum = Math.ceil(dayOfYear / 7);
+    return `Week ${weekNum} · Day ${dayOfYear} of ${now.getFullYear()}`;
+  },
+  () => {
+    const now = new Date();
+    const endOfYear = new Date(now.getFullYear(), 11, 31);
+    const daysLeft = Math.ceil((endOfYear.getTime() - now.getTime()) / 86400000);
+    return `${daysLeft} days left in ${now.getFullYear()}`;
+  },
+  () => {
+    const now = new Date();
+    const pct = ((now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400 * 100).toFixed(1);
+    return `${pct}% of today complete`;
+  },
+];
+
+function getAllInfoItems(): Array<() => string> {
+  return [...Intel.getIntelligenceInsights(), ...BASE_INFO_ITEMS];
+}
+
+let infoIdx = 0;
+function rotateInfo() {
+  const slide = DOM.infoSlide;
+  const label = DOM.infoLabel;
+  if (!slide || !label) return;
+  slide.classList.add('leaving');
+  setTimeout(() => {
+    const items = getAllInfoItems();
+    infoIdx = (infoIdx + 1) % items.length;
+    label.textContent = items[infoIdx]();
+    slide.classList.remove('leaving');
+    slide.style.animation = 'none';
+    void slide.offsetWidth;
+    slide.style.animation = '';
+  }, 420);
+}
+
+// ── Clock canvas/DOM manager ──────────────────────────────────────────
+function updateClockCanvas() {
+  const block = document.getElementById('clock-block-wrap');
+  if (!block) return;
+  block.dataset.mode = clockMode;
+
+  // Remove all existing alt clock elements
+  ['analogueClock','flipClockWrap','wordClockGrid','minimalClockWrap','segmentClock'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  });
+
+  // Show/hide digital clock row
+  const digitalRow = document.querySelector<HTMLElement>('.clock-row');
+  if (digitalRow) digitalRow.style.display = (clockMode === 'digital') ? '' : 'none';
+  const ampmStack = document.querySelector<HTMLElement>('.ampm-stack');
+  if (ampmStack) ampmStack.style.display = (clockMode === 'digital') ? '' : 'none';
+
+  if (clockMode === 'analogue') {
+    const canvas = document.createElement('canvas');
+    canvas.id = 'analogueClock';
+    const sz = Math.min(Math.min(window.innerWidth * 0.65, window.innerHeight * 0.38), 340);
+    canvas.width = canvas.height = sz;
+    block.appendChild(canvas);
+
+  } else if (clockMode === 'flip') {
+    const wrap = document.createElement('div');
+    wrap.id = 'flipClockWrap'; wrap.className = 'flip-clock-wrap';
+    ['Hr','Min','Sec'].forEach((part, i) => {
+      if (i > 0) { const sep = document.createElement('span'); sep.className = 'flip-sep'; sep.textContent = ':'; wrap.appendChild(sep); }
+      const card = document.createElement('div');
+      card.id = `flip${part}`; card.className = 'flip-card';
+      card.innerHTML = `<div class="flip-top">00</div><div class="flip-bot">00</div><div class="flip-top-back">00</div>`;
+      wrap.appendChild(card);
+    });
+    block.appendChild(wrap);
+
+  } else if (clockMode === 'word') {
+    const grid = document.createElement('div');
+    grid.id = 'wordClockGrid'; grid.className = 'word-clock-grid';
+    block.appendChild(grid);
+    wordPrevKey = ''; // force redraw
+
+  } else if (clockMode === 'minimal') {
+    const wrap = document.createElement('div');
+    wrap.id = 'minimalClockWrap'; wrap.className = 'minimal-clock-wrap';
+    wrap.innerHTML = `<span id="minimalHr" class="minimal-hr">--</span><span id="minimalAP" class="minimal-ap">AM</span>`;
+    block.appendChild(wrap);
+
+  } else if (clockMode === 'segment') {
+    const canvas = document.createElement('canvas');
+    canvas.id = 'segmentClock';
+    canvas.width = Math.min(window.innerWidth * 0.88, 520);
+    canvas.height = 110;
+    block.appendChild(canvas);
+  }
+}
+
+function startInfoStrip() {
+  const items0 = getAllInfoItems();
+  if (DOM.infoLabel) DOM.infoLabel.textContent = items0[0]();
+  setInterval(rotateInfo, 6000);
+}
+
+// ── Parallax depth ────────────────────────────────────────────────────
+let parallaxX = 0, parallaxY = 0;
+let targetPX = 0, targetPY = 0;
+const PARALLAX_STRENGTH = 18; // max px offset
+
+window.addEventListener('mousemove', e => {
+  targetPX = (e.clientX / window.innerWidth  - 0.5) * PARALLAX_STRENGTH;
+  targetPY = (e.clientY / window.innerHeight - 0.5) * PARALLAX_STRENGTH;
+});
+
+// Gyroscope for mobile
+if (window.DeviceOrientationEvent) {
+  window.addEventListener('deviceorientation', e => {
+    if (e.gamma != null && e.beta != null) {
+      targetPX = Math.max(-PARALLAX_STRENGTH, Math.min(PARALLAX_STRENGTH, e.gamma / 2));
+      targetPY = Math.max(-PARALLAX_STRENGTH, Math.min(PARALLAX_STRENGTH, (e.beta - 45) / 2));
+    }
+  });
+}
+
+// ── Cross-tab BroadcastChannel sync ───────────────────────────────────
+const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('sc_sync') : null;
+
+function bcBroadcast(type: string, payload: Record<string, unknown> = {}) {
+  bc?.postMessage({ type, ...payload });
+}
+
+if (bc) {
+  bc.onmessage = (e) => {
+    const { type } = e.data;
+    if (type === 'theme')   applyTheme(THEME_BY_ID[e.data.id] ?? currentTheme, true);
+    if (type === 'session') {
+      if (e.data.running && !sessionRunning) DOM.btnStart.click();
+      if (!e.data.running && sessionRunning)  DOM.btnStart.click();
+    }
+    if (type === 'pom_phase') {
+      // Mirror phase label across tabs
+      if (DOM.pomPill) DOM.pomPill.textContent = e.data.pill;
+    }
+  };
+}
+
+// ── Flow State UI ─────────────────────────────────────────────────────
+let flowUIActive = false;
+const FLOW_BADGE_ID = 'flowBadge';
+
+function updateFlowState() {
+  const isFlow = Intel.checkFlowState(sessionRunning);
+  if (isFlow === flowUIActive) return;
+  flowUIActive = isFlow;
+
+  if (isFlow) {
+    // Collapse panel, deepen vignette
+    DOM.themePanel.classList.add('collapsed');
+    updateRevealBtn();
+    document.body.classList.add('flow-state');
+    // Show flow badge
+    let badge = document.getElementById(FLOW_BADGE_ID);
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = FLOW_BADGE_ID;
+      badge.className = 'flow-badge';
+      document.body.appendChild(badge);
+    }
+    badge.textContent = '⚡ Flow State';
+    badge.classList.add('visible');
+  } else {
+    document.body.classList.remove('flow-state');
+    const badge = document.getElementById(FLOW_BADGE_ID);
+    if (badge) badge.classList.remove('visible');
+  }
+}
+
+// Intercept theme panel open as flow interrupt
+const _origFocusLockIntercept = focusLockIntercept;
+
+// ── Smart Break Suggester ─────────────────────────────────────────────
+let breakBadgeShown = false;
+
+function checkSmartBreak() {
+  if (!Intel.checkBreakNeeded(sessionRunning)) return;
+  if (breakBadgeShown) return;
+  breakBadgeShown = true;
+
+  const pill = document.querySelector<HTMLElement>('.sync-pill');
+  if (!pill) return;
+  pill.classList.add('break-hint');
+  pill.title = 'You\'ve been focused for 90+ minutes — consider a short break';
+  setTimeout(() => { pill.classList.remove('break-hint'); breakBadgeShown = false; }, 30_000);
+}
+
+// ── Sound Preset Saving ───────────────────────────────────────────────
+interface SoundPreset { name: string; tracks: Record<string, number>; master: number; }
+const PRESETS_KEY = 'sc_sound_presets';
+
+function getSoundPresets(): SoundPreset[] {
+  try { return JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]'); } catch { return []; }
+}
+
+function saveSoundPreset(name: string) {
+  const presets = getSoundPresets();
+  const tracks: Record<string, number> = {};
+  Sound.SOUNDS.forEach(s => { tracks[s.id] = Sound.getTrackVolume(s.id); });
+  const preset: SoundPreset = { name, tracks, master: Sound.getMasterVolume() };
+  // Replace existing with same name, otherwise add
+  const idx = presets.findIndex(p => p.name === name);
+  if (idx >= 0) presets[idx] = preset; else presets.push(preset);
+  if (presets.length > 5) presets.shift();
+  localStorage.setItem(PRESETS_KEY, JSON.stringify(presets));
+}
+
+function loadSoundPreset(preset: SoundPreset) {
+  Sound.setMasterVolume(preset.master);
+  Sound.SOUNDS.forEach(s => {
+    const vol = preset.tracks[s.id];
+    if (vol !== undefined) Sound.setTrackVolume(s.id, vol);
+  });
+  buildSoundUI();
+}
+
+// ── Custom Wallpaper Theme ────────────────────────────────────────────
+function initWallpaperDrop() {
+  document.addEventListener('dragover', e => e.preventDefault());
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    const file = e.dataTransfer?.files[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        // Sample 16×16 thumbnail for dominant colour
+        const cv = document.createElement('canvas'); cv.width = cv.height = 16;
+        const ctx = cv.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, 16, 16);
+        const px = ctx.getImageData(0, 0, 16, 16).data;
+        let r = 0, g = 0, b = 0, n = 0;
+        for (let i = 0; i < px.length; i += 4) {
+          // Skip very dark or very bright pixels
+          const luma = 0.299 * px[i]! + 0.587 * px[i+1]! + 0.114 * px[i+2]!;
+          if (luma < 20 || luma > 235) continue;
+          r += px[i]!; g += px[i+1]!; b += px[i+2]!; n++;
+        }
+        if (n === 0) return;
+        r = Math.round(r / n); g = Math.round(g / n); b = Math.round(b / n);
+        const accent = `#${[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('')}`;
+
+        // Generate wallpaper-based theme
+        const wallTheme = {
+          ...currentTheme,
+          id: 'wallpaper',
+          name: 'Wallpaper',
+          accent, accent2: lightenHex(accent, 0.3),
+          btnBg: accent + '22', btnFg: '#ffffff',
+          glow: `0 0 55px ${accent}44`,
+          hdr: true,
+          baseBg: [darkenHex2(accent, 0.9), darkenHex2(accent, 0.85), darkenHex2(accent, 0.92)],
+        };
+
+        // Set wallpaper as CSS background
+        document.body.style.backgroundImage = `url('${ev.target?.result as string}')`;
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundPosition = 'center';
+        document.getElementById('overlay')!.style.background = 'rgba(0,0,0,0.55)';
+
+        applyTheme(wallTheme as typeof currentTheme, true);
+        showToast('Wallpaper theme applied! Drop a new image to change.');
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function lightenHex(hex: string, amt: number): string {
+  if (!hex.startsWith('#')) return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, Math.round(((n >> 16) & 0xff) + 255 * amt));
+  const g = Math.min(255, Math.round(((n >> 8)  & 0xff) + 255 * amt));
+  const b = Math.min(255, Math.round(( n        & 0xff) + 255 * amt));
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function darkenHex2(hex: string, amt: number): string {
+  if (!hex.startsWith('#')) return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, Math.round(((n >> 16) & 0xff) * (1 - amt)));
+  const g = Math.max(0, Math.round(((n >> 8)  & 0xff) * (1 - amt)));
+  const b = Math.max(0, Math.round(( n        & 0xff) * (1 - amt)));
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+// ── Toast notifications ───────────────────────────────────────────────
+function showToast(msg: string, duration = 3500) {
+  const existing = document.getElementById('scToast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'scToast'; toast.className = 'sc-toast';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('visible'));
+  setTimeout(() => {
+    toast.classList.remove('visible');
+    setTimeout(() => toast.remove(), 400);
+  }, duration);
+}
+
+// ── Share focus card ──────────────────────────────────────────────────
+async function openShareCard() {
+  const log = (() => { try { return JSON.parse(localStorage.getItem('sc_focus_log') || '[]'); } catch { return []; } })();
+  const today = new Date().toDateString();
+  const todayMs = (log as Array<{date:string;dur:number}>).filter(e => e.date === today).reduce((s, e) => s + e.dur, 0);
+  const todayMins = Math.max(1, Math.floor(todayMs / 60000));
+  const task = DOM.focusInput.value.trim();
+
+  // Generate card canvas
+  const cv = document.createElement('canvas'); cv.width = 1200; cv.height = 630;
+  generateShareCard({
+    themeName:    currentTheme.name,
+    accentColor:  currentTheme.accent,
+    bgColor:      currentTheme.baseBg[0],
+    textColor:    currentTheme.text,
+    glow:         currentTheme.glow,
+    focusMinutes: todayMins,
+    taskName:     task,
+    streakDays:   Intel.getStreak().current,
+    date:         new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+  });
+
+  // Re-generate to canvas for sharing (generateShareCard triggers download internally)
+  // Try native share first on mobile
+  if (APIs.canShare()) {
+    // Regenerate to an off-screen canvas to get the blob
+    const offCv = document.createElement('canvas'); offCv.width = 1200; offCv.height = 630;
+    // Draw the card to offCv (reuse share.ts logic via existing download)
+    const shared = await APIs.shareCard(offCv, task, todayMins).catch(() => false);
+    if (shared) { showToast('Shared!'); return; }
+  }
+
+  // Try clipboard copy
+  const offCv2 = document.createElement('canvas'); offCv2.width = 400; offCv2.height = 210;
+  const copied = await APIs.copyCardToClipboard(offCv2).catch(() => false);
+  if (copied) { showToast('Focus card copied to clipboard!'); return; }
+
+  showToast('Focus card saved to your downloads!');
+}
+
+// ── Service Worker registration ───────────────────────────────────────
+function registerSW() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {/* silent */});
+  }
+}
+
+// ── Theme flash on switch ─────────────────────────────────────────────
+function flashTheme() {
+  document.body.classList.remove('theme-flash');
+  void document.body.offsetWidth;
+  document.body.classList.add('theme-flash');
+  setTimeout(() => document.body.classList.remove('theme-flash'), 500);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
 function init() {
-  initPerf();
-  if(localStorage.getItem('sc_reduce_motion')==='1'||window.matchMedia('(prefers-reduced-motion: reduce)').matches)document.body.classList.add('reduced-motion');
+  initPerf(); // detect device tier before anything else
 
-  APIs.initBattery().then(()=>APIs.onBatteryChange((level,charging)=>{if(!charging&&level<.2&&getTier()!=='low'){setTier('low');showToast('🔋 Battery saver: quality reduced to Low');}}));
+  // Apply persisted motion/animation preferences
+  const reduceMotion = localStorage.getItem('sc_reduce_motion') === '1' ||
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion) document.body.classList.add('reduced-motion');
+
+  APIs.initBattery().then(() => {
+    APIs.onBatteryChange((level, charging) => {
+      // Auto-downgrade to LOW quality on low battery
+      if (!charging && level < 0.2 && getTier() !== 'low') {
+        setTier('low');
+        showToast('🔋 Battery saver: quality reduced to Low');
+      }
+    });
+  });
+  // Acquire wake lock if previously enabled
   APIs.acquireWakeLock();
   resize();
-  window.addEventListener('resize',()=>{resize();updatePanelHeight();});
-
-  // Wire UI modules
-  initModalClickOutside();
-  initLogUI();
-  initSoundUI(showToast);
-  initThemeBuilder(
-    draft=>{const r=document.documentElement;r.style.setProperty('--clr-text',draft.text);r.style.setProperty('--clr-accent',draft.accent);r.style.setProperty('--clr-accent2',draft.accent2);r.style.setProperty('--clr-btn-fg',draft.btnFg);r.style.setProperty('--clr-panel',draft.panel);},
-    ()=>applyTheme(currentTheme,true),
+  window.addEventListener('resize', () => { resize(); updatePanelHeight(); });
+  buildPanel();
+  updatePanelHeight();
+  updateClockCanvas();
+  startInfoStrip();
+  initWallpaperDrop();
+  // Easter eggs — init after theme is applied
+  Easter.initEaster(
+    (id) => { const t = THEME_BY_ID[id]; if (t) applyTheme(t); },
+    showToast,
+    () => Sound.playChime(),
   );
-  initSettings({
-    clockMode:()=>clockMode, setClockMode, updateClockCanvas, openThemeBuilder, openQRHandoff,
-    startAnimedoro, toggleKiosk, togglePresent, openDataPanel, togglePrivacy, toggleFocusLock,
-    showToast, isPrivacyMode, focusLockEnabled:()=>focusLockEnabled, isPiPActive:APIs.isPiPActive,
-    enterPiP:()=>APIs.enterPiP(document.getElementById('clock-block-wrap')!,{accent:currentTheme.accent,text:currentTheme.text,baseBg:currentTheme.baseBg}),
-    exitPiP:APIs.exitPiP,
-    breathingEnabled:()=>breathingBreakEnabled,
-    setBreathingEnabled:v=>{breathingBreakEnabled=v;localStorage.setItem('sc_breathing_break',v?'1':'0');},
-  });
-  initPanel({applyTheme,openShareCard,openThemeBuilder,buildPomUI,startAnimedoro,toggleKiosk,togglePresent,focusLockIntercept});
-
-  buildPanel(); updatePanelHeight(); updateClockCanvas(); startInfoStrip(); initWallpaperDrop();
-
-  // Easter eggs
-  Easter.initEaster((id)=>{const t=THEME_BY_ID[id];if(t)applyTheme(t);},showToast,()=>Sound.playChime());
-  (window as any).__scFps=()=>getFps();
-  (window as any).__scTier=()=>getTier();
-  (window as any).__scThemeCount=()=>THEMES.length;
-  (window as any).__scAudioNodes=()=>{try{const a=new AudioContext();a.close();return'ok';}catch{return'?';}};
-  (window as any).__scRandomTheme=()=>applyTheme(THEMES[Math.floor(Math.random()*THEMES.length)]!);
-  (window as any).__scIncognito=Privacy.isIncognito;
-
-  // Svelte Command Palette
-  const cpMount=document.createElement('div'); cpMount.id='command-palette-root'; document.body.appendChild(cpMount);
-  new CommandPalette({ target:cpMount, props:{
-    onAction:(keyword: string)=>{
-      if(keyword==='_konami'){['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'].forEach(k=>window.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true})));}
-      else { triggerKeyword(keyword); }
-    },
-    onRandomTheme:()=>(window as any).__scRandomTheme?.(),
-  }});
+  // Expose helpers for easter.ts cross-module access
+  (window as any).__scFps       = () => getFps();
+  (window as any).__scTier      = () => getTier();
+  (window as any).__scThemeCount= () => THEMES.length;
+  (window as any).__scAudioNodes= () => {
+    try { const a = new AudioContext(); const n = a.destination.channelCount; a.close(); return 'ok'; } catch { return '?'; }
+  };
+  (window as any).__scRandomTheme = () => {
+    const idx = Math.floor(Math.random() * THEMES.length);
+    applyTheme(THEMES[idx]!);
+  };
 
   registerSW();
-  (window as any).__scIncognito=Privacy.isIncognito;
-  document.addEventListener('dragenter',()=>document.body.classList.add('drag-over'));
-  document.addEventListener('dragleave',e=>{if(!e.relatedTarget)document.body.classList.remove('drag-over');});
-  document.addEventListener('drop',()=>document.body.classList.remove('drag-over'));
+  // Expose incognito check for focuslog.ts (avoids circular import)
+  (window as any).__scIncognito = Privacy.isIncognito;
 
-  let deferredInstall: Event|null=null;
-  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;const btn=document.createElement('button');btn.id='pwaInstallBtn';btn.className='show';btn.textContent='⬇ Install App';btn.addEventListener('click',()=>{(deferredInstall as any)?.prompt?.();btn.remove();deferredInstall=null;});document.body.appendChild(btn);});
+  // Drag-over visual feedback
+  document.addEventListener('dragenter', () => document.body.classList.add('drag-over'));
+  document.addEventListener('dragleave', e => { if (!e.relatedTarget) document.body.classList.remove('drag-over'); });
+  document.addEventListener('drop', () => document.body.classList.remove('drag-over'));
 
-  $('btnKbShortcuts')?.addEventListener('click',()=>openModal('kbOverlay'));
-  $('topbarThemesBtn')?.addEventListener('click',()=>focusLockIntercept(()=>{DOM.themePanel.classList.toggle('collapsed');updateRevealBtn();}));
+  // PWA install prompt
+  let deferredInstall: Event | null = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); deferredInstall = e;
+    const btn = document.createElement('button');
+    btn.id = 'pwaInstallBtn'; btn.className = 'show';
+    btn.textContent = '⬇ Install App';
+    btn.addEventListener('click', () => {
+      (deferredInstall as any)?.prompt?.();
+      btn.remove(); deferredInstall = null;
+    });
+    document.body.appendChild(btn);
+  });
 
-  const lastId=localStorage.getItem('sc_last_theme');
-  applyTheme(lastId&&THEME_BY_ID[lastId]?THEME_BY_ID[lastId]!:THEMES[0]!,true);
+  const kbBtn = $('btnKbShortcuts');
+  if (kbBtn) kbBtn.addEventListener('click', () => openModal('kbOverlay'));
+
+  // Request notifications permission automatically (non-intrusive — deferred until first Pom start)
+  // We'll request on first session start instead of on load
+
+  const topbarThemesBtn = $('topbarThemesBtn');
+  if (topbarThemesBtn) {
+    topbarThemesBtn.addEventListener('click', () => {
+      focusLockIntercept(() => {
+        DOM.themePanel.classList.toggle('collapsed');
+        updateRevealBtn();
+      });
+    });
+  }
+
+  const lastId = localStorage.getItem('sc_last_theme');
+  applyTheme(lastId && THEME_BY_ID[lastId] ? THEME_BY_ID[lastId] : THEMES[0], true);
   applyHandoffState();
 
-  setInterval(()=>{updateFlowState();checkSmartBreak();},60_000);
-  requestAnimationFrame(ts=>{lastTs=ts;renderFrame(ts);});
+  // Smart break + flow state tick every 60s
+  setInterval(() => {
+    updateFlowState();
+    checkSmartBreak();
+  }, 60_000);
 
-  if(!privacyMode){syncTime();initWeather($('weatherIcon'),$('weatherText'),$('weatherPill'),isPrivacyMode);}
-  else updateSyncDisplay('failed');
+  requestAnimationFrame(ts => { lastTs = ts; renderFrame(ts); });
 
-  // SC namespace for HTML onclick handlers
-  (window as any).SC={
-    modals:{open:openModal,close:closeModal},
-    focusLog:{exportCSV:Log.exportCSV,clear:()=>{Log.clear();},switchTab:(tab: 'list'|'heatmap')=>switchLogTab(tab)},
-    themeBuilder:{preview:previewCustomTheme,save:()=>{},reset:()=>applyTheme(currentTheme,true),openBuilder:openThemeBuilder},
-  };
+  if (!privacyMode) {
+    syncTime();
+    initWeather($('weatherIcon'), $('weatherText'), $('weatherPill'), isPrivacyMode);
+  } else {
+    updateSyncDisplay('failed');
+  }
 }
 
 init();
