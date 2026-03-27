@@ -11,7 +11,7 @@
 [![Vite](https://img.shields.io/badge/Vite-5-646cff?style=flat-square&logo=vite)](https://vitejs.dev/)
 [![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)](LICENSE)
 
-[**Live Demo →**](https://ADJ189.github.io/Accurate-Time-)
+[**Live Demo →**](https://accurate-time.pages.dev)
 
 </div>
 
