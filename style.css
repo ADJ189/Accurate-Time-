@@ -2251,3 +2251,227 @@ body.light-theme .template-card:hover { background: rgba(0,0,0,.08); }
 body.light-theme .distraction-btn { background: rgba(200,100,0,.08); border-color: rgba(200,100,0,.2); color: #b05000; }
 body.light-theme .rating-btn { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.09); }
 body.light-theme .break-suggestion { background: rgba(0,0,0,.03); border-color: rgba(0,0,0,.07); }
+
+
+/* ════════════════════════════════════════════════════════════
+   CLOCK POSITION — CENTER MODE
+════════════════════════════════════════════════════════════ */
+
+/* Default top mode: normal layout */
+body.clock-top .main {
+  justify-content: flex-start;
+  padding-top: 40px;
+}
+
+/* Centre mode: clock fills the full viewport, panel minimised */
+body.clock-center .main {
+  justify-content: center;
+  min-height: 100svh;
+  padding-top: 0;
+  padding-bottom: max(20px, calc(var(--panel-h, 0px) + 20px));
+  gap: clamp(4px, 1vh, 12px);
+}
+
+/* In center mode the clock scales larger */
+body.clock-center .digit-pair {
+  font-size: clamp(5rem, min(18vw, 14vh), 16rem);
+}
+body.clock-center .clock-colon {
+  font-size: clamp(3.5rem, min(13vw, 10vh), 12rem);
+}
+
+/* Center mode: hide greeting, date, weather strip — clean canvas */
+body.clock-center .greeting,
+body.clock-center #dateDisplay,
+body.clock-center #dayPctRow,
+body.clock-center #infoStrip {
+  display: none;
+}
+
+/* Center mode: session card gets max-width cap and subtle glass treatment */
+body.clock-center .session-card {
+  max-width: min(480px, 90vw);
+  margin: 0 auto;
+}
+
+/* Theme panel in center mode: stays collapsed by default, 
+   shows as a thin pill at the very bottom */
+body.clock-center #themePanel {
+  transform: translateY(calc(100% - 36px));
+}
+body.clock-center #themePanel:hover,
+body.clock-center #themePanel:focus-within {
+  transform: translateY(0);
+  transition: transform .38s cubic-bezier(.4,0,.2,1);
+}
+/* Expand handle is more prominent in center mode */
+body.clock-center #panelToggle {
+  opacity: .3;
+}
+body.clock-center #panelToggle:hover { opacity: .8; }
+
+/* Clock position toggle pill — shown in topbar when in center mode */
+.clock-pos-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .58rem; font-weight: 700; letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 4px 10px; border-radius: 99px; cursor: pointer;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.1);
+  color: rgba(255,255,255,.5);
+  transition: background .15s, color .15s;
+  user-select: none;
+}
+.clock-pos-pill:hover { background: rgba(255,255,255,.12); color: rgba(255,255,255,.8); }
+.clock-pos-pill.center-active { background: rgba(var(--clr-accent-rgb, 110,231,183),.15); border-color: rgba(var(--clr-accent-rgb, 110,231,183),.3); color: var(--clr-accent); }
+
+/* ════════════════════════════════════════════════════════════
+   SHOP TOGGLE — hidden until enabled in settings
+════════════════════════════════════════════════════════════ */
+
+/* Shop button hidden by default */
+.feat-btn#btnShop {
+  display: none;
+}
+/* Shown when body has shop-enabled class */
+body.shop-enabled .feat-btn#btnShop {
+  display: flex;
+}
+
+/* ════════════════════════════════════════════════════════════
+   APPLE-STYLE REFINEMENTS
+════════════════════════════════════════════════════════════ */
+
+/* Feat dock — tighter, more Apple tab-bar feel */
+.feat-dock {
+  display: flex; align-items: flex-start; justify-content: center;
+  gap: 0; padding: 8px 4px 4px;
+  width: 100%; max-width: 480px;
+  border-top: 1px solid rgba(255,255,255,.06);
+}
+.feat-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  gap: 3px; padding: 6px 4px 4px;
+  background: none; border: none; cursor: pointer;
+  color: var(--clr-text); font-family: inherit;
+  opacity: .52; transition: opacity .18s, transform .15s;
+  min-width: 0; border-radius: 10px;
+  -webkit-tap-highlight-color: transparent;
+}
+.feat-btn:hover { opacity: 1; }
+.feat-btn:active { transform: scale(.93); }
+.feat-btn.active-tab { opacity: 1; }
+.feat-icon { font-size: .95rem; line-height: 1; }
+.feat-label {
+  font-size: .5rem; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; white-space: nowrap; opacity: .7;
+}
+
+/* Session card — Apple card feel */
+.session-card {
+  border-radius: 20px;
+  padding: 20px 22px 16px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.07);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  transition: background .3s, border-color .3s;
+  width: 100%; max-width: min(440px, 92vw);
+}
+body.light-theme .session-card {
+  background: rgba(255,255,255,.65);
+  border-color: rgba(0,0,0,.07);
+}
+.session-label {
+  font-size: .6rem; font-weight: 800; letter-spacing: .15em;
+  text-transform: uppercase; opacity: .3; margin-bottom: 8px;
+  color: var(--clr-text);
+}
+
+/* Primary button — pill shape, Apple feel */
+.btn-primary {
+  background: var(--clr-accent);
+  color: var(--clr-btn-fg, #000);
+  border-radius: 99px;
+  padding: 10px 22px;
+  font-weight: 700;
+  box-shadow: 0 2px 16px rgba(0,0,0,.2);
+  transition: filter .15s, transform .12s, box-shadow .15s;
+}
+.btn-primary:hover  { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 24px rgba(0,0,0,.28); }
+.btn-primary:active { transform: scale(.96) translateY(0); }
+
+/* Ghost button */
+.btn-ghost {
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 99px;
+  padding: 9px 18px;
+  font-weight: 600;
+  transition: background .15s, transform .12s;
+}
+.btn-ghost:hover  { background: rgba(255,255,255,.13); transform: translateY(-1px); }
+.btn-ghost:active { transform: scale(.96); }
+body.light-theme .btn-ghost { background: rgba(0,0,0,.05); border-color: rgba(0,0,0,.09); }
+
+/* Icon buttons */
+.btn-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.09);
+  transition: background .15s, transform .12s;
+}
+.btn-icon:hover  { background: rgba(255,255,255,.14); transform: scale(1.08); }
+.btn-icon:active { transform: scale(.93); }
+
+/* Topbar — refined */
+.topbar {
+  height: 52px;
+}
+
+/* ════════════════════════════════════════════════════════════
+   SEGMENTED CONTROL (clock position in settings)
+════════════════════════════════════════════════════════════ */
+.settings-seg {
+  display: flex; gap: 3px; padding: 3px;
+  background: rgba(255,255,255,.06);
+  border-radius: 10px; flex-shrink: 0;
+}
+.settings-seg-btn {
+  padding: 6px 14px; border-radius: 8px; border: none;
+  background: transparent; color: var(--clr-text);
+  font-size: .65rem; font-weight: 600; cursor: pointer;
+  transition: background .18s, color .18s;
+  opacity: .5;
+}
+.settings-seg-btn.active {
+  background: var(--clr-accent);
+  color: #000;
+  opacity: 1;
+}
+body.light-theme .settings-seg { background: rgba(0,0,0,.06); }
+
+/* ════════════════════════════════════════════════════════════
+   ONBOARDING MODAL — Apple-style sizing + scroll
+════════════════════════════════════════════════════════════ */
+.sc-modal--onboard {
+  width: min(480px, 96vw);
+  height: min(620px, 90svh);
+  max-height: 90svh;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  padding: 0;
+}
+.sc-modal--onboard .modal-header { display: none; }
+
+/* Onboard card hover — light theme */
+body.light-theme .sc-modal--onboard button[style] {
+  color: var(--clr-text);
+}
+
+/* Clock position pill in topbar */
+#clockPosPill {
+  font-size: .55rem; padding: 4px 10px;
+}
