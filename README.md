@@ -261,7 +261,7 @@ session-clock/
 
 ## License
 
-MIT — use it, fork it, ship it.
+GNU AGPLv3
 
 ---
 
