@@ -16,6 +16,9 @@ import { initPerf, getTier, setTier, tickFps, getFps, type QualityTier } from '.
 import * as APIs from './apis';
 import * as Privacy from './privacy';
 import * as Easter from './easter';
+import * as Cmd from './cmdpalette';
+import * as Features from './features';
+import * as Palette from './palette';
 
 // ── Clock mode ────────────────────────────────────────────────────────
 export type ClockMode = 'digital' | 'analogue' | 'flip' | 'word' | 'minimal' | 'segment';
@@ -109,22 +112,24 @@ let sessionElapsed = 0;
 function startTimer() {
   sessionRunning = true;
   sessionStart = performance.now() - sessionElapsed;
-  DOM.btnStart.textContent = 'Pause';
+  Features.updateButtonLabels('running', Pom.getPhase(), Pom.isActive(), DOM.btnStart as HTMLButtonElement);
+  Features.setStatusState('running', { pomEnabled: Pom.isActive() });
+  Features.updateDistractionUI(true);
   DOM.focusInputWrap.classList.add('visible');
   if (Pom.isActive()) Pom.onStart();
   Intel.onSessionStart();
   Intel.onFlowInterrupt();
   bcBroadcast('session', { running: true });
-  // Request notification permission on first user interaction (feels natural)
   APIs.requestNotifications();
-  // Keep screen on during session
   APIs.acquireWakeLock();
 }
 
 function pauseTimer() {
   sessionRunning = false;
   sessionElapsed = performance.now() - sessionStart;
-  DOM.btnStart.textContent = 'Resume';
+  Features.updateButtonLabels('paused', Pom.getPhase(), Pom.isActive(), DOM.btnStart as HTMLButtonElement);
+  Features.setStatusState('paused');
+  Features.updateDistractionUI(false);
   Intel.onFlowInterrupt();
   bcBroadcast('session', { running: false });
 }
@@ -132,6 +137,7 @@ function pauseTimer() {
 function resetTimer() {
   const dur = sessionRunning ? performance.now() - sessionStart : sessionElapsed;
   Log.record(DOM.focusInput.value.trim(), dur);
+  Features.updateDistractionUI(false);
   if (dur > 60_000) {
     awardTokens(Math.floor(dur / 60000));
     Intel.recordCompleted();
@@ -139,12 +145,27 @@ function resetTimer() {
     const milestone = Intel.getStreakMilestone(streak.current);
     if (milestone) showToast(milestone);
     Intel.onBreakTaken();
+    // Session completion rating
+    const todaySessions = JSON.parse(localStorage.getItem('sc_focus_log') || '[]').length;
+    Features.setStatusState('complete', { todaySessions });
+    Features.showCompletionRating(dur / 1000, DOM.focusInput.value.trim(), (rating) => {
+      if (rating > 0) {
+        // Save rating to last log entry
+        try {
+          const log = JSON.parse(localStorage.getItem('sc_focus_log') || '[]');
+          if (log.length) log[log.length - 1].rating = rating;
+          localStorage.setItem('sc_focus_log', JSON.stringify(log));
+        } catch { /**/ }
+      }
+    });
   } else if (dur > 5_000) {
     Intel.recordAbandoned();
   }
   Intel.onFlowInterrupt();
   sessionRunning = false; sessionStart = sessionElapsed = 0;
-  DOM.btnStart.textContent = 'Start';
+  Features.updateButtonLabels('idle', 'work', Pom.isActive(), DOM.btnStart as HTMLButtonElement);
+  const todaySessions = JSON.parse(localStorage.getItem('sc_focus_log') || '[]').length;
+  Features.setStatusState('idle', { todaySessions });
   DOM.sTmr.textContent = '00:00:00';
   DOM.focusInputWrap.classList.remove('visible');
   DOM.focusInput.value = '';
@@ -365,12 +386,17 @@ function applyTheme(theme: Theme, instant = false) {
 // ── Sync UI ────────────────────────────────────────────────────────────
 function updateSyncDisplay(state: 'syncing' | 'ok' | 'failed', rtt?: number) {
   if (!DOM.syncDot) return;
-  if (state === 'syncing') { DOM.syncDot.style.background = '#f59e0b'; DOM.syncLabel.textContent = 'Syncing…'; }
-  else if (state === 'ok') {
+  if (state === 'syncing') {
+    DOM.syncDot.style.background = '#f59e0b'; DOM.syncLabel.textContent = 'Syncing…';
+  } else if (state === 'ok') {
     DOM.syncDot.style.background = currentTheme.accent;
     const ms = Math.abs(Math.round(clockOffset));
     DOM.syncLabel.textContent = `Synced · ±${ms}ms${rtt != null ? ` · ${Math.round(rtt)}ms RTT` : ''}`;
-  } else { DOM.syncDot.style.background = '#ef4444'; DOM.syncLabel.textContent = 'Local clock'; }
+    Features.setSyncTrust('ntp');
+  } else {
+    DOM.syncDot.style.background = '#ef4444'; DOM.syncLabel.textContent = 'Local clock';
+    Features.setSyncTrust('offline');
+  }
 }
 setSyncHandler(updateSyncDisplay);
 
@@ -458,8 +484,22 @@ function renderFrame(ts: number) {
       const lat = (window as any).__scLat ?? 0;
       DOM.utcPill.textContent = Easter.getSiderealTime(lat);
     } else {
-      DOM.utcPill.textContent = `UTC ${p2(uh)}:${p2(um)}:${p2(us)}`;
+      DOM.utcPill.textContent = Features.getTrustLabel();
     }
+    DOM.utcPill.title = Features.getTrustTooltip();
+
+    // Update status line
+    if (sessionRunning && Pom.isActive()) {
+      const phase = Pom.getPhase();
+      const rem = Pom.getRemainingSeconds();
+      Features.setStatusState('running', { pomEnabled: true, pomPhase: phase, remainingSecs: rem });
+    }
+
+    // Countdown tick
+    Features.tickCountdown();
+
+    // World clock tick
+    Features.tickWorldClock();
     DOM.dateDis.textContent = `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
     DOM.greeting.textContent = GREETS.find(([s, e]) => hr >= s && hr < e)?.[2] ?? '';
     DOM.dayPct.textContent = dp.toFixed(1) + '%';
@@ -856,6 +896,8 @@ const SHORTCUTS: [string, string, () => void][] = [
   ['Space', 'Start / Pause session timer', () => DOM.btnStart.click()],
   ['R',     'Reset timer',                  () => DOM.btnReset.click()],
   ['T',     'Cycle to next theme',          () => { const idx = THEMES.indexOf(currentTheme); applyTheme(THEMES[(idx+1)%THEMES.length]); }],
+  ['Ctrl+K','Command palette',              () => Cmd.open()],
+  ['/',     'Easter egg search',            () => Cmd.open('/')],
   ['F',     'Toggle fullscreen / kiosk',    toggleKiosk],
   ['P',     'Toggle Pomodoro mode',         () => $('btnPomToggle').click()],
   ['M',     'Open ambient sound mixer',     () => { buildSoundUI(); openModal('soundOverlay'); }],
@@ -2281,6 +2323,119 @@ function flashTheme() {
 }
 
 // ── Init ───────────────────────────────────────────────────────────────
+// ── Command Palette registration ──────────────────────────────────────
+function buildPaletteCommands() {
+  const cmds: Palette.PaletteCommand[] = [];
+
+  cmds.push(
+    { id:'start',      icon:'▶',  label:'Start Session',        hint:'Space', group:'Session', action: () => { if (!sessionRunning) DOM.btnStart.click(); } },
+    { id:'pause',      icon:'⏸',  label:'Pause Session',        hint:'Space', group:'Session', action: () => { if (sessionRunning)  DOM.btnStart.click(); } },
+    { id:'reset',      icon:'↺',  label:'Reset Timer',          hint:'R',     group:'Session', action: () => DOM.btnReset.click() },
+    { id:'pom',        icon:'🍅',  label:'Toggle Pomodoro',      hint:'P',     group:'Session', action: () => $('btnPomToggle').click() },
+    { id:'animedoro',  icon:'🎬',  label:'Start Animedoro',                    group:'Session', action: () => { startAnimedoro(); openModal('pomOverlay'); } },
+    { id:'pomsettings',icon:'⚙️', label:'Pomodoro Settings',                  group:'Session', action: () => openModal('pomOverlay') },
+  );
+
+  cmds.push(
+    { id:'snd_mixer',  icon:'🎵',  label:'Open Sound Mixer',     hint:'M',     group:'Sound', action: () => { buildSoundUI(); openModal('soundOverlay'); } },
+    { id:'snd_rain',   icon:'🌧',  label:'Toggle Rain',                        group:'Sound', action: () => Sound.toggleTrack('rain') },
+    { id:'snd_brown',  icon:'📻',  label:'Toggle Brown Noise',                 group:'Sound', action: () => Sound.toggleTrack('brown') },
+    { id:'snd_forest', icon:'🌲',  label:'Toggle Forest',                      group:'Sound', action: () => Sound.toggleTrack('forest') },
+    { id:'snd_cafe',   icon:'☕',  label:'Toggle Café',                        group:'Sound', action: () => Sound.toggleTrack('cafe') },
+    { id:'snd_ocean',  icon:'🌊',  label:'Toggle Ocean',                       group:'Sound', action: () => Sound.toggleTrack('ocean') },
+    { id:'snd_fire',   icon:'🔥',  label:'Toggle Fireplace',                   group:'Sound', action: () => Sound.toggleTrack('fire') },
+    { id:'snd_stop',   icon:'⏹',  label:'Stop All Sounds',                    group:'Sound', action: () => Sound.stop() },
+    { id:'vol_up',     icon:'🔊',  label:'Volume Up (+10%)',                   group:'Sound', action: () => { const v = Math.min(2, Sound.getMasterVolume()+0.1); Sound.setMasterVolume(v); showToast(`Volume ${Math.round(v*100)}%`); } },
+    { id:'vol_dn',     icon:'🔉',  label:'Volume Down (-10%)',                 group:'Sound', action: () => { const v = Math.max(0, Sound.getMasterVolume()-0.1); Sound.setMasterVolume(v); showToast(`Volume ${Math.round(v*100)}%`); } },
+    { id:'vol_mute',   icon:'🔇',  label:'Mute / Unmute',                      group:'Sound', action: () => { const v = Sound.getMasterVolume()>0?0:0.7; Sound.setMasterVolume(v); showToast(v===0?'Muted':'Unmuted'); } },
+  );
+
+  THEMES.forEach(t => {
+    const catLabel = t.cat === 'nat' ? 'Natural' : t.cat === 'tv' ? 'TV Shows' : t.cat === 'movie' ? 'Movies' : t.cat === 'anime' ? 'Anime' : 'F1 Teams';
+    cmds.push({
+      id: `theme_${t.id}`, icon: t.cat === 'f1' ? '🏎' : t.cat === 'anime' ? '⛩' : t.cat === 'tv' ? '📺' : t.cat === 'movie' ? '🎬' : '🎨',
+      label: `${t.name}`, hint: t.tagline?.slice(3) ?? t.sub ?? '',
+      group: `Themes · ${catLabel}`, keywords: [t.id, t.sub ?? '', t.tagline ?? ''],
+      badge: ['8bit','phoenix'].includes(t.id) ? 'secret' : undefined,
+      action: () => applyTheme(t),
+    });
+  });
+
+  (['digital','analogue','flip','word','minimal','segment'] as const).forEach(mode => {
+    const labels: Record<string, string> = { digital:'Digital',analogue:'Analogue',flip:'Flip (3D)',word:'Word Clock',minimal:'Minimal',segment:'7-Segment LED' };
+    const icons:  Record<string, string> = { digital:'🔢',analogue:'🕐',flip:'📅',word:'📝',minimal:'○',segment:'📟' };
+    cmds.push({ id:`clock_${mode}`, icon:icons[mode]!, label:`${labels[mode]!} Clock`, group:'Clock Style', action: () => { setClockMode(mode); updateClockCanvas(); } });
+  });
+
+  cmds.push(
+    { id:'open_log',       icon:'📋', label:'Focus Log',          hint:'L',  group:'Navigation', action: () => { renderLogView(); openModal('logOverlay'); } },
+    { id:'open_shop',      icon:'🛒', label:'Token Shop',                    group:'Navigation', action: openShop },
+    { id:'open_settings',  icon:'⚙️', label:'Settings',                      group:'Navigation', action: openSettings },
+    { id:'open_data',      icon:'🛡', label:'My Data & Privacy',             group:'Navigation', action: openDataPanel },
+    { id:'open_custom',    icon:'🎨', label:'Custom Theme Builder', hint:'G', group:'Navigation', action: openThemeBuilder },
+    { id:'open_qr',        icon:'📱', label:'QR Handoff',                    group:'Navigation', action: openQRHandoff },
+    { id:'open_kb',        icon:'⌨',  label:'Keyboard Shortcuts',  hint:'?', group:'Navigation', action: () => openModal('kbOverlay') },
+    { id:'share_card',     icon:'🖼',  label:'Share Focus Card',              group:'Navigation', action: () => { openShareCard(); } },
+    { id:'pip_toggle',     icon:'🖥',  label:'Picture-in-Picture', badge:'new', group:'Navigation', action: async () => {
+        if (APIs.isPiPActive()) { await APIs.exitPiP(); showToast('PiP closed'); }
+        else { await APIs.enterPiP(document.getElementById('clock-block-wrap')!, { accent:currentTheme.accent, text:currentTheme.text, baseBg:currentTheme.baseBg }); showToast('Clock in PiP'); }
+      }
+    },
+  );
+
+  cmds.push(
+    { id:'kiosk',         icon:'⛶',  label:'Toggle Kiosk',          hint:'F',  group:'Display', action: toggleKiosk },
+    { id:'present',       icon:'📺',  label:'Toggle Present Mode',              group:'Display', action: togglePresent },
+    { id:'privacy',       icon:'🔒',  label:'Toggle Privacy Mode',              group:'Display', action: togglePrivacy },
+    { id:'wake_lock',     icon:'💡',  label:'Toggle Wake Lock',                 group:'Display', action: async () => { await APIs.setWakeLock(!APIs.isWakeLockEnabled()); showToast(APIs.isWakeLockEnabled()?'Screen stays on':'Wake lock off'); } },
+    { id:'reduce_motion', icon:'✨',  label:'Toggle Reduce Motion',             group:'Display', action: () => { const on=!document.body.classList.contains('reduced-motion'); document.body.classList.toggle('reduced-motion',on); localStorage.setItem('sc_reduce_motion',on?'1':'0'); showToast(on?'Reduced motion on':'Full animations on'); } },
+    { id:'next_theme',    icon:'🔀',  label:'Random Theme',                     group:'Display', action: () => { applyTheme(THEMES[Math.floor(Math.random()*THEMES.length)]!); } },
+    { id:'cycle_theme',   icon:'➡',  label:'Next Theme',            hint:'T',  group:'Display', action: () => { const i=THEMES.indexOf(currentTheme); applyTheme(THEMES[(i+1)%THEMES.length]!); } },
+  );
+
+  // ── Easter Eggs — every one accessible directly ─────────────────────
+  const eggs: [string, string, string, string, () => void][] = [
+    ['egg_konami',      '👾', 'Konami Code → 8-Bit Theme',       '↑↑↓↓←→←→BA', () => showToast('👾 Type: ↑↑↓↓←→←→BA', 5000)],
+    ['egg_hyperfocus',  '🧘', 'Hyperfocus Mode',                 'hold timer 3s', () => showToast('🧘 Hold the session timer for 3 seconds', 4000)],
+    ['egg_devconsole',  '🖥',  'Dev Console',                    'triple-click clock', () => showToast('Triple-click the clock face', 3000)],
+    ['egg_midnight',    '🎉', 'Midnight Confetti',               'fires at 00:00:00', () => { Easter.fireConfetti(); showToast('🎉 Confetti!', 3000); }],
+    ['egg_shake',       '🎲', 'Random Theme (Device Shake)',     'shake phone', () => { (window as any).__scRandomTheme?.(); showToast('🎲 Theme shuffled!', 2500); }],
+    ['egg_sidereal',    '🔭', 'Sidereal Time',                   'click UTC ×7', () => showToast('🔭 Click the UTC pill 7 times quickly', 4000)],
+    ['egg_matrix',      '💊', 'Matrix Rain',                     'type "matrix"',     () => (window as any).__scTriggerKeyword?.('matrix')],
+    ['egg_inception',   '🌀', 'Dream Spin',                      'type "inception"',  () => (window as any).__scTriggerKeyword?.('inception')],
+    ['egg_heisenberg',  '⚗️', 'Heisenberg (Breaking Bad)',       'type "heisenberg"', () => (window as any).__scTriggerKeyword?.('heisenberg')],
+    ['egg_winchester',  '🔥', 'The Road So Far (Supernatural)',  'type "winchester"', () => (window as any).__scTriggerKeyword?.('winchester')],
+    ['egg_redjohn',     '🔴', 'Red John (The Mentalist)',        'type "redjohn"',    () => (window as any).__scTriggerKeyword?.('redjohn')],
+    ['egg_badabing',    '🥃', 'Bada Bing! (Sopranos)',           'type "bada bing"',  () => (window as any).__scTriggerKeyword?.('bada bing')],
+    ['egg_winden',      '⏳', 'Sic Mundus (Dark)',               'type "winden"',     () => (window as any).__scTriggerKeyword?.('winden')],
+    ['egg_severance',   '🏢', 'Lumon Industries (Severance)',    'type "fncs"',       () => (window as any).__scTriggerKeyword?.('fncs')],
+    ['egg_interstellar','🌌', 'Do Not Go Gentle (Interstellar)', 'type "interstellar"',() => (window as any).__scTriggerKeyword?.('interstellar')],
+    ['egg_spice',       '🏜️','The Spice Must Flow (Dune)',      'type "spice"',      () => (window as any).__scTriggerKeyword?.('spice')],
+    ['egg_godfather',   '🌹', 'The Offer (Godfather)',           'type "godfather"',  () => (window as any).__scTriggerKeyword?.('godfather')],
+    ['egg_mrrobot',     '💻', 'Hello Friend (Mr. Robot)',        'type "mrrobot"',    () => (window as any).__scTriggerKeyword?.('mrrobot')],
+    ['egg_fsociety',    '💻', 'We Are fsociety',                 'type "fsociety"',   () => (window as any).__scTriggerKeyword?.('fsociety')],
+    ['egg_oppenheimer', '☢️', 'I Am Become Death',               'type "oppenheimer"',() => (window as any).__scTriggerKeyword?.('oppenheimer')],
+    ['egg_thebear',     '🍳', 'Yes, Chef! (The Bear)',           'type "thebear"',    () => (window as any).__scTriggerKeyword?.('thebear')],
+    ['egg_nightcity',   '🌆', 'Night City (Cyberpunk)',          'type "nightcity"',  () => (window as any).__scTriggerKeyword?.('nightcity')],
+    ['egg_cyberglitch', '⚡', 'Cyberpunk Glitch Burst',          'type "samurai"',    () => (window as any).__scTriggerKeyword?.('samurai')],
+    ['egg_hal',         '🔴', '"I\'m Sorry Dave" (2001)',        'type "hal"',        () => (window as any).__scTriggerKeyword?.('hal')],
+    ['egg_daisy',       '🎵', 'HAL Sings Daisy',                'type "daisy"',      () => (window as any).__scTriggerKeyword?.('daisy')],
+    ['egg_tenet',       '⏪', 'Clock Reverses (Tenet)',          'type "tenet"',      () => (window as any).__scTriggerKeyword?.('tenet')],
+    ['egg_dracarys',    '🐉', 'Dracarys (House of Dragon)',      'type "dracarys"',   () => (window as any).__scTriggerKeyword?.('dracarys')],
+    ['egg_khonshu',     '🌙', 'Fist of Khonshu (Moon Knight)',  'type "khonshu"',    () => (window as any).__scTriggerKeyword?.('khonshu')],
+    ['egg_luffy',       '🏴‍☠️','King of the Pirates (One Piece)','type "luffy"',      () => (window as any).__scTriggerKeyword?.('luffy')],
+    ['egg_onepiece',    '🏴‍☠️','One Piece Flash',               'type "onepiece"',   () => (window as any).__scTriggerKeyword?.('onepiece')],
+    ['egg_dedicate',    '⚔️', 'Dedicate Your Heart! (AoT)',     'type "dedicate"',   () => (window as any).__scTriggerKeyword?.('dedicate')],
+    ['egg_lightyagami', '📓', 'L Investigates You (Death Note)','type "lightyagami"',() => (window as any).__scTriggerKeyword?.('lightyagami')],
+    ['egg_potatochip',  '🍟', 'Potato Chip (Death Note)',        'type "potato chip"',() => (window as any).__scTriggerKeyword?.('potato chip')],
+  ];
+  eggs.forEach(([id, icon, label, hint, action]) => {
+    cmds.push({ id, icon, label, hint, group:'Easter Eggs 🥚', badge:'easter egg', keywords:['easter','egg','secret','hidden'], action });
+  });
+
+  Palette.registerCommands(cmds);
+}
+
 function init() {
   initPerf(); // detect device tier before anything else
 
@@ -2313,6 +2468,12 @@ function init() {
     showToast,
     () => Sound.playChime(),
   );
+
+  // ── Command Palette ───────────────────────────────────────────────────
+  Palette.initPalette();
+  buildPaletteCommands();
+  // Expose palette open for topbar button
+  (window as any).__scPalette = Palette;
   // Expose helpers for easter.ts cross-module access
   (window as any).__scFps       = () => getFps();
   (window as any).__scTier      = () => getTier();
@@ -2351,6 +2512,11 @@ function init() {
   const kbBtn = $('btnKbShortcuts');
   if (kbBtn) kbBtn.addEventListener('click', () => openModal('kbOverlay'));
 
+  const cmdBtn = $('btnCmdPalette');
+  if (cmdBtn) cmdBtn.addEventListener('click', () => Cmd.open());
+  const secretsBtn = $('cmdSecretsBtn');
+  if (secretsBtn) secretsBtn.addEventListener('click', () => { Cmd.open('/'); });
+
   // Request notifications permission automatically (non-intrusive — deferred until first Pom start)
   // We'll request on first session start instead of on load
 
@@ -2382,6 +2548,414 @@ function init() {
   } else {
     updateSyncDisplay('failed');
   }
+
+  // ── Command Palette ────────────────────────────────────────────────
+  Cmd.initPalette();
+  buildCommandPalette();
+
+  // ── Features init ─────────────────────────────────────────────────
+  Features.initStatusLine((text) => {
+    const el = document.getElementById('sessionStatusLine');
+    if (el) el.textContent = text;
+  });
+  const todaySessions = JSON.parse(localStorage.getItem('sc_focus_log') || '[]').length;
+  Features.setStatusState('idle', { todaySessions });
+  Features.updateButtonLabels('idle', 'work', false, DOM.btnStart as HTMLButtonElement);
+
+  // Distraction counter button
+  const distractionBtn = document.getElementById('btnDistraction');
+  if (distractionBtn) {
+    distractionBtn.addEventListener('click', () => {
+      Features.logDistraction();
+      Features.updateDistractionUI(true);
+      showToast('Distraction logged. Refocus.');
+    });
+  }
+
+  // Session templates modal
+  const templatesContent = document.getElementById('templatesContent');
+  if (templatesContent) {
+    Features.buildTemplatesUI(templatesContent, (t) => {
+      // Apply template
+      if (t.themeId) { const th = THEME_BY_ID[t.themeId]; if (th) applyTheme(th); }
+      Pom.setWorkMins(t.durationMins);
+      Pom.setBreakMins(t.breakMins);
+      if (!Pom.isActive()) Pom.toggle();
+      showToast(`📋 ${t.icon} ${t.name} — ${t.durationMins}min session ready`);
+      document.getElementById('templatesOverlay')?.classList.remove('open');
+    });
+  }
+
+  // Countdown modal
+  const countdownContent = document.getElementById('countdownContent');
+  if (countdownContent) {
+    Features.buildCountdownUI(countdownContent, (label, target) => {
+      Features.setCountdownTarget(label, target, (display, done) => {
+        const pill = document.getElementById('utcPill');
+        if (done) { showToast(`⏳ ${display}`, 5000); if (pill) pill.title = ''; return; }
+        if (pill && !Easter.isSiderealMode()) pill.textContent = display;
+      });
+      showToast(`⏳ Counting down to ${label}`);
+    });
+  }
+
+  // World clock modal
+  const worldClockContent = document.getElementById('worldClockContent');
+  if (worldClockContent) Features.buildWorldClockUI(worldClockContent);
+
+  // Onboarding
+  if (Features.shouldShowOnboarding()) {
+    setTimeout(() => {
+      Features.showOnboarding({
+        setDuration: (mins) => { Pom.setWorkMins(mins); },
+        applyThemeById: (id) => { if (id) { const t = THEME_BY_ID[id]; if (t) applyTheme(t); } },
+        enableSound: (id) => { if (id) Sound.play(id); },
+      });
+    }, 800);
+  } else {
+    // Day/night theme suggestion (non-intrusive, once per 3h)
+    setTimeout(() => {
+      if (Features.shouldSuggestDayNightTheme(currentTheme.id)) {
+        const s = Features.getDayNightThemeSuggestion();
+        if (s) showToast(`💡 ${s.reason} — or ignore!`, 8000);
+      }
+    }, 3000);
+  }
+
+  // Trust indicator — update when sync completes
+  (window as any).__onSyncComplete = (rtt: number) => {
+    Features.setSyncTrust('ntp');
+  };
+  (window as any).__onSyncFail = () => {
+    Features.setSyncTrust('offline');
+  };
+}
+
+// ── Command Palette Registration ──────────────────────────────────────
+function buildCommandPalette() {
+  const items: Cmd.CmdItem[] = [];
+
+  // ── Themes ──────────────────────────────────────────────────────────
+  THEMES.forEach(t => {
+    items.push({
+      id:   `theme:${t.id}`,
+      name: t.name,
+      desc: t.tagline ?? t.sub ?? '',
+      icon: LOGOS[t.id] ?? makeFallbackLogo(t),
+      tag:  'theme',
+      keywords: t.cat + ' ' + (t.sub ?? '') + ' ' + (t.quotes?.join(' ') ?? ''),
+      action: () => applyTheme(t),
+    });
+  });
+
+  // ── Easter Eggs — every entry shows its keyword trigger in the desc ──
+  // Format: "[keyword trigger] → what happens"
+  const eggs: { id:string; name:string; desc:string; icon:string; keywords?:string; action:()=>void }[] = [
+    {
+      id: 'konami', name: 'Konami Code — 8-BIT Mode',
+      icon: '👾',
+      desc: 'Press ↑↑↓↓←→←→BA on keyboard → unlocks retro 8-bit theme with chiptune',
+      keywords: 'konami 8bit pixel retro chiptune',
+      action: () => { applyTheme(THEME_BY_ID['8bit']!); showToast('👾 8-bit activated! Konami Code again to exit.'); Sound.playChime(); },
+    },
+    {
+      id: 'matrix-rain', name: 'Matrix Rain',
+      icon: '💊',
+      desc: 'Type "matrix" anywhere → green rain cascade fills the screen for 5 seconds',
+      keywords: 'matrix green rain cascade neo',
+      action: () => Easter.triggerMatrixRain(),
+    },
+    {
+      id: 'inception-spin', name: 'Inception Dream Spin',
+      icon: '🌀',
+      desc: 'Type "inception" → the entire UI spins 360°',
+      keywords: 'inception spin dream rotate totem',
+      action: () => {
+        document.body.style.transition = 'transform 1.2s cubic-bezier(.65,0,.35,1)';
+        document.body.style.transform  = 'rotate(360deg)';
+        setTimeout(() => { document.body.style.transform = ''; setTimeout(() => document.body.style.transition = '', 1500); }, 1300);
+        showToast('🌀 "You\'re waiting for a train…"', 5000);
+      },
+    },
+    {
+      id: 'midnight-confetti', name: 'Midnight Confetti',
+      icon: '🎉',
+      desc: 'Fires automatically at 00:00:00 every midnight · or trigger here',
+      keywords: 'midnight confetti new day celebration fireworks',
+      action: () => { Easter.fireConfetti(); showToast('✨ Happy New Day!', 4000); },
+    },
+    {
+      id: 'dev-console', name: 'Developer Console',
+      icon: '🖥',
+      desc: 'Triple-click the clock · or activate here → FPS, tier, storage, session stats',
+      keywords: 'dev console fps debug stats tier performance',
+      action: () => {
+        const existing = document.getElementById('devConsole');
+        if (existing) { existing.remove(); return; }
+        const fps = (window as any).__scFps?.() ?? 0;
+        const tier = (window as any).__scTier?.() ?? '?';
+        const lsSize = JSON.stringify(localStorage).length;
+        const panel = document.createElement('div');
+        panel.id = 'devConsole';
+        panel.style.cssText = 'position:fixed;bottom:80px;right:16px;z-index:9000;background:rgba(0,0,0,.92);color:#00ff41;font-family:monospace;font-size:.65rem;padding:14px 18px;border-radius:10px;line-height:1.9;border:1px solid #00ff4133;backdrop-filter:blur(12px);animation:fadeUp .3s ease;min-width:220px;';
+        const rows: [string, string | number][] = [
+          ['🎯 Render tier', tier.toUpperCase()],
+          ['📊 FPS', fps],
+          ['💾 localStorage', `${(lsSize / 1024).toFixed(1)} KB`],
+          ['🎨 Themes', (window as any).__scThemeCount?.() ?? '?'],
+          ['📋 Sessions', JSON.parse(localStorage.getItem('sc_focus_log') || '[]').length],
+          ['🔥 Streak', `${JSON.parse(localStorage.getItem('sc_streak') || '{"current":0}').current} days`],
+        ];
+        rows.forEach(([label, value]) => {
+          const line = document.createElement('div'); line.style.cssText = 'display:flex;gap:8px;justify-content:space-between;min-width:200px;';
+          const lbl = document.createElement('span'); lbl.style.opacity = '0.55'; lbl.textContent = String(label);
+          const val = document.createElement('span'); val.style.color = '#00ff41'; val.textContent = String(value);
+          line.append(lbl, val); panel.appendChild(line);
+        });
+        const hint = document.createElement('div'); hint.style.cssText = 'opacity:.35;font-size:.55rem;margin-top:6px;text-align:center;'; hint.textContent = 'click clock 3× or press Ctrl+K to close';
+        panel.appendChild(hint);
+        document.body.appendChild(panel);
+      },
+    },
+    {
+      id: 'hyperfocus', name: 'Hyperfocus Mode',
+      icon: '🧘',
+      desc: 'Hold the session timer 3 seconds · or activate here → UI fades, only clock remains · Esc to exit',
+      keywords: 'hyperfocus focus zen minimal distraction',
+      action: () => {
+        const on = document.body.classList.toggle('hyperfocus');
+        showToast(on ? '🧘 Hyperfocus — press Esc to exit' : 'Hyperfocus off', 3000);
+      },
+    },
+    {
+      id: 'device-shake', name: 'Shake to Shuffle Theme',
+      icon: '🎲',
+      desc: 'Shake your phone → random theme · or click here to shuffle now',
+      keywords: 'shake random shuffle mobile phone theme',
+      action: () => { const t = THEMES[Math.floor(Math.random() * THEMES.length)]!; applyTheme(t); showToast(`🎲 ${t.name}`); },
+    },
+    {
+      id: 'sidereal-time', name: 'Local Sidereal Time',
+      icon: '🔭',
+      desc: 'Click the UTC pill 7× → switches display to astronomical sidereal time',
+      keywords: 'sidereal time astronomy telescope UTC pill',
+      action: () => showToast('🔭 Click the UTC pill 7 times to activate sidereal time mode', 5000),
+    },
+    {
+      id: 'cyberpunk-samurai', name: 'Night City Glitch',
+      icon: '🌆',
+      desc: 'Type "nightcity" or "samurai" → Cyberpunk theme + RGB screen glitch burst',
+      keywords: 'cyberpunk nightcity samurai glitch neon',
+      action: () => { applyTheme(THEME_BY_ID['cyberpunk']!); showToast('🌆 Wake the f*** up, Samurai.', 4000); },
+    },
+    {
+      id: 'hal-sorry', name: 'HAL 9000 — "I\'m Sorry, Dave"',
+      icon: '🔴',
+      desc: 'Type "hal" → full-screen HAL overlay · type "daisy" → HAL sings line by line',
+      keywords: 'hal 9000 dave sorry pod bay doors kubrick 2001',
+      action: () => {
+        applyTheme(THEME_BY_ID['hal9000']!);
+        const o = document.createElement('div');
+        o.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.9);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px;cursor:pointer;animation:halFadeIn .8s ease forwards;';
+        const m = document.createElement('div'); m.style.cssText = 'color:#cc0000;font-family:Orbitron,monospace;font-size:clamp(1rem,3vw,2rem);font-weight:900;text-align:center;text-shadow:0 0 30px #cc0000;'; m.textContent = "I'm sorry, Dave.";
+        const s = document.createElement('div'); s.style.cssText = 'color:#cc000088;font-family:Orbitron,monospace;font-size:clamp(.6rem,1.5vw,1rem);letter-spacing:.15em;'; s.textContent = "I'M AFRAID I CAN'T DO THAT.";
+        o.append(m, s); document.body.appendChild(o);
+        o.addEventListener('click', () => o.remove()); setTimeout(() => o.remove(), 5000);
+      },
+    },
+    {
+      id: 'tenet-reverse', name: 'Tenet — Time Reversal',
+      icon: '⏪',
+      desc: 'Type "tenet" or "dont try" → clock display mirrors and UI inverts for 5 seconds',
+      keywords: 'tenet invert reverse time nolan palindrome',
+      action: () => {
+        applyTheme(THEME_BY_ID['tenet']!);
+        document.body.classList.add('tenet-reverse');
+        showToast('⏪ What\'s happened, happened.', 4000);
+        setTimeout(() => document.body.classList.remove('tenet-reverse'), 5000);
+      },
+    },
+    {
+      id: 'dracarys', name: 'Dracarys — Dragon Fire',
+      icon: '🐉',
+      desc: 'Type "dracarys" or "targaryen" → House of the Dragon theme',
+      keywords: 'dracarys targaryen dragon fire got hotd',
+      action: () => { applyTheme(THEME_BY_ID['dragonfire']!); showToast('🐉 Dracarys.', 4000); },
+    },
+    {
+      id: 'khonshu', name: 'Fist of Khonshu',
+      icon: '🌙',
+      desc: 'Type "khonshu" or "moonknight" → Moon Knight theme',
+      keywords: 'khonshu moonknight moon knight marc spector',
+      action: () => { applyTheme(THEME_BY_ID['moonknight']!); showToast('🌙 I am the Fist of Khonshu.', 4000); },
+    },
+    {
+      id: 'luffy', name: 'King of the Pirates',
+      icon: '🏴‍☠️',
+      desc: 'Type "luffy" or "gomu gomu" → One Piece theme + gold flash',
+      keywords: 'luffy onepiece gomu rubber pirate straw hat',
+      action: () => {
+        applyTheme(THEME_BY_ID['onepiece']!);
+        const el = document.createElement('div'); el.style.cssText = 'position:fixed;inset:0;background:#ffcc00;z-index:9999;pointer-events:none;animation:eggFlash .6s ease forwards;';
+        document.body.appendChild(el); setTimeout(() => el.remove(), 700);
+        showToast('🏴‍☠️ "I\'m gonna be King of the Pirates!" — Luffy', 5000);
+      },
+    },
+    {
+      id: 'dedicate', name: 'Dedicate Your Heart',
+      icon: '⚔️',
+      desc: 'Type "dedicate" or "eren" → Attack on Titan theme + Survey Corps battle cry',
+      keywords: 'dedicate heart eren titan aot survey corps',
+      action: () => { applyTheme(THEME_BY_ID['attackontitan']!); showToast('⚔️ DEDICATE YOUR HEART!', 4000); },
+    },
+    {
+      id: 'kira', name: 'I Am Kira',
+      icon: '📓',
+      desc: 'Type "kira" or "lightyagami" → Death Note theme · "lightyagami" triggers L\'s analysis',
+      keywords: 'kira light yagami death note L shinigami justice',
+      action: () => { applyTheme(THEME_BY_ID['deathnote']!); showToast('📓 I am justice. I am the god of the new world.', 4000); },
+    },
+    {
+      id: 'potato-chip', name: 'Potato Chip Moment',
+      icon: '🍟',
+      desc: 'Type "potato chip" → Death Note theme + the iconic scene quote',
+      keywords: 'potato chip eat death note light kira',
+      action: () => { applyTheme(THEME_BY_ID['deathnote']!); showToast('📓 I\'ll take a potato chip… and eat it!', 5000); },
+    },
+    {
+      id: 'heisenberg', name: 'Say My Name',
+      icon: '⚗️',
+      desc: 'Type "heisenberg" → Breaking Bad theme',
+      keywords: 'heisenberg walter white breaking bad danger',
+      action: () => { applyTheme(THEME_BY_ID['breakingbad']!); showToast('⚗️ You\'re goddamn right.', 4000); },
+    },
+    {
+      id: 'winchester', name: 'The Road So Far',
+      icon: '🔥',
+      desc: 'Type "winchester" → Supernatural theme',
+      keywords: 'winchester supernatural dean sam impala family business',
+      action: () => { applyTheme(THEME_BY_ID['supernatural']!); showToast('🔥 The Road So Far…', 4000); },
+    },
+    {
+      id: 'red-john', name: 'Red John Was Here',
+      icon: '🔴',
+      desc: 'Type "redjohn" → The Mentalist theme',
+      keywords: 'redjohn mentalist jane red john smiley face',
+      action: () => { applyTheme(THEME_BY_ID['mentalist']!); showToast('🔴 He\'s been here.', 4000); },
+    },
+    {
+      id: 'bada-bing', name: 'Bada Bing',
+      icon: '🥃',
+      desc: 'Type "bada bing" → The Sopranos theme',
+      keywords: 'bada bing sopranos tony soprano mafia',
+      action: () => { applyTheme(THEME_BY_ID['sopranos']!); showToast('🥃 Bada bing.', 4000); },
+    },
+    {
+      id: 'winden', name: 'Sic Mundus Creatus Est',
+      icon: '⏳',
+      desc: 'Type "winden" → Dark theme',
+      keywords: 'winden dark sic mundus time loop knot',
+      action: () => { applyTheme(THEME_BY_ID['dark']!); showToast('⏳ Sic Mundus Creatus Est.', 4000); },
+    },
+    {
+      id: 'oppenheimer', name: 'Now I Am Become Death',
+      icon: '☢️',
+      desc: 'Type "oppenheimer" → Oppenheimer theme + atomic flash',
+      keywords: 'oppenheimer trinity atomic bomb death destroyer worlds',
+      action: () => { applyTheme(THEME_BY_ID['oppenheimer']!); showToast('☢️ Now I am become Death, the destroyer of worlds.', 5000); },
+    },
+    {
+      id: 'phoenix-unlock', name: 'Phoenix Theme',
+      icon: '🔥',
+      desc: 'Complete 100 sessions to unlock · check progress here',
+      keywords: 'phoenix unlock 100 sessions veteran fire rise',
+      action: () => {
+        const count = JSON.parse(localStorage.getItem('sc_focus_log') || '[]').length;
+        if (Easter.isPhoenixUnlocked()) {
+          applyTheme(THEME_BY_ID['phoenix']!); showToast('🔥 You rise.', 4000);
+        } else {
+          showToast(`🔥 ${count}/100 sessions to unlock Phoenix theme`, 4000);
+        }
+      },
+    },
+    {
+      id: 'fsociety', name: 'fsociety — Hello, Friend',
+      icon: '💻',
+      desc: 'Type "mrrobot" or "fsociety" → Mr. Robot theme',
+      keywords: 'fsociety mrrobot hello friend hacker elliot',
+      action: () => { applyTheme(THEME_BY_ID['mrrobot']!); showToast('💻 Hello, friend.', 4000); },
+    },
+    {
+      id: 'spice', name: 'The Spice Must Flow',
+      icon: '🏜️',
+      desc: 'Type "spice" → Dune theme',
+      keywords: 'spice dune arrakis melange paul atreides',
+      action: () => { applyTheme(THEME_BY_ID['dune']!); showToast('🏜️ The spice must flow.', 4000); },
+    },
+  ];
+
+  eggs.forEach(e => items.push({ ...e, tag: 'egg' }));
+
+  // ── Actions ──────────────────────────────────────────────────────────
+  const actions: [string, string, string, string, () => void][] = [
+    ['sound',        '🎵', 'Open Sound Mixer',          'Ambient sounds, binaural beats',            () => { buildSoundUI(); openModal('soundOverlay'); }],
+    ['pom',          '⏱', 'Pomodoro Settings',          'Configure work/break cycles',               () => openModal('pomOverlay')],
+    ['templates',    '📋', 'Session Templates',          'Study, coding, deep work, reading…',        () => openModal('templatesOverlay')],
+    ['countdown',    '⏳', 'Deadline Countdown',         'Count down to an exam, meeting, or event',  () => openModal('countdownOverlay')],
+    ['worldclock',   '🌍', 'World Clock',                'Compare times across timezones',             () => openModal('worldClockOverlay')],
+    ['log',          '📊', 'Focus Log',                  'View session history & heatmap',            () => openLog()],
+    ['share',        '🖼', 'Share Focus Card',           'Download PNG of today\'s focus',             () => { openShareCard(); }],
+    ['shop',         '🛒', 'Token Shop',                 'Spend your session coins',                  () => openShop()],
+    ['settings',     '⚙️', 'Settings',                  'Clock, sound, focus, privacy',              () => openSettings()],
+    ['theme-builder','🎨', 'Custom Theme Builder',       'Build your own colour theme',               () => openThemeBuilder()],
+    ['qr',           '📱', 'QR Handoff',                 'Resume session on another device',          () => openQRHandoff()],
+    ['animedoro',    '🎬', 'Animedoro Mode',             '50 min focus / 20 min theater break',      () => { startAnimedoro(); openModal('pomOverlay'); }],
+    ['kiosk',        '⛶', 'Kiosk / Fullscreen',         'Hide all UI, clock only',                  () => toggleKiosk()],
+    ['present',      '📺', 'Presentation Mode',          'Ultra-minimal display',                     () => togglePresent()],
+    ['pip',          '⧉', 'Picture-in-Picture Clock',   'Float clock above other apps',              () => APIs.enterPiP(document.getElementById('clock-block-wrap')!,{accent:currentTheme.accent,text:currentTheme.text,baseBg:currentTheme.baseBg}).then(()=>showToast('Clock in PiP'))],
+    ['data',         '🛡', 'My Data',                    'View, export, or delete your data',         () => openDataPanel()],
+    ['privacy',      '🔒', 'Toggle Privacy Mode',        'Disable weather, sync & fonts',             () => togglePrivacy()],
+    ['random',       '🎲', 'Random Theme',               'Shuffle to a random theme',                 () => { const t=THEMES[Math.floor(Math.random()*THEMES.length)]!; applyTheme(t); showToast(`🎲 ${t.name}`); }],
+    ['next-theme',   '▶', 'Next Theme',                  'Cycle to next theme',                      () => { const i=THEMES.indexOf(currentTheme); applyTheme(THEMES[(i+1)%THEMES.length]!); }],
+  ];
+  actions.forEach(([id, icon, name, desc, action]) => {
+    items.push({ id: `action:${id}`, name, desc, icon, tag: 'action', action });
+  });
+
+  // ── Session Templates as direct commands ────────────────────────────
+  Features.SESSION_TEMPLATES.forEach(t => {
+    items.push({
+      id: `template:${t.id}`,
+      name: `${t.icon} ${t.name}`,
+      desc: `${t.durationMins}min session · ${t.desc}`,
+      icon: t.icon,
+      tag: 'action' as const,
+      keywords: `template session ${t.name} ${t.desc}`,
+      action: () => {
+        if (t.themeId) { const th = THEME_BY_ID[t.themeId]; if (th) applyTheme(th); }
+        Pom.setWorkMins(t.durationMins);
+        Pom.setBreakMins(t.breakMins);
+        if (!Pom.isActive()) Pom.toggle();
+        if (t.soundId) Sound.play(t.soundId);
+        showToast(`${t.icon} ${t.name} — ${t.durationMins}min session ready`);
+      },
+    });
+  });
+
+  // ── Settings toggles ─────────────────────────────────────────────────
+  const settingsList: [string, string, string, () => void][] = [
+    ['quality-high',  '⚡ High Quality',    'Max particles, all effects',    () => { setTier('high'); invalidateCache(); showToast('Quality: HIGH'); }],
+    ['quality-med',   '⚡ Medium Quality',  'Balanced performance',           () => { setTier('med');  invalidateCache(); showToast('Quality: MED'); }],
+    ['quality-low',   '⚡ Low Quality',     'Minimal effects for slow devices',() => { setTier('low'); invalidateCache(); showToast('Quality: LOW'); }],
+    ['reduce-motion', '✦ Toggle Reduce Motion', 'Disable animations',        () => { document.body.classList.toggle('reduced-motion'); const on=document.body.classList.contains('reduced-motion'); localStorage.setItem('sc_reduce_motion',on?'1':'0'); showToast(on?'Reduce motion on':'Full animations on'); }],
+    ['incognito',     '🕵 Incognito Sessions', 'Sessions not saved',         () => { Privacy.setIncognito(!Privacy.isIncognito()); showToast(Privacy.isIncognito()?'🕵 Incognito on':'Incognito off'); }],
+    ['wake-lock',     '🔆 Toggle Wake Lock',  'Keep screen on during sessions',() => APIs.setWakeLock(!APIs.isWakeLockEnabled()).then(()=>showToast(APIs.isWakeLockEnabled()?'Screen stays on':'Wake lock off'))],
+  ];
+  settingsList.forEach(([id, name, desc, action]) => {
+    items.push({ id: `setting:${id}`, name, desc, icon: '⚙️', tag: 'setting', action });
+  });
+
+  Cmd.registerItems(items);
 }
 
 init();
