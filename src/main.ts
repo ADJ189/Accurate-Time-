@@ -178,7 +178,30 @@ DOM.btnReset.addEventListener('click', resetTimer);
 
 // ── Privacy toggle ────────────────────────────────────────────────────
 let privacyMode = localStorage.getItem('sc_privacy') === '1';
-let breathingBreakEnabled = localStorage.getItem('sc_breathing_break') !== '0'; // on by default
+let breathingBreakEnabled = localStorage.getItem('sc_breathing_break') !== '0';
+
+// Clock position: 'top' (default) | 'center'
+let clockPosition: 'top' | 'center' = (localStorage.getItem('sc_clock_pos') ?? 'top') as 'top' | 'center';
+function applyClockPosition(pos: 'top' | 'center') {
+  clockPosition = pos;
+  localStorage.setItem('sc_clock_pos', pos);
+  document.body.classList.toggle('clock-top',    pos === 'top');
+  document.body.classList.toggle('clock-center', pos === 'center');
+  // Update toggle pill
+  document.querySelectorAll('.clock-pos-pill').forEach(el => {
+    (el as HTMLElement).classList.toggle('center-active', pos === 'center');
+    (el as HTMLElement).textContent = pos === 'center' ? '⊞ Centred' : '⊟ Top';
+  });
+}
+
+// Shop visibility
+let shopEnabled = localStorage.getItem('sc_shop_enabled') === '1';
+function applyShopPref(enabled: boolean) {
+  shopEnabled = enabled;
+  localStorage.setItem('sc_shop_enabled', enabled ? '1' : '0');
+  document.body.classList.toggle('shop-enabled', enabled);
+  buildPanel(); // rebuild feat dock
+}
 function isPrivacyMode() { return privacyMode; }
 function togglePrivacy() {
   privacyMode = !privacyMode;
@@ -1510,6 +1533,34 @@ function buildSettingsUI(activeTab = 'general') {
 
   // ══ DISPLAY ═══════════════════════════════════════════════════════════
   else if (activeTab === 'display') {
+    // Clock position
+    const layoutSec = makeSection('Layout');
+    const clockPosRow = document.createElement('div'); clockPosRow.className = 'settings-row';
+    const cpInfo = document.createElement('div'); cpInfo.className = 'settings-row-info';
+    const cpTop = document.createElement('div'); cpTop.className = 'settings-row-top';
+    const cpLbl = document.createElement('span'); cpLbl.className = 'settings-row-label'; cpLbl.textContent = 'Clock Position';
+    cpTop.appendChild(cpLbl);
+    const cpDesc = document.createElement('span'); cpDesc.className = 'settings-row-desc'; cpDesc.textContent = 'Top: classic layout. Centre: full-viewport clock.';
+    cpInfo.append(cpTop, cpDesc);
+    const cpSeg = document.createElement('div'); cpSeg.className = 'settings-seg';
+    ['top','center'].forEach(pos => {
+      const btn = document.createElement('button');
+      btn.className = 'settings-seg-btn' + (clockPosition === pos ? ' active' : '');
+      btn.textContent = pos === 'top' ? '⊟ Top' : '⊞ Centre';
+      btn.addEventListener('click', () => {
+        applyClockPosition(pos as 'top' | 'center');
+        cpSeg.querySelectorAll('.settings-seg-btn').forEach((b, i) => b.classList.toggle('active', i === (pos === 'top' ? 0 : 1)));
+      });
+      cpSeg.appendChild(btn);
+    });
+    clockPosRow.append(cpInfo, cpSeg);
+    layoutSec.appendChild(clockPosRow);
+
+    // Shop visibility
+    const shopRow = makeRow('Show Shop in Dock', 'Adds the token shop button to the bottom tab bar', 'toggleShopVisible', shopEnabled);
+    layoutSec.appendChild(shopRow);
+    paneWrap.appendChild(layoutSec);
+
     const animSec = makeSection('Motion & Animations');
     const reduceMotion = localStorage.getItem('sc_reduce_motion') === '1' || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     animSec.appendChild(makeRow('Reduce Motion', 'Simpler transitions, no parallax, no particle animations', 'toggleReduceMotion', reduceMotion));
@@ -1555,6 +1606,7 @@ function buildSettingsUI(activeTab = 'general') {
       localStorage.setItem('sc_parallax', on ? '1' : '0');
       showToast(on ? 'Parallax on' : 'Parallax off');
     });
+    wireToggle('toggleShopVisible', (on) => { applyShopPref(on); showToast(on ? '🛒 Shop added to dock' : 'Shop hidden'); });
   }
 
   // ══ PRIVACY ══════════════════════════════════════════════════════════
@@ -2457,6 +2509,8 @@ function init() {
   APIs.acquireWakeLock();
   resize();
   window.addEventListener('resize', () => { resize(); updatePanelHeight(); });
+  applyClockPosition(clockPosition);
+  applyShopPref(shopEnabled);
   buildPanel();
   updatePanelHeight();
   updateClockCanvas();
@@ -2514,6 +2568,16 @@ function init() {
 
   const cmdBtn = $('btnCmdPalette');
   if (cmdBtn) cmdBtn.addEventListener('click', () => Cmd.open());
+
+  // Clock position pill
+  const posPill = $('clockPosPill');
+  if (posPill) {
+    posPill.addEventListener('click', () => {
+      applyClockPosition(clockPosition === 'top' ? 'center' : 'top');
+    });
+    // Set initial label
+    applyClockPosition(clockPosition);
+  }
   const secretsBtn = $('cmdSecretsBtn');
   if (secretsBtn) secretsBtn.addEventListener('click', () => { Cmd.open('/'); });
 

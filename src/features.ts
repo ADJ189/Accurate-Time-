@@ -367,135 +367,166 @@ export function showOnboarding(cbs: OnboardCallbacks) {
   const overlay = $('onboardOverlay');
   const container = $('onboardContent');
   overlay.classList.add('open');
-
+  const TOTAL_STEPS = 4;
   let step = 0;
 
-  const steps = [
-    () => renderStep0(container, () => { step = 1; renderStep(); }),
-    () => renderStep1(container, (mins) => { cbs.setDuration(mins); step = 2; renderStep(); }),
-    () => renderStep2(container, (themeId) => { cbs.applyThemeById(themeId); step = 3; renderStep(); }),
-    () => renderStep3(container, (soundId) => {
-      if (soundId) cbs.enableSound(soundId);
-      markOnboarded();
-      overlay.classList.remove('open');
-    }),
-  ];
+  const finish = (soundId = '') => {
+    if (soundId) cbs.enableSound(soundId);
+    markOnboarded();
+    overlay.classList.remove('open');
+  };
 
-  const renderStep = () => steps[step]?.();
+  const goNext = () => { step = Math.min(step + 1, TOTAL_STEPS - 1); renderStep(); };
+
+  const renderStep = () => {
+    container.innerHTML = '';
+    container.style.cssText = 'display:flex;flex-direction:column;height:100%;';
+
+    // ── Progress dots ──
+    const dots = document.createElement('div');
+    dots.style.cssText = 'display:flex;gap:6px;justify-content:center;padding:20px 0 0;';
+    for (let i = 0; i < TOTAL_STEPS; i++) {
+      const d = document.createElement('div');
+      d.style.cssText = `width:${i === step ? 20 : 6}px;height:6px;border-radius:99px;background:${i === step ? 'var(--clr-accent)' : 'rgba(255,255,255,.18)'};transition:all .3s;`;
+      dots.appendChild(d);
+    }
+
+    // ── Skip all link ── always visible top-right
+    const skipAll = document.createElement('button');
+    skipAll.style.cssText = 'position:absolute;top:16px;right:18px;font-size:.6rem;opacity:.35;background:none;border:none;color:inherit;cursor:pointer;letter-spacing:.04em;padding:4px 8px;';
+    skipAll.textContent = 'Skip all';
+    skipAll.addEventListener('click', () => finish());
+
+    // ── Content area ──
+    const body = document.createElement('div');
+    body.style.cssText = 'flex:1;padding:16px 24px 8px;overflow-y:auto;';
+
+    // ── Bottom nav ──
+    const nav = document.createElement('div');
+    nav.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:12px 24px 24px;gap:12px;';
+
+    if (step === 0) renderWelcome(body, nav, goNext, finish);
+    else if (step === 1) renderDuration(body, nav, (m) => { cbs.setDuration(m); goNext(); }, finish);
+    else if (step === 2) renderThemePick(body, nav, (id) => { if (id) cbs.applyThemeById(id); goNext(); }, finish);
+    else if (step === 3) renderSoundPick(body, nav, (id) => finish(id), finish);
+
+    // Wrap with relative positioning for skip-all button
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:relative;display:flex;flex-direction:column;height:100%;';
+    wrapper.append(skipAll, dots, body, nav);
+    container.appendChild(wrapper);
+  };
   renderStep();
 }
 
-function obTitle(text: string): HTMLElement {
+function obH(text: string): HTMLElement {
   const h = document.createElement('h2');
-  h.style.cssText = 'font-size:1.3rem;font-weight:800;margin:0 0 6px;text-align:center;';
+  h.style.cssText = 'font-size:1.25rem;font-weight:800;margin:16px 0 4px;text-align:center;letter-spacing:-.01em;';
   h.textContent = text; return h;
 }
-function obSub(text: string): HTMLElement {
+function obP(text: string): HTMLElement {
   const p = document.createElement('p');
-  p.style.cssText = 'font-size:.72rem;opacity:.5;margin:0 0 22px;text-align:center;';
+  p.style.cssText = 'font-size:.7rem;opacity:.46;margin:0 0 18px;text-align:center;line-height:1.65;';
   p.textContent = text; return p;
 }
-function obSkip(label: string, cb: () => void): HTMLElement {
+function obNavBtn(label: string, primary: boolean, cb: () => void): HTMLElement {
   const btn = document.createElement('button');
-  btn.style.cssText = 'display:block;margin:18px auto 0;font-size:.6rem;opacity:.3;background:none;border:none;color:inherit;cursor:pointer;padding:4px 12px;';
+  btn.style.cssText = primary
+    ? 'flex:1;padding:11px 0;border-radius:12px;background:var(--clr-accent);color:#000;font-weight:700;font-size:.78rem;border:none;cursor:pointer;transition:filter .15s,transform .1s;'
+    : 'font-size:.62rem;opacity:.38;background:none;border:none;color:inherit;cursor:pointer;padding:4px 8px;white-space:nowrap;';
   btn.textContent = label;
   btn.addEventListener('click', cb);
   return btn;
 }
-
-function renderStep0(c: HTMLElement, next: () => void) {
-  c.innerHTML = '';
-  c.style.cssText = 'padding:40px 28px;text-align:center;';
-  const icon = document.createElement('div'); icon.style.cssText = 'font-size:3rem;margin-bottom:16px;'; icon.textContent = '⏱';
-  const h = obTitle('Welcome to Session Clock');
-  const sub = obSub('A precise, beautiful focus timer. Takes 30 seconds to set up.');
+function obGrid(cols = 2): HTMLElement {
+  const g = document.createElement('div');
+  g.style.cssText = `display:grid;grid-template-columns:repeat(${cols},1fr);gap:8px;margin-bottom:4px;`;
+  return g;
+}
+function obCard(icon: string, label: string, sub: string, cb: () => void): HTMLElement {
   const btn = document.createElement('button');
-  btn.className = 'btn btn-primary'; btn.style.cssText = 'margin:0 auto;display:flex;';
-  btn.textContent = 'Get started →';
-  btn.addEventListener('click', next);
-  const skip = obSkip('Skip setup, use defaults', () => { markOnboarded(); $('onboardOverlay').classList.remove('open'); });
-  c.append(icon, h, sub, btn, skip);
+  btn.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 8px 10px;border-radius:14px;background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.08);cursor:pointer;color:inherit;transition:background .15s,border-color .15s,transform .12s;';
+  btn.addEventListener('mouseenter', () => { btn.style.background='rgba(255,255,255,.1)'; btn.style.borderColor='var(--clr-accent)'; });
+  btn.addEventListener('mouseleave', () => { btn.style.background='rgba(255,255,255,.05)'; btn.style.borderColor='rgba(255,255,255,.08)'; });
+  btn.addEventListener('mousedown', () => { btn.style.transform='scale(.96)'; });
+  btn.addEventListener('mouseup', () => { btn.style.transform=''; cb(); });
+  btn.addEventListener('touchend', () => { btn.style.transform=''; cb(); }, { passive: true });
+  const ic = document.createElement('div'); ic.style.cssText = 'font-size:1.65rem;line-height:1;'; ic.textContent = icon;
+  const lbl = document.createElement('div'); lbl.style.cssText = 'font-size:.72rem;font-weight:700;letter-spacing:-.01em;'; lbl.textContent = label;
+  const sb = document.createElement('div'); sb.style.cssText = 'font-size:.56rem;opacity:.4;'; sb.textContent = sub;
+  btn.append(ic, lbl, sb);
+  return btn;
 }
 
-function renderStep1(c: HTMLElement, onPick: (m: number) => void) {
-  c.innerHTML = '';
-  c.style.cssText = 'padding:32px 28px;';
-  c.appendChild(obTitle('How long is your focus session?'));
-  c.appendChild(obSub('You can change this any time in settings.'));
+function renderWelcome(body: HTMLElement, nav: HTMLElement, next: () => void, finish: (s?: string) => void) {
+  const icon = document.createElement('div');
+  icon.style.cssText = 'font-size:3.2rem;text-align:center;margin:12px 0 4px;filter:drop-shadow(0 0 24px rgba(110,231,183,.4));';
+  icon.textContent = '⏱';
+  body.append(icon, obH('Session Clock'), obP('A precise, beautiful focus timer — themes, binaural beats, session tracking, and more. Set up in 30 seconds or skip and dive in.'));
+  nav.append(
+    obNavBtn('Get started →', true, next),
+    obNavBtn('Skip, use defaults', false, () => finish()),
+  );
+}
 
+function renderDuration(body: HTMLElement, nav: HTMLElement, onPick: (m: number) => void, finish: (s?: string) => void) {
+  body.append(obH('Session length?'), obP('How long is your typical focus block? You can change this any time.'));
+  const grid = obGrid(3);
   const opts: [number, string, string][] = [
     [15, '15 min', 'Quick sprint'],
-    [25, '25 min', 'Classic Pomodoro'],
-    [45, '45 min', 'Deep session'],
+    [25, '25 min', 'Pomodoro'],
+    [45, '45 min', 'Deep work'],
     [60, '60 min', 'Long block'],
-    [90, '90 min', 'Deep work'],
+    [90, '90 min', 'Ultra focus'],
+    [50, '50 min', 'Animedoro'],
   ];
-  const grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px;';
-  opts.forEach(([mins, label, sub]) => {
-    const btn = document.createElement('button'); btn.className = 'template-card';
-    const lbl = document.createElement('div'); lbl.style.cssText = 'font-size:.95rem;font-weight:800;'; lbl.textContent = label;
-    const s   = document.createElement('div'); s.style.cssText = 'font-size:.58rem;opacity:.45;margin-top:3px;'; s.textContent = sub;
-    btn.append(lbl, s);
-    btn.addEventListener('click', () => onPick(mins));
-    grid.appendChild(btn);
+  opts.forEach(([m, lbl, sub]) => grid.appendChild(obCard('', lbl, sub, () => onPick(m))));
+  // Update icons after creating
+  grid.querySelectorAll('button').forEach((btn, i) => {
+    const icons = ['⚡','🍅','🧠','🔭','🎯','🎬'];
+    btn.querySelector('div')!.textContent = icons[i] ?? '⏱';
   });
-  c.appendChild(grid);
-  c.appendChild(obSkip('Keep default (25 min)', () => onPick(25)));
+  body.appendChild(grid);
+  nav.append(obNavBtn('Skip →', false, () => onPick(25)));
 }
 
-function renderStep2(c: HTMLElement, onPick: (id: string) => void) {
-  c.innerHTML = '';
-  c.style.cssText = 'padding:32px 28px;';
-  c.appendChild(obTitle('Pick a starting theme'));
-  c.appendChild(obSub('Over 45 themes available — change anytime.'));
-
-  const picks: [string, string, string][] = [
-    ['aurora',    '🌌', 'Aurora'],
-    ['midnight',  '🌃', 'Midnight'],
-    ['nordic',    '❄️', 'Nordic'],
-    ['cyberpunk', '🌆', 'Cyberpunk'],
-    ['forest',    '🌲', 'Forest'],
-    ['terminal',  '💻', 'Terminal'],
+function renderThemePick(body: HTMLElement, nav: HTMLElement, onPick: (id: string) => void, finish: (s?: string) => void) {
+  body.append(obH('Choose your vibe'), obP('45+ themes available — pick a favourite to start. Change anytime with T or Ctrl+K.'));
+  const grid = obGrid(3);
+  const themes: [string, string, string, string][] = [
+    ['midnight',    '🌃', 'Midnight',    'Deep purple'],
+    ['aurora',      '🌌', 'Aurora',      'Northern lights'],
+    ['cyberpunk',   '🌆', 'Cyberpunk',   'Night City'],
+    ['nordic',      '❄️',  'Nordic',      'Clean minimal'],
+    ['forest',      '🌲', 'Forest',      'Calm green'],
+    ['breakingbad', '⚗️',  'Breaking Bad','Chemistry'],
+    ['onepiece',    '🏴‍☠️', 'One Piece',   'Grand Line'],
+    ['dune',        '🏜️',  'Dune',        'Arrakis'],
+    ['severance',   '🏢', 'Severance',   'Lumon Corp'],
+    ['hal9000',     '🔴', '2001: Space', 'Kubrick'],
+    ['dragonfire',  '🐉', 'Dragonfire',  'Targaryen'],
+    ['terminal',    '💻', 'Terminal',    'Air-gapped'],
   ];
-  const grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px;';
-  picks.forEach(([id, emoji, name]) => {
-    const btn = document.createElement('button'); btn.className = 'template-card';
-    const em = document.createElement('div'); em.style.cssText = 'font-size:1.6rem;'; em.textContent = emoji;
-    const nm = document.createElement('div'); nm.style.cssText = 'font-size:.7rem;font-weight:700;margin-top:4px;'; nm.textContent = name;
-    btn.append(em, nm);
-    btn.addEventListener('click', () => onPick(id));
-    grid.appendChild(btn);
-  });
-  c.appendChild(grid);
-  c.appendChild(obSkip('Keep current theme', () => onPick('')));
+  themes.forEach(([id, icon, name, sub]) => grid.appendChild(obCard(icon, name, sub, () => onPick(id))));
+  body.appendChild(grid);
+  nav.append(obNavBtn('Skip →', false, () => onPick('')));
 }
 
-function renderStep3(c: HTMLElement, onPick: (id: string) => void) {
-  c.innerHTML = '';
-  c.style.cssText = 'padding:32px 28px;';
-  c.appendChild(obTitle('Turn on ambient sound?'));
-  c.appendChild(obSub('Helps many people focus. Optional.'));
-
-  const picks: [string, string, string][] = [
-    ['rain',   '🌧', 'Rain'],
-    ['brown',  '🌊', 'Brown Noise'],
-    ['forest', '🌲', 'Forest'],
-    ['cafe',   '☕', 'Café'],
-    ['',       '🔇', 'No sound'],
+function renderSoundPick(body: HTMLElement, nav: HTMLElement, onPick: (id: string) => void, finish: (s?: string) => void) {
+  body.append(obH('Ambient sound?'), obP('Background audio helps many people focus deeply. Completely optional — mute any time.'));
+  const grid = obGrid(3);
+  const sounds: [string, string, string, string][] = [
+    ['rain',    '🌧', 'Rain',        'Steady drops'],
+    ['brown',   '🌊', 'Brown Noise', 'Deep rumble'],
+    ['cafe',    '☕', 'Café',        'Busy chatter'],
+    ['forest',  '🌲', 'Forest',      'Birds & breeze'],
+    ['ocean',   '🌊', 'Ocean',       'Wave cycles'],
+    ['fire',    '🔥', 'Fireplace',   'Crackling warmth'],
+    ['',        '🔇', 'No sound',    'Stay silent'],
   ];
-  const grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:10px;';
-  picks.forEach(([id, emoji, name]) => {
-    const btn = document.createElement('button'); btn.className = 'template-card';
-    const em = document.createElement('div'); em.style.cssText = 'font-size:1.6rem;'; em.textContent = emoji;
-    const nm = document.createElement('div'); nm.style.cssText = 'font-size:.7rem;font-weight:700;margin-top:4px;'; nm.textContent = name;
-    btn.append(em, nm);
-    btn.addEventListener('click', () => onPick(id));
-    grid.appendChild(btn);
-  });
-  c.appendChild(grid);
+  sounds.forEach(([id, icon, name, sub]) => grid.appendChild(obCard(icon, name, sub, () => onPick(id))));
+  body.appendChild(grid);
+  nav.append(obNavBtn('Skip →', false, () => onPick('')));
 }
 
 // ─────────────────────────────────────────────────────────────────────
