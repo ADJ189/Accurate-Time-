@@ -18,6 +18,8 @@ import * as Privacy from './privacy';
 import * as Easter from './easter';
 import * as Cmd from './cmdpalette';
 import * as Features from './features';
+import * as Integrations from './integrations';
+import { t, setLocale, getLocale, LOCALE_NAMES, LOCALE_FLAGS, type Locale } from './i18n';
 import * as Palette from './palette';
 
 // ── Clock mode ────────────────────────────────────────────────────────
@@ -1494,9 +1496,33 @@ function buildSettingsUI(activeTab = 'general') {
     });
     actionSec.appendChild(actionGrid);
     paneWrap.appendChild(actionSec);
-  }
 
-  // ══ SOUND ═════════════════════════════════════════════════════════════
+    // Language
+    const langSec = makeSection('Language');
+    const langBtn = document.createElement('button');
+    langBtn.className = 'settings-action-btn settings-action-btn--full';
+    const curFlag = LOCALE_FLAGS[getLocale()];
+    const curName = LOCALE_NAMES[getLocale()];
+    langBtn.textContent = `${curFlag} ${curName} — Change language`;
+    langBtn.addEventListener('click', () => {
+      buildLanguageUI(document.getElementById('languageContent')!);
+      openModal('languageOverlay');
+    });
+    langSec.appendChild(langBtn);
+    paneWrap.appendChild(langSec);
+
+    // Integrations shortcut
+    const intSec = makeSection('Integrations');
+    const intBtn = document.createElement('button');
+    intBtn.className = 'settings-action-btn settings-action-btn--full';
+    const connectedCount = Object.values(Integrations.getConnectionStatus()).filter(Boolean).length;
+    intBtn.textContent = connectedCount > 0
+      ? `🔗 ${connectedCount} integration${connectedCount > 1 ? 's' : ''} connected — Manage`
+      : '🔗 Connect Spotify, Calendar, Notion, Todoist…';
+    intBtn.addEventListener('click', () => { closeModal('settingsOverlay'); openIntegrations(); });
+    intSec.appendChild(intBtn);
+    paneWrap.appendChild(intSec);
+  }
   else if (activeTab === 'sound') {
     const audioSec = makeSection('Audio');
     audioSec.appendChild(makeRow('3D Spatial Audio', 'Sounds pan independently — best with headphones', 'toggleSpatial', Sound.isSpatialEnabled(), 'ILD+ITD'));
@@ -2667,6 +2693,23 @@ function init() {
   const worldClockContent = document.getElementById('worldClockContent');
   if (worldClockContent) Features.buildWorldClockUI(worldClockContent);
 
+  // Integrations modal
+  const intContent = document.getElementById('integrationsContent');
+  if (intContent) {
+    Integrations.buildIntegrationsPanel(intContent, { showToast });
+  }
+  // Handle Spotify OAuth callback
+  if (window.location.search.includes('code=')) {
+    Integrations.spotifyHandleCallback().then(() => {
+      showToast('🎵 Spotify connected!', 4000);
+      if (intContent) Integrations.buildIntegrationsPanel(intContent, { showToast });
+    });
+  }
+
+  // Language modal
+  const langContent = document.getElementById('languageContent');
+  if (langContent) buildLanguageUI(langContent);
+
   // Onboarding
   if (Features.shouldShowOnboarding()) {
     setTimeout(() => {
@@ -2693,6 +2736,41 @@ function init() {
   (window as any).__onSyncFail = () => {
     Features.setSyncTrust('offline');
   };
+}
+
+function openIntegrations() {
+  const el = document.getElementById('integrationsContent');
+  if (el) Integrations.buildIntegrationsPanel(el, { showToast });
+  openModal('integrationsOverlay');
+}
+
+function buildLanguageUI(container: HTMLElement) {
+  container.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:8px;';
+  (Object.keys(LOCALE_NAMES) as Locale[]).forEach(locale => {
+    const btn = document.createElement('button');
+    const active = locale === getLocale();
+    btn.style.cssText = `display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:12px;border:1.5px solid ${active ? 'var(--clr-accent)' : 'rgba(255,255,255,.09)'};background:${active ? 'rgba(110,231,183,.08)' : 'rgba(255,255,255,.04)'};cursor:pointer;color:inherit;text-align:left;transition:border-color .15s,background .15s;`;
+    const flag = document.createElement('span'); flag.style.cssText = 'font-size:1.3rem;'; flag.textContent = LOCALE_FLAGS[locale];
+    const name = document.createElement('div');
+    const nm = document.createElement('div'); nm.style.cssText = 'font-size:.74rem;font-weight:700;'; nm.textContent = LOCALE_NAMES[locale];
+    const lc = document.createElement('div'); lc.style.cssText = 'font-size:.55rem;opacity:.4;letter-spacing:.04em;'; lc.textContent = locale.toUpperCase();
+    name.append(nm, lc);
+    if (active) { const check = document.createElement('span'); check.style.cssText = 'margin-left:auto;color:var(--clr-accent);font-size:.8rem;'; check.textContent = '✓'; btn.append(flag, name, check); }
+    else btn.append(flag, name);
+    btn.addEventListener('click', () => {
+      setLocale(locale);
+      buildLanguageUI(container);
+      showToast(`${LOCALE_FLAGS[locale]} Language set to ${LOCALE_NAMES[locale]}`);
+    });
+    grid.appendChild(btn);
+  });
+  container.appendChild(grid);
+  const note = document.createElement('p');
+  note.style.cssText = 'font-size:.6rem;opacity:.3;margin:12px 0 0;line-height:1.6;';
+  note.textContent = 'UI language only. Themes and content remain in English. Translations contributed by the community — some strings may be incomplete.';
+  container.appendChild(note);
 }
 
 // ── Command Palette Registration ──────────────────────────────────────
@@ -2964,7 +3042,9 @@ function buildCommandPalette() {
   const actions: [string, string, string, string, () => void][] = [
     ['sound',        '🎵', 'Open Sound Mixer',          'Ambient sounds, binaural beats',            () => { buildSoundUI(); openModal('soundOverlay'); }],
     ['pom',          '⏱', 'Pomodoro Settings',          'Configure work/break cycles',               () => openModal('pomOverlay')],
-    ['templates',    '📋', 'Session Templates',          'Study, coding, deep work, reading…',        () => openModal('templatesOverlay')],
+    ['integrations', '🔗', 'Integrations',           'Spotify, Calendar, Notion, Todoist, GitHub',() => openIntegrations()],
+    ['language',     '🌐', 'Language',                'Change UI language (8 languages)',           () => { buildLanguageUI(document.getElementById('languageContent')!); openModal('languageOverlay'); }],
+    ['templates',    '📋', 'Session Templates',        'Study, coding, deep work, reading…',        () => openModal('templatesOverlay')],
     ['countdown',    '⏳', 'Deadline Countdown',         'Count down to an exam, meeting, or event',  () => openModal('countdownOverlay')],
     ['worldclock',   '🌍', 'World Clock',                'Compare times across timezones',             () => openModal('worldClockOverlay')],
     ['log',          '📊', 'Focus Log',                  'View session history & heatmap',            () => openLog()],

@@ -31,9 +31,12 @@ function getBgGrad(bg: string[], pad: number): CanvasGradient {
 }
 
 // Invalidate gradient cache on resize
+let transitioning = false;
+
 export function invalidateCache() {
   gradCache.bg = null; gradCache.bloom = null;
   gradCache.themeId = ''; gradCache.w = 0; gradCache.h = 0;
+  offBgTheme = ''; // also invalidate offscreen bg
 }
 
 // ── SMPTE focus-log cache — avoid localStorage every frame ─────────────
@@ -76,9 +79,30 @@ export let tick = 0;
 
 const bgCanvas = document.getElementById('bgCanvas') as HTMLCanvasElement;
 const tCanvas  = document.getElementById('transCanvas') as HTMLCanvasElement;
-const c  = bgCanvas.getContext('2d')!;
+const c  = bgCanvas.getContext('2d', { alpha: false })!;
 const tc = tCanvas.getContext('2d')!;
-let transitioning = false;
+
+// Offscreen canvas — static bg gradient painted once, composited each frame
+let offBg: OffscreenCanvas | null = null;
+let offBgCtx: OffscreenCanvasRenderingContext2D | null = null;
+let offBgTheme = '';
+
+function getOffscreenBg(theme: Theme): OffscreenCanvas | null {
+  if (!('OffscreenCanvas' in window)) return null;
+  const key = theme.id + W + H;
+  if (offBgTheme === key && offBg) return offBg;
+  try {
+    offBg = new OffscreenCanvas(W, H);
+    offBgCtx = offBg.getContext('2d') as OffscreenCanvasRenderingContext2D;
+    offBgTheme = key;
+    // Paint the solid base gradient once
+    const bg = theme.baseBg;
+    const gr = offBgCtx.createLinearGradient(0, 0, W * 0.4, H);
+    gr.addColorStop(0, bg[0]!); gr.addColorStop(0.5, bg[1] ?? bg[0]!); gr.addColorStop(1, bg[2] ?? bg[0]!);
+    offBgCtx.fillStyle = gr; offBgCtx.fillRect(0, 0, W, H);
+    return offBg;
+  } catch { return null; }
+}
 
 // ── Breathing mode ────────────────────────────────────────────────────
 let breathingActive = false;
@@ -123,13 +147,20 @@ export function drawBg(dt: number, theme: Theme) {
   tick += dt;
   const bt = theme.bgType;
   const bg = theme.baseBg;
-  const pad = 20;
 
   // Apply parallax via canvas transform
   c.save();
   c.translate(_parallaxX * 0.4, _parallaxY * 0.4);
-  c.fillStyle = getBgGrad(bg, pad);
-  c.fillRect(-pad, -pad, W + pad * 2, H + pad * 2);
+
+  // Paint background — use cached offscreen bitmap when available (major perf win)
+  const cached = getOffscreenBg(theme);
+  if (cached) {
+    c.drawImage(cached, -_parallaxX * 0.4 - 20, -_parallaxY * 0.4 - 20, W + 40, H + 40);
+  } else {
+    const pad = 20;
+    c.fillStyle = getBgGrad(bg, pad);
+    c.fillRect(-pad, -pad, W + pad * 2, H + pad * 2);
+  }
   (DRAW[bt] ?? drawParticles)(dt, theme);
   c.restore();
 
@@ -1170,13 +1201,16 @@ function drawCyberpunk(dt: number, t: Theme) {
   }
   c.lineTo(W, H); c.closePath(); c.fill();
 
-  // Neon window lights on buildings
+  // Neon window lights on buildings — only on HIGH tier, seeded not random
   if (shouldDrawGlow()) {
-    for (let i = 0; i < 40; i++) {
-      const wx = rnd(W); const wy = skyH + rnd(H - skyH);
-      if (wy < skyH + 5) continue;
-      const wc = CYBER_COLS[Math.floor(rnd(CYBER_COLS.length))]!;
-      c.fillStyle = wc + '88'; c.fillRect(wx, wy, 3 + rnd(6), 2 + rnd(4));
+    const t60 = Math.floor(tick * 0.5); // changes twice per second
+    for (let i = 0; i < 28; i++) {
+      // Deterministic pseudo-random from index + time slot
+      const wx = ((i * 137 + t60 * 31) % W);
+      const wy = H * 0.73 + ((i * 73 + t60 * 17) % (H * 0.22));
+      const colIdx = (i + t60) % CYBER_COLS.length;
+      c.fillStyle = (CYBER_COLS[colIdx] ?? '#ff0090') + '88';
+      c.fillRect(wx, wy, 3 + (i % 5), 2 + (i % 3));
     }
 
     // HUD grid overlay — horizontal + vertical faint lines
@@ -1200,27 +1234,30 @@ function drawCyberpunk(dt: number, t: Theme) {
 }
 
 // ── 2001: A SPACE ODYSSEY ─────────────────────────────────────────────
-// Starfield + HAL 9000 eye + monolith
-interface Star2001 { x: number; y: number; r: number; twinkle: number; }
-const stars2001: Star2001[] = [];
+// Starfield stored in Float32Array: [x, y, r, twinkle] × 280
+const STAR_COUNT = 280;
+const starPool = new Float32Array(STAR_COUNT * 4);
 let stars2001Init = false;
 
 function drawHAL9000(dt: number, t: Theme) {
   if (!stars2001Init) {
     stars2001Init = true;
-    for (let i = 0; i < 280; i++) {
-      stars2001.push({ x: rnd(W), y: rnd(H), r: rnd(1.5) + 0.2, twinkle: rnd(Math.PI * 2) });
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const o = i * 4;
+      starPool[o]   = rnd(W); starPool[o+1] = rnd(H);
+      starPool[o+2] = rnd(1.5) + 0.2; starPool[o+3] = rnd(Math.PI * 2);
     }
   }
 
   // Starfield
   c.fillStyle = '#ffffff';
-  stars2001.forEach(s => {
-    s.twinkle += dt * (0.4 + s.r * 0.3);
-    const a = 0.5 + Math.sin(s.twinkle) * 0.4;
+  for (let i = 0; i < STAR_COUNT; i++) {
+    const o = i * 4;
+    starPool[o+3] += dt * (0.4 + starPool[o+2] * 0.3);
+    const a = 0.5 + Math.sin(starPool[o+3]) * 0.4;
     c.globalAlpha = a;
-    c.beginPath(); c.arc(s.x, s.y, s.r, 0, Math.PI * 2); c.fill();
-  });
+    c.beginPath(); c.arc(starPool[o]!, starPool[o+1]!, starPool[o+2]!, 0, Math.PI * 2); c.fill();
+  }
   c.globalAlpha = 1;
 
   // HAL 9000 eye — pulsing red circle at centre
