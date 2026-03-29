@@ -389,6 +389,28 @@
   </div>
 </div>
 
+<!-- Integrations Modal -->
+<div class="sc-overlay" id="integrationsOverlay">
+  <div class="sc-modal sc-modal--integrations">
+    <div class="modal-header">
+      <h2>🔗 Integrations</h2>
+      <button class="modal-close" onclick="document.getElementById('integrationsOverlay').classList.remove('open')">✕</button>
+    </div>
+    <div id="integrationsContent" style="max-height:76vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Language Modal -->
+<div class="sc-overlay" id="languageOverlay">
+  <div class="sc-modal sc-modal--language">
+    <div class="modal-header">
+      <h2>🌐 Language</h2>
+      <button class="modal-close" onclick="document.getElementById('languageOverlay').classList.remove('open')">✕</button>
+    </div>
+    <div id="languageContent" style="padding:16px;"></div>
+  </div>
+</div>
+
 <script type="module" src="src/main.ts"></script>
 </body>
 </html>

@@ -2,148 +2,90 @@
 
 # Session Clock
 
-**The most feature-complete focus timer on the open web.**
+<img src="public/icon-512.svg" width="80" alt="Session Clock" />
 
-*48+ animated themes · Easter eggs · Pomodoro · Binaural beats · Session intelligence · Token shop · PWA · Zero backend*
+**The most complete focus timer on the open web.**
 
-[![Deploy](https://img.shields.io/github/actions/workflow/status/ADJ189/Accurate-Time-/deploy.yml?label=Deploy&style=flat-square)](https://github.com/ADJ189/Accurate-Time-/actions)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-5-646cff?style=flat-square&logo=vite)](https://vitejs.dev/)
-[![License](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)](LICENSE)
+[![Deploy](https://img.shields.io/github/actions/workflow/status/ADJ189/Accurate-Time-/deploy.yml?label=CI%2FCD&style=flat-square&logo=github)](https://github.com/ADJ189/Accurate-Time-/actions)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Zero Dependencies](https://img.shields.io/badge/runtime_deps-0-22c55e?style=flat-square)](package.json)
+[![PWA](https://img.shields.io/badge/PWA-ready-8b5cf6?style=flat-square&logo=pwa)](public/manifest.json)
+[![CodeQL](https://img.shields.io/badge/CodeQL-clean-16a34a?style=flat-square&logo=github)](https://github.com/ADJ189/Accurate-Time-/security)
 
-[**Live Demo →**](https://accurate-time.pages.dev)
+[**Live App →**](https://ADJ189.github.io/Accurate-Time-)&nbsp;&nbsp;·&nbsp;&nbsp;[Report Bug](https://github.com/ADJ189/Accurate-Time-/issues)&nbsp;&nbsp;·&nbsp;&nbsp;[Request Feature](https://github.com/ADJ189/Accurate-Time-/issues)
 
 </div>
 
 ---
 
-## Why Session Clock?
+## What it is
 
-Most focus timers are bare-bones Pomodoro counters with a start button and a beep. Session Clock is a *complete focus environment* — with session intelligence, 42 cinematic animated themes, real psychoacoustic spatial audio, easter eggs, and a token economy that rewards consistent focus.
+Session Clock is a focus timer built with the philosophy that **the environment you work in shapes the quality of your work**. Every theme is a complete cinematic experience. Every feature earns its place.
 
-| What others give you | What Session Clock gives you |
+| | |
 |---|---|
-| A countdown timer | Session intelligence: streak, velocity score, peak-hour analysis, flow state detection |
-| A plain background | 42 animated themes — TV shows, movies, F1 teams, GoL, SMPTE, aurora physics, wormholes |
-| A beep | 6 synthesised ambient soundscapes + binaural beats + ILD+ITD spatial audio + media controls |
-| A timer log | GitHub-style heatmap, CSV export, shareable PNG focus cards, PiP floating clock |
-| A webpage | Installable PWA, offline-capable, cross-tab sync, OS notifications, wake lock |
-| Nothing | **8 hidden easter eggs** — Konami code, keyword triggers, midnight confetti, device shake |
+| **Clock accuracy** | NTP-synced via Cloudflare probes, ±ms precision |
+| **Themes** | 45 animated themes across 5 categories |
+| **Audio** | 6 ambient tracks + binaural beats + true ILD/ITD spatial audio |
+| **Intelligence** | Streak tracking, velocity score, peak-hour analysis, flow state detection |
+| **Integrations** | Spotify, Google Calendar, Notion, Todoist, Linear, GitHub |
+| **Languages** | 8 (EN, ES, FR, DE, JA, KO, PT, HI) |
+| **Privacy** | Zero backend · Everything in `localStorage` · No tracking |
+| **Install** | PWA — works offline, installable on desktop and mobile |
 
 ---
 
-## Themes — 42 total
+## Themes
 
 ### Natural
-Aurora · Sunrise · Forest · Ocean · Candy · Nordic · Midnight (+ shooting stars) · Lemon · Blueprint · Living (Conway's Game of Life) · Common Room · SMPTE Timeline · Air-Gapped Terminal
-
-### Literary
-Literary Clock — 288 prose sentences, one for every 5-minute slot (00:00–23:55)
+Aurora · Sunrise · Forest · Ocean · Candy · Nordic · Midnight *(+ shooting stars)* · Lemon · Blueprint · Living *(Conway's Game of Life)* · Common Room · SMPTE Timeline · Air-Gapped Terminal · Literary Clock
 
 ### TV Shows
-**Severance** · **Mr. Robot** · **House of the Dragon** · **Moon Knight** · Supernatural · The Mentalist · The Sopranos · Dark · Breaking Bad · Stranger Things
+Severance · Mr. Robot · House of the Dragon · Moon Knight · Supernatural · The Mentalist · The Sopranos · Dark · Breaking Bad · Stranger Things
 
 ### Movies
-**Cyberpunk 2077** · **2001: A Space Odyssey** · **Tenet** · Interstellar (+ wormhole rings) · **Oppenheimer** · Dune · The Matrix · Blade Runner 2049 · Inception · The Godfather
+Cyberpunk 2077 · 2001: A Space Odyssey · Tenet · Interstellar *(+ wormhole)* · Oppenheimer · Dune · The Matrix · Blade Runner 2049 · Inception · The Godfather
+
+### Anime ⛩
+One Piece · Attack on Titan · Death Note
 
 ### F1 Teams
 Red Bull Racing · Scuderia Ferrari · Mercedes-AMG · McLaren · Aston Martin
 
-### Anime ⛩
-**One Piece** · **Attack on Titan** · **Death Note**
-
-### Secret / Unlockable
-**8-BIT** (Konami Code) · **Phoenix** (100 sessions milestone) · **The Bear**
-
-> **Bold** = new themes added in v9.a
-
-> **Bold** = new themes added in v9.a
+### Secret & Unlockable
+🎮 **8-BIT** — Konami Code `↑↑↓↓←→←→BA`  
+🔥 **Phoenix** — Complete 100 sessions  
+🍳 **The Bear** — Type `thebear`
 
 ---
 
-## 🥚 Easter Eggs
-
-There are 8 hidden easter eggs. Discover them yourself — or read on.
+## Easter Eggs
 
 <details>
-<summary>Reveal all easter eggs</summary>
+<summary>Reveal all secrets (spoilers)</summary>
 
 | Trigger | Effect |
 |---|---|
-| **Konami Code** `↑↑↓↓←→←→BA` | Activates 8-BIT theme — pixelated font, CGA colours, chiptune chime |
-| **Type `matrix`** | Full-screen green Matrix rain cascade for 5 seconds |
-| **Type `heisenberg`** | Switches to Breaking Bad theme + quote flash |
-| **Type `winchester`** | Switches to Supernatural theme + quote flash |
-| **Type `redjohn`** | Switches to The Mentalist theme + quote flash |
-| **Type `winden`** | Switches to Dark theme + quote flash |
-| **Type `mrrobot` or `fsociety`** | Switches to Mr. Robot theme + fsociety message |
-| **Type `inception`** | The entire UI spins 360° |
-| **Type `oppenheimer`** | Switches to Oppenheimer theme + Trinity quote |
-| **Type `spice`** | Switches to Dune theme + spice quote |
-| **Type `thebear`** | Switches to The Bear theme |
-| **Type `nightcity` or `samurai`** | Cyberpunk 2077 theme + full-screen RGB glitch burst |
-| **Type `hal` or `daisy`** | HAL 9000 theme; `daisy` makes HAL sing the famous song line by line |
-| **Type `dont try` or `tenet`** | Tenet theme; `tenet` reverses the clock display and inverts the UI briefly |
-| **Type `dracarys` or `targaryen`** | House of the Dragon theme + fire quote |
-| **Type `khonshu` or `moonknight`** | Moon Knight theme + Khonshu quote |
-| **Triple-click the clock** | Opens a dev console overlay showing FPS, tier, audio nodes, storage size |
-| **Hold the session timer 3 seconds** | Hyperfocus mode — UI fades to black, only clock + timer remain. Press Esc to exit |
-| **00:00:00 midnight** | Confetti burst in theme accent colours + "Happy New Day!" toast |
-| **Shake your phone** | Randomises the theme — "🎲 Theme shuffled!" |
-| **Click UTC pill 7 times** | Switches UTC display to Local Sidereal Time (🔭) — for astronomers |
-| **Complete 100 sessions** | Phoenix theme unlocks. Permanent flame badge on streak counter |
+| `↑↑↓↓←→←→BA` | Konami Code → 8-BIT theme, chiptune chime |
+| Type `matrix` | Full-screen green rain cascade (5 seconds) |
+| Type `inception` | UI spins 360° |
+| Type `heisenberg` | Breaking Bad + "You're goddamn right" |
+| Type `hal` or `daisy` | HAL 9000 dialogue overlay; `daisy` sings the song line-by-line |
+| Type `tenet` | Clock reverses + UI hue-inverts for 5 seconds |
+| Type `dracarys` / `targaryen` | House of the Dragon |
+| Type `luffy` / `onepiece` | One Piece + gold screen flash |
+| Type `lightyagami` | L analyses your actual session stats live |
+| Type `potato chip` | "I'll take a potato chip… and eat it!" |
+| Triple-click the clock | Dev console: FPS, tier, audio nodes, storage size |
+| Hold session timer 3 seconds | Hyperfocus mode — UI disappears, Esc to exit |
+| At exactly 00:00:00 midnight | Confetti burst |
+| Shake your phone | Random theme shuffle |
+| Click UTC pill 7× | Switches to Local Sidereal Time 🔭 |
+| Complete 100 sessions | Phoenix theme unlocks |
+
+Find more via the command palette: **`Ctrl+K`** → type `/`
 
 </details>
-
----
-
-## Features
-
-### Session Intelligence
-- **Streak System** — daily session streaks with milestone toasts (3, 7, 14, 21, 30, 60, 90, 365 days)
-- **Velocity Score** — 0–100 focus quality score based on completed vs abandoned sessions
-- **Peak Hours** — after 5+ sessions, surfaces your personal peak focus hour in the info strip
-- **Flow State Detector** — 25 minutes uninterrupted → UI simplifies, "⚡ Flow State" badge appears
-- **Smart Break Reminder** — pulses amber after 90 uninterrupted minutes
-
-### Pomodoro & Focus
-- **Pomodoro** — configurable work/break/long-break with animated SVG ring, audio chime, OS notifications
-- **Animedoro** — 50-minute focus / 20-minute cinematic Theater Mode break
-- **Box Breathing** — animated 4-phase breathing guide on every break
-- **Focus Lock Delay** — optional 3-second intentional friction before opening panels during Pomodoro
-
-### Audio
-- **6 Ambient Soundscapes** — Rain, Brown Noise, Forest (+ bird chirps), Café, Ocean (3-layer waves), Fireplace — all Web Audio API synthesis, zero audio files
-- **Binaural Beats** — Gamma (40Hz), Beta (18Hz), Alpha (10Hz), Theta (6Hz), Delta (2Hz)
-- **ILD+ITD Spatial Audio** — real Inter-aural Level Difference + Inter-aural Time Difference (0.65ms max) via StereoPannerNode + DelayNode — not just pan, actual headphone spatial positioning
-- **Per-sound spatial profiles** — rain sweeps wide, fire stays slightly right, forest birds dart unexpectedly, café wanders fast
-- **Saveable Mixer Presets** — save up to 5 named sound mixes
-- **MediaSession API** — lock screen media controls show active tracks; play/pause from headphone buttons
-
-### OS Integration
-- **Picture-in-Picture** — Document PiP (Chrome/Edge) floats a live themed clock above any app; Canvas PiP fallback for Safari/Firefox
-- **OS Notifications** — Pomodoro phase changes fire system notifications even when the tab is hidden
-- **Wake Lock** — keeps screen on during sessions; releases on break
-- **PWA** — fully installable on desktop and mobile, works offline via service worker
-
-### Privacy
-- **Zero Backend** — everything in `localStorage`. No server, no accounts, no analytics
-- **Privacy Mode** — disables geolocation, weather, time sync, and Google Fonts (system fonts fallback)
-- **Incognito Sessions** — sessions run in memory only, nothing persisted
-- **Auto-Clear on Close** — optionally wipe session log when the tab closes
-- **Data Management Panel** — view all stored data by category with size, delete selectively, export as JSON
-
-### Sharing
-- **Share Focus Card** — 1200×630 PNG with theme art, focus time, task, streak, decorative clock; uses native OS share sheet on mobile
-- **QR Handoff** — pure-TypeScript QR encoder; scan to resume session on another device
-- **Cross-Tab Sync** — BroadcastChannel keeps theme + session in sync across all open tabs
-
-### Display
-- **6 Clock Styles** — Digital · Analogue · Flip (3D) · Word · Minimal · 7-Segment LED
-- **Parallax Depth** — mouse and gyroscope drive a multi-layer canvas parallax
-- **Adaptive Quality** — auto-detects device tier (LOW/MED/HIGH) from RAM/CPU/DPR; auto-degrades on low FPS
-- **Reduce Motion** — respects `prefers-reduced-motion` and has a manual override in Settings
-- **Battery Saver** — below 20% battery → auto-downgrades to LOW quality tier
 
 ---
 
@@ -153,118 +95,190 @@ There are 8 hidden easter eggs. Discover them yourself — or read on.
 |---|---|
 | `Space` | Start / Pause |
 | `R` | Reset timer |
-| `T` | Cycle next theme |
-| `F` | Toggle fullscreen |
+| `T` | Next theme |
+| `Ctrl+K` / `Cmd+K` | **Command palette** — search everything |
+| `/` | Command palette filtered to easter eggs |
+| `F` | Fullscreen / Kiosk |
 | `P` | Toggle Pomodoro |
 | `M` | Sound mixer |
 | `L` | Focus log |
-| `K` | Collapse/expand panel |
-| `G` | Custom theme builder |
 | `?` | All shortcuts |
-| `Esc` | Close panel / exit Hyperfocus |
+| `Esc` | Close / Exit Hyperfocus |
 
 ---
 
-## Security
+## Integrations
 
-Session Clock is CodeQL-verified — zero `innerHTML` injections of user-supplied data. All dynamic content uses `textContent`, developer-authored SVG constants, or canvas rendering. See the GitHub Security tab for the clean CodeQL report.
+All integrations are **opt-in**, **local-only** (tokens stored in `localStorage`, never sent to any server), and **disconnectable** at any time.
 
-## Getting Started
+Access via **Settings → Integrations** or `Ctrl+K → integrations`.
 
-```bash
-npm install          # install dev deps (TypeScript + Vite only)
-npm run dev          # dev server at localhost:5173
-npm run typecheck    # type-check without building
-npm run build        # production build → dist/
-npm run preview      # preview production build
-```
+| Service | What it shows |
+|---|---|
+| **Spotify** | Now-playing, playback controls, focus playlist launcher (PKCE auth, no server) |
+| **Google Calendar** | Upcoming events for the next 7 days (requires free API key) |
+| **Notion** | Tasks from a connected database (requires integration token) |
+| **Todoist** | Today's + overdue tasks with one-tap completion |
+| **Linear** | Assigned open issues and PRs |
+| **GitHub** | Assigned issues and open PRs |
 
-## Deploy to GitHub Pages
+---
 
-```bash
-git init && git add . && git commit -m "feat: session clock"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/session-clock.git
-git push -u origin main
-```
+## Features Deep-Dive
 
-Then: **Settings → Pages → Source → GitHub Actions**
+### Session Intelligence
+- **Streak** — daily streaks with milestone toasts (3, 7, 14, 21, 30, 60, 90, 365 days)  
+- **Velocity Score** — 0–100 focus quality derived from completed vs abandoned ratio  
+- **Peak Hours** — surfaces your best focus hour after 5+ sessions  
+- **Flow State** — 25 uninterrupted minutes triggers UI simplification + badge  
+- **Smart Break Reminder** — amber pulse after 90 min without a break  
 
-The included `deploy.yml` type-checks, builds, and deploys automatically on every push.
+### Clock Modes
+Digital · Analogue *(sweep hands)* · Flip *(3D card)* · Word · Minimal *(hour-only, huge)* · 7-Segment LED
+
+### Clock Positions
+**Top** — classic layout. **Centre** — clock fills the full viewport, panel slides up as a pull-tab.
+
+### Pomodoro & Templates
+- Configurable work / break / long-break durations  
+- 8 session templates: Deep Work · Study · Coding Sprint · Writing Flow · Reading · Creative · Workout · Quick Sprint  
+- Animedoro: 50 min focus / 20 min cinematic theater break  
+- Box breathing guide on every break  
+
+### Audio System
+- 6 synthesised ambient tracks — Rain · Brown Noise · Forest · Café · Ocean · Fireplace  
+- Binaural beats: Gamma 40Hz · Beta 18Hz · Alpha 10Hz · Theta 6Hz · Delta 2Hz  
+- **True spatial audio** — ILD (level) + ITD (timing, 0.65 ms max) per-track spatial profiles  
+- Saveable mixer presets  
+- `MediaSession` API — lock-screen controls, headphone buttons  
+
+### Session Completion
+- 5-point quality rating after every session  
+- Break activity suggestions (short and long pools)  
+- Distraction counter — log interruptions during sessions  
+
+### Focus Widgets
+- **Deadline Countdown** — count down to any date/time, shown in UTC pill  
+- **World Clock** — up to 5 timezones with live updates  
+- **Session Templates** — apply preset duration, sound, and theme in one tap  
+
+### Sharing & Export
+- 1200×630 PNG focus card (native share sheet on mobile)  
+- QR Handoff — pure TypeScript QR code to resume on another device  
+- CSV export of session history  
+- GitHub-style heatmap in the focus log  
+
+### OS & Platform
+- **PWA** — installable, works offline  
+- **Picture-in-Picture** — Document PiP (Chromium) or Canvas PiP fallback  
+- **Notifications** — Pomodoro phase changes via OS  
+- **Wake Lock** — keeps screen on during sessions  
+- **Cross-tab sync** — BroadcastChannel keeps all open tabs in sync  
+
+### Privacy & Data
+- Zero backend, zero accounts, zero tracking  
+- Privacy Mode — disables weather, NTP sync, and Google Fonts  
+- Incognito Sessions — nothing written to storage  
+- Auto-Clear on Close  
+- Full data export as JSON  
+
+### Accessibility & Performance
+- `prefers-reduced-motion` respected + manual toggle  
+- Adaptive quality tiers (LOW / MED / HIGH) — auto-detects device  
+- OffscreenCanvas bg caching — base gradient painted once, composited each frame  
+- `Float32Array` particle pools — no GC pressure  
+- Auto-degrades on low FPS or low battery  
+- Tab hidden → canvas render fully paused  
 
 ---
 
 ## Architecture
 
 ```
-session-clock/
-├── public/
-│   ├── manifest.json     PWA manifest
-│   ├── sw.js             Service worker (offline cache)
-│   ├── icon-192.svg      App icon
-│   └── icon-512.svg      App icon
-├── src/
-│   ├── main.ts           App entry: render loop, UI, all feature orchestration
-│   ├── renderer.ts       Canvas engine: 42 theme backgrounds, transitions, parallax
-│   ├── themes.ts         42 typed theme definitions
-│   ├── easter.ts         Easter eggs: Konami, keywords, midnight, shake, hyperfocus
-│   ├── intelligence.ts   Streak, velocity score, peak hours, flow state, smart break
-│   ├── apis.ts           Notifications, MediaSession, Wake Lock, PiP, Share, Clipboard, Battery
-│   ├── privacy.ts        Data management, incognito sessions, auto-clear, export
-│   ├── perf.ts           Adaptive quality tier, FPS tracker, visibility API
-│   ├── sound.ts          Web Audio: 6 tracks + binaural + ILD+ITD spatial + compressor
-│   ├── share.ts          1200×630 PNG focus card generator
-│   ├── shop.ts           Token economy: 50+ items, buy/equip
-│   ├── focuslog.ts       Session logging, GitHub heatmap, CSV export
-│   ├── pomodoro.ts       Pomodoro phase management, SVG ring
-│   ├── weather.ts        Open-Meteo fetch + NOAA circadian solar maths
-│   ├── timesync.ts       Cloudflare NTP + WorldTimeAPI fallback
-│   ├── qr.ts             GF(256) Reed-Solomon QR encoder
-│   ├── litclock.ts       288 prose entries for Literary Clock
-│   ├── utils.ts          Shared helpers
-│   └── types.ts          TypeScript interfaces
-├── index.html            HTML shell + all modal scaffolding
-├── style.css             ~1400 lines: CSS custom properties, animations, themes
-└── .github/workflows/
-    └── deploy.yml        CI/CD: typecheck → build → GitHub Pages
+src/
+├── main.ts          App orchestration, render loop, all UI
+├── renderer.ts      Canvas engine: 45 themes, transitions, parallax, OffscreenCanvas cache
+├── themes.ts        45 typed theme definitions
+├── easter.ts        16 easter eggs — Konami, keywords, midnight, shake, hyperfocus
+├── features.ts      Status line, templates, rating, onboarding, countdown, world clock
+├── integrations.ts  Spotify (PKCE), Google Calendar, Notion, Todoist, Linear, GitHub
+├── i18n.ts          8-language string system (EN/ES/FR/DE/JA/KO/PT/HI)
+├── cmdpalette.ts    Command palette — 90+ searchable items, fuzzy match
+├── intelligence.ts  Streak, velocity, peak hours, flow state
+├── apis.ts          Notifications, MediaSession, Wake Lock, PiP, Share, Battery
+├── privacy.ts       Data management, incognito, auto-clear, export
+├── perf.ts          Adaptive quality tier, FPS tracker, OffscreenCanvas, visibility
+├── sound.ts         Web Audio: 6 tracks + binaural + ILD/ITD spatial
+├── share.ts         1200×630 PNG focus card generator
+├── shop.ts          Token economy (opt-in via Settings → Display)
+├── focuslog.ts      Session log, heatmap, CSV export
+├── pomodoro.ts      Pomodoro phases, SVG ring, templates
+├── weather.ts       Open-Meteo + NOAA solar calculation
+├── timesync.ts      Cloudflare NTP + WorldTimeAPI fallback
+├── qr.ts            GF(256) Reed-Solomon QR encoder (pure TS)
+├── litclock.ts      288 literary quotes for Literary Clock
+├── utils.ts         Shared helpers
+└── types.ts         TypeScript interfaces
 ```
 
-### Performance
-
-- **Single RAF loop** — one `requestAnimationFrame` drives everything
-- **Gradient cache** — background gradients recomputed only on theme/resize change
-- **Adaptive particles** — 100% → 55% → 25% count on HIGH/MED/LOW tier
-- **Frame skip** — expensive draws skip 1–2 frames on MED/LOW
-- **Tab hidden** — canvas render fully paused when tab is not visible
-- **DynamicsCompressor** — prevents clipping at 200% volume boost
-
----
-
-## Tech Stack
+### Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Language | TypeScript 5 — strict mode |
-| Build | Vite 5 + Terser (2-pass, toplevel mangle, console drop) |
-| Canvas | HTML5 2D Canvas — bgCanvas (backgrounds) + transCanvas (transitions) |
-| Audio | Web Audio API — zero audio files; ILD+ITD spatial via StereoPannerNode + DelayNode |
+| Language | TypeScript 5 strict mode |
+| Build | Vite 5 + Terser (toplevel mangle, console drop) |
+| Canvas | HTML5 2D Canvas — OffscreenCanvas bg cache, Float32Array pools |
+| Audio | Web Audio API — zero audio files; true ILD+ITD spatial |
 | Time | Cloudflare multi-probe NTP + WorldTimeAPI fallback |
-| Weather | Open-Meteo — free, no API key |
-| Solar | NOAA Spencer/hour-angle formula — local computation |
-| QR | Custom GF(256) Reed-Solomon — Version 2-M, pure TypeScript |
+| Weather | Open-Meteo (free, no key) |
+| Solar | NOAA Spencer / hour-angle formula, local computation |
+| QR | Custom GF(256) Reed-Solomon, Version 2-M, pure TypeScript |
+| Integrations | Spotify PKCE, Google Calendar v3, Notion v1, Todoist v2, Linear GraphQL, GitHub v3 |
 | Cross-tab | BroadcastChannel API |
-| PWA | Manifest + service worker |
-| Storage | localStorage only — no backend, no cookies, no tracking |
-| Deployment | GitHub Actions → GitHub Pages |
+| PWA | Web App Manifest + Service Worker |
+| Storage | `localStorage` only — no backend, no cookies, no analytics |
+| Deploy | GitHub Actions → GitHub Pages |
+
+---
+
+## Getting Started
+
+```bash
+git clone https://github.com/ADJ189/Accurate-Time-
+cd Accurate-Time-
+npm install
+npm run dev        # localhost:5173
+```
+
+```bash
+npm run typecheck  # zero-error TypeScript check
+npm run build      # production build → dist/
+npm run preview    # preview production build
+```
+
+### Deploy to GitHub Pages
+
+1. Push to `main`
+2. **Settings → Pages → Source → GitHub Actions**
+
+The included `.github/workflows/deploy.yml` runs `typecheck → build → deploy` on every push. Zero configuration needed.
+
+---
+
+## Security
+
+Session Clock is **CodeQL-verified** — zero `innerHTML` injection of user-supplied data across 24 TypeScript modules. All dynamic content uses `textContent`, developer-authored SVG constants, or Canvas rendering.
+
+[![CodeQL](https://img.shields.io/badge/CodeQL-passing-16a34a?style=flat-square)](https://github.com/ADJ189/Accurate-Time-/security/code-scanning)
 
 ---
 
 ## License
 
-GNU AGPLv3
+MIT — use it, fork it, ship it.
 
 ---
 
 <div align="center">
-<sub>21 TypeScript modules · Zero runtime dependencies · Everything runs in your browser</sub>
+<sub>24 TypeScript modules · Zero runtime dependencies · 45 themes · 16 easter eggs · 6 integrations · 8 languages</sub>
 </div>
