@@ -275,10 +275,26 @@ Session Clock is **CodeQL-verified** — zero `innerHTML` injection of user-supp
 
 ## License
 
-MIT — use it, fork it, ship it.
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.
+
+This means:
+- ✅ Free to use, study, and modify
+- ✅ Free to distribute and fork
+- ⚠️ Any modifications **must also be open-sourced** under AGPL-3.0
+- ⚠️ If you run a modified version as a web service, you **must publish your source**
+
+See [`LICENSE`](LICENSE) for the full text.
 
 ---
 
 <div align="center">
+
 <sub>24 TypeScript modules · Zero runtime dependencies · 45 themes · 16 easter eggs · 6 integrations · 8 languages</sub>
+
+---
+
+Made with ❤️ by **ADJ189**
+
+*"Focus is the art of knowing what to ignore."*
+
 </div>
