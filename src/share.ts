@@ -13,7 +13,7 @@ interface ShareCardOptions {
   date: string;
 }
 
-export function generateShareCard(opts: ShareCardOptions): void {
+export function generateShareCard(opts: ShareCardOptions, download = true): HTMLCanvasElement {
   const W = 1200, H = 630;
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
@@ -120,11 +120,14 @@ export function generateShareCard(opts: ShareCardOptions): void {
   c.fillRect(0, H - 4, W, 4);
   c.globalAlpha = 1;
 
-  // ── Download
-  const link = document.createElement('a');
-  link.download = `session-clock-${Date.now()}.png`;
-  link.href = cv.toDataURL('image/png', 0.95);
-  link.click();
+  // ── Download (optional)
+  if (download) {
+    const link = document.createElement('a');
+    link.download = `session-clock-${Date.now()}.png`;
+    link.href = cv.toDataURL('image/png', 0.95);
+    link.click();
+  }
+  return cv;
 }
 
 function drawCardClock(

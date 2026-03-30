@@ -2353,36 +2353,53 @@ async function openShareCard() {
   const todayMins = Math.max(1, Math.floor(todayMs / 60000));
   const task = DOM.focusInput.value.trim();
 
-  // Generate card canvas
-  const cv = document.createElement('canvas'); cv.width = 1200; cv.height = 630;
-  generateShareCard({
+  const cardOpts = {
     themeName:    currentTheme.name,
     accentColor:  currentTheme.accent,
-    bgColor:      currentTheme.baseBg[0],
+    bgColor:      currentTheme.baseBg[0]!,
     textColor:    currentTheme.text,
     glow:         currentTheme.glow,
     focusMinutes: todayMins,
     taskName:     task,
     streakDays:   Intel.getStreak().current,
     date:         new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
-  });
+  };
 
-  // Re-generate to canvas for sharing (generateShareCard triggers download internally)
-  // Try native share first on mobile
+  // Generate the real rendered canvas once (no download yet)
+  const cv = generateShareCard(cardOpts, false);
+
+  // 1. Try native share (mobile)
   if (APIs.canShare()) {
-    // Regenerate to an off-screen canvas to get the blob
-    const offCv = document.createElement('canvas'); offCv.width = 1200; offCv.height = 630;
-    // Draw the card to offCv (reuse share.ts logic via existing download)
-    const shared = await APIs.shareCard(offCv, task, todayMins).catch(() => false);
-    if (shared) { showToast('Shared!'); return; }
+    try {
+      const blob: Blob = await new Promise(res => cv.toBlob(b => res(b!), 'image/png', 0.95));
+      const file = new File([blob], 'session-clock.png', { type: 'image/png' });
+      await navigator.share({ files: [file], title: 'Session Clock', text: `${todayMins} minutes focused today` });
+      showToast('Shared! 🎉');
+      return;
+    } catch { /* fall through */ }
   }
 
-  // Try clipboard copy
-  const offCv2 = document.createElement('canvas'); offCv2.width = 400; offCv2.height = 210;
-  const copied = await APIs.copyCardToClipboard(offCv2).catch(() => false);
-  if (copied) { showToast('Focus card copied to clipboard!'); return; }
+  // 2. Try clipboard API (desktop Chrome/Edge — requires user gesture)
+  try {
+    const blob: Blob = await new Promise(res => cv.toBlob(b => res(b!), 'image/png', 0.95));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    showToast('Focus card copied to clipboard! 📋');
+    return;
+  } catch { /* fall through */ }
 
-  showToast('Focus card saved to your downloads!');
+  // 3. Try copying the data URL as text fallback
+  try {
+    await navigator.clipboard.writeText(cv.toDataURL('image/png', 0.95));
+    showToast('Card data copied — paste into an image editor 📋');
+    return;
+  } catch { /* fall through */ }
+
+  // 4. Download as final fallback — trigger download on the already-rendered canvas
+  const link = document.createElement('a');
+  link.download = `session-clock-${Date.now()}.png`;
+  link.href = cv.toDataURL('image/png', 0.95);
+  link.click();
+  showToast('Focus card saved! 🖼');
 }
 
 // ── Service Worker registration ───────────────────────────────────────
@@ -2745,20 +2762,23 @@ function openIntegrations() {
 }
 
 function buildLanguageUI(container: HTMLElement) {
-  container.innerHTML = '';
+  while (container.firstChild) container.removeChild(container.firstChild);
   const grid = document.createElement('div');
   grid.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:8px;';
   (Object.keys(LOCALE_NAMES) as Locale[]).forEach(locale => {
     const btn = document.createElement('button');
-    const active = locale === getLocale();
-    btn.style.cssText = `display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:12px;border:1.5px solid ${active ? 'var(--clr-accent)' : 'rgba(255,255,255,.09)'};background:${active ? 'rgba(110,231,183,.08)' : 'rgba(255,255,255,.04)'};cursor:pointer;color:inherit;text-align:left;transition:border-color .15s,background .15s;`;
-    const flag = document.createElement('span'); flag.style.cssText = 'font-size:1.3rem;'; flag.textContent = LOCALE_FLAGS[locale];
-    const name = document.createElement('div');
-    const nm = document.createElement('div'); nm.style.cssText = 'font-size:.74rem;font-weight:700;'; nm.textContent = LOCALE_NAMES[locale];
-    const lc = document.createElement('div'); lc.style.cssText = 'font-size:.55rem;opacity:.4;letter-spacing:.04em;'; lc.textContent = locale.toUpperCase();
-    name.append(nm, lc);
-    if (active) { const check = document.createElement('span'); check.style.cssText = 'margin-left:auto;color:var(--clr-accent);font-size:.8rem;'; check.textContent = '✓'; btn.append(flag, name, check); }
-    else btn.append(flag, name);
+    btn.className = 'lang-btn' + (locale === getLocale() ? ' lang-btn--active' : '');
+    const flag = document.createElement('span'); flag.className = 'lang-flag'; flag.textContent = LOCALE_FLAGS[locale];
+    const nameWrap = document.createElement('div');
+    const nm = document.createElement('div'); nm.className = 'lang-name'; nm.textContent = LOCALE_NAMES[locale];
+    const lc = document.createElement('div'); lc.className = 'lang-code'; lc.textContent = locale.toUpperCase();
+    nameWrap.append(nm, lc);
+    if (locale === getLocale()) {
+      const check = document.createElement('span'); check.className = 'lang-check'; check.textContent = '✓';
+      btn.append(flag, nameWrap, check);
+    } else {
+      btn.append(flag, nameWrap);
+    }
     btn.addEventListener('click', () => {
       setLocale(locale);
       buildLanguageUI(container);
@@ -2768,8 +2788,8 @@ function buildLanguageUI(container: HTMLElement) {
   });
   container.appendChild(grid);
   const note = document.createElement('p');
-  note.style.cssText = 'font-size:.6rem;opacity:.3;margin:12px 0 0;line-height:1.6;';
-  note.textContent = 'UI language only. Themes and content remain in English. Translations contributed by the community — some strings may be incomplete.';
+  note.className = 'lang-note';
+  note.textContent = 'UI language only. Themes and content remain in English.';
   container.appendChild(note);
 }
 
