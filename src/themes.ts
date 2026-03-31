@@ -160,6 +160,42 @@ export const THEMES: Theme[] = [
     hdr:true, grain:true, scanlines:false, lb:true, isMedia:true, transition:'moonrise',
     quotes:['"I am the Fist of Khonshu."','"The suit is made of moonbeams, Marc."','"What is Marc Spector? A mercenary. A murderer."','"Khonshu chose me to be his avatar."'] },
 
+  // ── Project Hail Mary ────────────────────────────────────────────────
+  { id:'hailmary', name:'Project Hail Mary', cat:'movie', sub:'Novel · Andy Weir', tagline:'🌟 How did I get here?',
+    font:"'Orbitron',monospace", bgType:'hailmary',
+    baseBg:['#000a0f','#000f18','#000508'],
+    overlay:'radial-gradient(ellipse at 50% 40%,rgba(0,220,160,.07),rgba(0,8,14,.65) 70%)',
+    vignette:'radial-gradient(ellipse at center,transparent 14%,rgba(0,4,8,.98) 100%)',
+    text:'#c8fff0', accent:'#00e8a8', accent2:'#00b8ff', track:'rgba(0,230,168,.2)',
+    btnBg:'rgba(0,200,140,.14)', btnFg:'#c8fff0', pill:'rgba(0,200,140,.07)',
+    panel:'rgba(0,6,12,.96)', glow:'0 0 70px rgba(0,220,160,.45)',
+    hdr:true, grain:false, scanlines:false, lb:true, isMedia:true, transition:'hailmary_warp',
+    quotes:['"How did I get here? More importantly, where is here?"','"I\'m not dead. That\'s a good start."','"Ryland. My name is Ryland Grace."','"It\'s okay to be scared. Just don\'t let it stop you."'] },
+
+  // ── Evangelion ───────────────────────────────────────────────────────
+  { id:'evangelion', name:'Neon Genesis Evangelion', cat:'anime', sub:'Anime · 1995', tagline:'⚠️ Don\'t run away.',
+    font:"'Teko',sans-serif", bgType:'evangelion',
+    baseBg:['#0a0400','#160600','#060200'],
+    overlay:'radial-gradient(ellipse at 50% 85%,rgba(255,80,0,.12),rgba(8,3,0,.65) 70%)',
+    vignette:'radial-gradient(ellipse at center,transparent 10%,rgba(5,1,0,.98) 100%)',
+    text:'#f5e8d0', accent:'#ff4400', accent2:'#00cc44', track:'rgba(255,68,0,.22)',
+    btnBg:'rgba(220,50,0,.18)', btnFg:'#f5e8d0', pill:'rgba(220,50,0,.09)',
+    panel:'rgba(6,2,0,.96)', glow:'0 0 60px rgba(255,60,0,.5)',
+    hdr:true, grain:true, scanlines:true, lb:true, isMedia:true, transition:'eva_alert',
+    quotes:['"Don\'t run away. Don\'t run away."','"I mustn\'t run away."','"Get in the robot, Shinji."','"Congratulations."','"I am not alone. I can exist here."'] },
+
+  // ── Akira ─────────────────────────────────────────────────────────────
+  { id:'akira', name:'Akira', cat:'anime', sub:'Anime · 1988', tagline:'🏍 Kaneda!',
+    font:"'Bebas Neue',cursive", bgType:'akira',
+    baseBg:['#000008','#000010','#000005'],
+    overlay:'radial-gradient(ellipse at 50% 80%,rgba(220,0,50,.1),rgba(0,0,8,.7) 70%)',
+    vignette:'radial-gradient(ellipse at center,transparent 8%,rgba(0,0,6,.98) 100%)',
+    text:'#f0e8ff', accent:'#ee0044', accent2:'#0044ff', track:'rgba(238,0,68,.22)',
+    btnBg:'rgba(200,0,40,.18)', btnFg:'#f0e8ff', pill:'rgba(200,0,40,.09)',
+    panel:'rgba(0,0,8,.97)', glow:'0 0 60px rgba(220,0,44,.5)',
+    hdr:false, grain:true, scanlines:true, lb:true, isMedia:true, transition:'akira_blast',
+    quotes:['"Kaneda!"','"What is this power?"','"I am Akira."','"The city will be destroyed again."','"Neo-Tokyo is about to explode."'] },
+
   // ── Anime ─────────────────────────────────────────────────────────────
   { id:'onepiece', name:'One Piece', cat:'anime', sub:'Anime · Manga', tagline:'🏴‍☠️ I\'m going to be King of the Pirates!',
     font:"'Bebas Neue',cursive", bgType:'onepiece',

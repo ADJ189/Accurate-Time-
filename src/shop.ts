@@ -120,6 +120,23 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id:'dn_chip',     themeId:'deathnote', name:'Potato Chip',            desc:'"I\'ll take a potato chip… and eat it!"',    cost:10,  icon:'🍟', type:'cosmetic' },
   { id:'dn_l',        themeId:'deathnote', name:'L\'s Cake',              desc:'I\'ll take the case. But give me cake first.',cost:35, icon:'🍰', type:'cosmetic' },
 
+  // ── Project Hail Mary ──
+  { id:'hm_astrophage',themeId:'hailmary', name:'Astrophage Vial',        desc:'The organism that started it all',            cost:65, icon:'🧫', type:'cosmetic' },
+  { id:'hm_stratt',   themeId:'hailmary', name:'Stratt\'s Notebook',     desc:'Saving the world, one calculation at a time', cost:40, icon:'📓', type:'cosmetic' },
+  { id:'hm_rocky',    themeId:'hailmary', name:'Rocky\'s Carapace',      desc:'The first alien friend',                      cost:80, icon:'🪨', type:'badge'    },
+  { id:'hm_tauceti',  themeId:'hailmary', name:'Tau Ceti Star Map',      desc:'The destination. 11.9 light-years away.',     cost:55, icon:'🌟', type:'cosmetic' },
+
+  // ── Evangelion ──
+  { id:'ev_unit01',   themeId:'evangelion', name:'Unit-01 Badge',        desc:'The Eva that always fought back',             cost:85, icon:'🤖', type:'badge'    },
+  { id:'ev_prog',     themeId:'evangelion', name:'Progressive Knife',    desc:'Standard equipment. Very sharp.',             cost:50, icon:'🗡', type:'cosmetic' },
+  { id:'ev_soul',     themeId:'evangelion', name:'Core Crystal',         desc:'Something lives inside the Eva.',             cost:70, icon:'💜', type:'cosmetic' },
+  { id:'ev_nerv',     themeId:'evangelion', name:'NERV Keycard',         desc:'God\'s in his heaven — all\'s right with the world.',cost:30,icon:'🪪',type:'cosmetic'},
+
+  // ── Akira ──
+  { id:'ak_bike',     themeId:'akira', name:'Kaneda\'s Motorcycle',      desc:'The red bike. Neo-Tokyo, 2019.',              cost:90, icon:'🏍', type:'badge'    },
+  { id:'ak_capsules', themeId:'akira', name:'Clown Capsules',            desc:'Don\'t take them all at once.',               cost:20, icon:'💊', type:'cosmetic' },
+  { id:'ak_jacket',   themeId:'akira', name:'Capsule Gang Jacket',       desc:'Red. Always red.',                            cost:55, icon:'🧥', type:'cosmetic' },
+
   { id:'f1rb_trophy', themeId:'redbull',     name:'WCC Trophy',            desc:'World Constructors Champions',             cost:100, icon:'🏆', type:'badge'    },
   { id:'f1rb_helmet', themeId:'redbull',     name:'Max\'s Helmet',         desc:'Blue and red RB design',                  cost:60,  icon:'🪖', type:'cosmetic' },
   { id:'f1fe_horse',  themeId:'ferrari',     name:'Prancing Horse Pin',    desc:'Il Cavallino Rampante',                   cost:60,  icon:'🐎', type:'badge'    },

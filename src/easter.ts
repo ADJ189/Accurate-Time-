@@ -87,6 +87,13 @@ const KEYWORD_ACTIONS: Record<string, () => void> = {
   'lightyagami': () => { triggerDeathNoteEgg(); },
   'kira':        () => { triggerThemeEasterEgg('deathnote', '📓 I am justice. I am the god of the new world.'); },
   'potato chip': () => { triggerThemeEasterEgg('deathnote', '📓 I\'ll take a potato chip… and eat it!'); },
+  'hailmary':    () => { triggerThemeEasterEgg('hailmary',   '🌟 My name is Ryland Grace. And I might be the only hope for my species.'); },
+  'ryland':      () => { triggerThemeEasterEgg('hailmary',   '🌟 I\'m not dead. That\'s a good start.'); },
+  'rocky':       () => { triggerThemeEasterEgg('hailmary', '🌟 ...That\'s not a name. That\'s a species description.'); },
+  'shinji':      () => { triggerThemeEasterEgg('evangelion', '⚠️ I mustn\'t run away. I mustn\'t run away.'); },
+  'nerv':        () => { triggerEvaAlert(); },
+  'kaneda':      () => { triggerThemeEasterEgg('akira', '🏍 KANEDA!'); },
+  'tetsuo':      () => { triggerAkiraBlast(); },
 };
 
 function setupKeywordDetector() {
@@ -174,6 +181,48 @@ function triggerTenetReverse() {
   document.body.classList.add('tenet-reverse');
   _showToast('⏪ What\'s happened, happened.', 4000);
   setTimeout(() => document.body.classList.remove('tenet-reverse'), 5000);
+}
+
+// ── Evangelion: NERV alert screen ────────────────────────────────────
+function triggerEvaAlert() {
+  _applyThemeById('evangelion');
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9000;pointer-events:none;';
+  document.body.appendChild(overlay);
+  let frame = 0;
+  const interval = setInterval(() => {
+    while (overlay.firstChild) overlay.removeChild(overlay.firstChild);
+    if (frame % 6 < 3) {
+      const bar = document.createElement('div');
+      bar.style.cssText = `position:absolute;inset:0;background:rgba(200,0,0,${0.08 + Math.random() * 0.06});`;
+      overlay.appendChild(bar);
+      // NERV text
+      const txt = document.createElement('div');
+      txt.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:monospace;font-size:clamp(.6rem,1.5vw,.9rem);color:#ff4400;opacity:.6;letter-spacing:.2em;text-align:center;white-space:nowrap;';
+      txt.textContent = '⚠ PATTERN BLUE DETECTED ⚠';
+      overlay.appendChild(txt);
+    }
+    if (++frame > 24) { clearInterval(interval); overlay.remove(); }
+  }, 80);
+  _showToast('⚠️ Pattern Blue detected. Evangelion Unit-01, launch!', 5000);
+}
+
+// ── Akira: psychic blast screen shake ────────────────────────────────
+function triggerAkiraBlast() {
+  _applyThemeById('akira');
+  document.body.style.transition = 'transform .06s';
+  let frame = 0;
+  const shakes = [[-4,2],[4,-3],[-3,-4],[3,3],[-2,4],[2,-2],[0,0]];
+  const interval = setInterval(() => {
+    const s = shakes[frame % shakes.length]!;
+    document.body.style.transform = `translate(${s[0]}px,${s[1]}px)`;
+    if (++frame > 14) {
+      clearInterval(interval);
+      document.body.style.transform = '';
+      setTimeout(() => { document.body.style.transition = ''; }, 200);
+    }
+  }, 40);
+  _showToast('🏍 The power of Akira awakens!', 4000);
 }
 
 // ── One Piece: Luffy scream effect ────────────────────────────────────

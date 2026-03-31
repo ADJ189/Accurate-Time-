@@ -254,6 +254,9 @@ const DRAW: Record<string, (dt: number, theme: Theme) => void> = {
   onepiece(dt,t)    { drawOnePiece(dt, t); },
   attackontitan(dt,t){ drawAttackOnTitan(dt, t); },
   deathnote(dt,t)   { drawDeathNote(dt, t); },
+  hailmary(dt,t)    { drawHailMary(dt, t); },
+  evangelion(dt,t)  { drawEvangelion(dt, t); },
+  akira(dt,t)       { drawAkira(dt, t); },
 };
 
 // ── Background animations ─────────────────────────────────────────────
@@ -1734,6 +1737,171 @@ function drawDeathNote(dt: number, t: Theme) {
   }
 }
 
+// ── PROJECT HAIL MARY — bioluminescent astrophage + starfield ────────
+const HM_STAR_COUNT = 320;
+const hmStars = new Float32Array(HM_STAR_COUNT * 4); // x,y,r,phase
+let hmInit = false;
+interface Astrophage { x: number; y: number; r: number; phase: number; drift: number; }
+const astrophages: Astrophage[] = [];
+
+function drawHailMary(dt: number, t: Theme) {
+  if (!hmInit) {
+    hmInit = true;
+    for (let i = 0; i < HM_STAR_COUNT; i++) {
+      const o = i * 4;
+      hmStars[o] = rnd(W); hmStars[o+1] = rnd(H);
+      hmStars[o+2] = rnd(1.8) + 0.2; hmStars[o+3] = rnd(Math.PI * 2);
+    }
+    // Astrophage organisms — glowing green-teal blobs
+    for (let i = 0; i < 18; i++) {
+      astrophages.push({
+        x: rnd(W), y: rnd(H), r: 4 + rnd(12),
+        phase: rnd(Math.PI * 2), drift: (Math.random() - 0.5) * 0.4,
+      });
+    }
+  }
+
+  // Stars
+  for (let i = 0; i < HM_STAR_COUNT; i++) {
+    const o = i * 4;
+    hmStars[o+3] += dt * 0.5;
+    const a = 0.4 + Math.sin(hmStars[o+3]!) * 0.45;
+    c.globalAlpha = a;
+    c.fillStyle = '#c8fff0';
+    c.beginPath(); c.arc(hmStars[o]!, hmStars[o+1]!, hmStars[o+2]!, 0, Math.PI * 2); c.fill();
+  }
+  c.globalAlpha = 1;
+
+  // Astrophage bioluminescent organisms
+  if (shouldDrawGlow()) {
+    astrophages.forEach(a => {
+      a.phase += dt * 0.8;
+      a.x += a.drift;
+      if (a.x < -20) a.x = W + 20;
+      if (a.x > W + 20) a.x = -20;
+      const pulse = 0.6 + Math.sin(a.phase) * 0.35;
+      const ag = c.createRadialGradient(a.x, a.y, 0, a.x, a.y, a.r * 3);
+      ag.addColorStop(0, `rgba(0,230,160,${pulse * 0.5})`);
+      ag.addColorStop(0.4, `rgba(0,180,120,${pulse * 0.18})`);
+      ag.addColorStop(1, 'transparent');
+      c.fillStyle = ag; c.fillRect(0, 0, W, H);
+      // Core
+      c.fillStyle = `rgba(0,255,180,${pulse * 0.7})`;
+      c.beginPath(); c.arc(a.x, a.y, a.r * pulse * 0.4, 0, Math.PI * 2); c.fill();
+    });
+
+    // Tau Ceti — distant star glow top-right
+    const sg = c.createRadialGradient(W * 0.82, H * 0.12, 0, W * 0.82, H * 0.12, W * 0.18);
+    sg.addColorStop(0, 'rgba(255,240,180,.12)'); sg.addColorStop(1, 'transparent');
+    c.fillStyle = sg; c.fillRect(0, 0, W, H);
+    c.fillStyle = 'rgba(255,230,160,.7)';
+    c.beginPath(); c.arc(W * 0.82, H * 0.12, 4, 0, Math.PI * 2); c.fill();
+  }
+}
+
+// ── EVANGELION — AT Field hexagons + NERV UI + orange sky ────────────
+let evaHexPhase = 0;
+
+function drawEvangelion(dt: number, t: Theme) {
+  evaHexPhase += dt * 0.4;
+
+  // AT Field hex grid — faint, rotates slowly
+  if (shouldDrawGlow()) {
+    const size = Math.min(W, H) * 0.08;
+    const cols = Math.ceil(W / (size * 1.73)) + 2;
+    const rows = Math.ceil(H / (size * 1.5)) + 2;
+    c.strokeStyle = `rgba(255,68,0,${0.04 + Math.sin(evaHexPhase * 0.3) * 0.02})`;
+    c.lineWidth = 0.8;
+    for (let row = -1; row < rows; row++) {
+      for (let col = -1; col < cols; col++) {
+        const hx = col * size * 1.73 + (row % 2) * size * 0.865;
+        const hy = row * size * 1.5;
+        c.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 - Math.PI / 6 + evaHexPhase * 0.05;
+          const px = hx + Math.cos(a) * size;
+          const py = hy + Math.sin(a) * size;
+          i === 0 ? c.moveTo(px, py) : c.lineTo(px, py);
+        }
+        c.closePath(); c.stroke();
+      }
+    }
+
+    // NERV-style scan line overlay
+    c.strokeStyle = `rgba(255,68,0,${0.06 + Math.sin(evaHexPhase * 1.5) * 0.03})`;
+    c.lineWidth = 1;
+    const scanY = (tick * 80) % H;
+    c.beginPath(); c.moveTo(0, scanY); c.lineTo(W, scanY); c.stroke();
+
+    // Core warning glow at bottom
+    const wg = c.createLinearGradient(0, H * 0.6, 0, H);
+    wg.addColorStop(0, 'transparent');
+    wg.addColorStop(1, `rgba(255,60,0,${0.1 + Math.sin(evaHexPhase * 2) * 0.05})`);
+    c.fillStyle = wg; c.fillRect(0, 0, W, H);
+  }
+}
+
+// ── AKIRA — Neo-Tokyo rain + psychic energy rings ────────────────────
+interface AkiraRing { x: number; y: number; r: number; maxR: number; alpha: number; }
+const akiraRings: AkiraRing[] = [];
+let akiraRingTimer = 0;
+interface AkiraRainDrop { x: number; y: number; len: number; speed: number; }
+const akiraRain: AkiraRainDrop[] = [];
+let akiraRainInit = false;
+
+function drawAkira(dt: number, t: Theme) {
+  if (!akiraRainInit) {
+    akiraRainInit = true;
+    for (let i = 0; i < 80; i++) {
+      akiraRain.push({ x: rnd(W), y: rnd(H), len: 15 + rnd(45), speed: 8 + rnd(16) });
+    }
+  }
+
+  // Night rain
+  if (shouldRenderFull()) {
+    c.strokeStyle = 'rgba(80,80,160,.25)'; c.lineWidth = 0.8;
+    akiraRain.forEach(d => {
+      d.y += d.speed;
+      if (d.y > H + d.len) { d.y = -d.len; d.x = rnd(W); }
+      c.beginPath(); c.moveTo(d.x, d.y - d.len); c.lineTo(d.x + d.len * 0.15, d.y); c.stroke();
+    });
+  }
+
+  // Psychic energy rings expanding from centre
+  akiraRingTimer += dt;
+  if (akiraRingTimer > 1.8 && akiraRings.length < 5) {
+    akiraRingTimer = 0;
+    akiraRings.push({ x: W * 0.5, y: H * 0.45, r: 0, maxR: Math.min(W, H) * 0.55, alpha: 0.6 });
+  }
+  for (let i = akiraRings.length - 1; i >= 0; i--) {
+    const ring = akiraRings[i]!;
+    ring.r += dt * 120;
+    ring.alpha = Math.max(0, 0.6 * (1 - ring.r / ring.maxR));
+    if (ring.alpha <= 0) { akiraRings.splice(i, 1); continue; }
+    c.strokeStyle = `rgba(238,0,68,${ring.alpha})`;
+    c.lineWidth = 1.5;
+    c.beginPath(); c.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2); c.stroke();
+    // Inner ring
+    if (ring.r > 20) {
+      c.strokeStyle = `rgba(0,68,238,${ring.alpha * 0.4})`;
+      c.beginPath(); c.arc(ring.x, ring.y, ring.r * 0.7, 0, Math.PI * 2); c.stroke();
+    }
+  }
+
+  // City silhouette at bottom
+  if (shouldDrawGlow()) {
+    c.fillStyle = 'rgba(0,0,8,.9)';
+    c.beginPath(); c.moveTo(0, H);
+    const bw = W / 24;
+    for (let i = 0; i <= 24; i++) {
+      const bx = i * bw;
+      const bh = H * 0.65 - Math.abs(Math.sin(i * 2.1 + 1.3)) * H * 0.12 - rnd(H * 0.04);
+      i === 0 ? c.lineTo(bx, bh) : c.lineTo(bx, bh);
+    }
+    c.lineTo(W, H); c.closePath(); c.fill();
+  }
+}
+
 // ── Transitions ───────────────────────────────────────────────────────
 export function runTransition(type: string, cb: () => void) {
   if (transitioning) { cb(); return; }
@@ -1859,8 +2027,22 @@ const TRANS: Record<string, (cb: () => void) => void> = {
     const go=()=>{p+=.02;tc.fillStyle=`rgba(6,5,0,${Math.min(.92,p*1.4)})`;tc.fillRect(0,0,W,H);particles.forEach(pt=>{pt.x+=pt.vx;if(pt.x<W){tc.beginPath();tc.arc(pt.x,pt.y,pt.r,0,Math.PI*2);tc.fillStyle=`rgba(200,168,112,${pt.a*(1-p*.5)})`;tc.fill();}});if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
   },
   deathnote_write(cb) {
-    // Ink spreads from centre
     let p=0,called=false;
     const go=()=>{p+=.016;const r=Math.min(W,H)*(p*0.9);tc.fillStyle=`rgba(4,0,6,${Math.min(.95,p*1.6)})`;tc.fillRect(0,0,W,H);if(r>10){const ig=tc.createRadialGradient(W/2,H/2,0,W/2,H/2,r);ig.addColorStop(0,`rgba(100,0,100,${Math.min(.3,p*.4)})`);ig.addColorStop(1,'transparent');tc.fillStyle=ig;tc.fillRect(0,0,W,H);}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  hailmary_warp(cb) {
+    // Bioluminescent warp — teal streaks converge
+    let p=0,called=false;const streaks=[...Array(30)].map((_,i)=>({a:i/30*Math.PI*2,r:0}));
+    const go=()=>{p+=.018;tc.fillStyle=`rgba(0,8,14,${Math.min(.92,p*1.3)})`;tc.fillRect(0,0,W,H);streaks.forEach(s=>{s.r=p*Math.min(W,H)*.8;const x=W/2+Math.cos(s.a)*s.r,y=H/2+Math.sin(s.a)*s.r;const sg=tc.createLinearGradient(W/2,H/2,x,y);sg.addColorStop(0,'transparent');sg.addColorStop(1,`rgba(0,220,160,${Math.max(0,.4-p*.3)})`);tc.strokeStyle=sg;tc.lineWidth=1;tc.beginPath();tc.moveTo(W/2,H/2);tc.lineTo(x,y);tc.stroke();});if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  eva_alert(cb) {
+    // NERV alert — red flicker then black
+    let p=0,called=false;let flash=0;
+    const go=()=>{p+=.02;flash=Math.sin(p*Math.PI*8)>.3?1:0;tc.fillStyle=flash&&p<.6?`rgba(200,0,0,${.15*Math.min(1,p*3)})`:`rgba(6,2,0,${Math.min(.94,p*1.4)})`;tc.fillRect(0,0,W,H);if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
+  },
+  akira_blast(cb) {
+    // Psychic ring explosion outward
+    let p=0,called=false;
+    const go=()=>{p+=.02;tc.fillStyle=`rgba(0,0,8,${Math.min(.94,p*1.4)})`;tc.fillRect(0,0,W,H);for(let i=0;i<3;i++){const r=p*Math.min(W,H)*(0.4+i*.25);const a=Math.max(0,.5-p*.6);tc.strokeStyle=i%2===0?`rgba(238,0,68,${a})`:`rgba(0,68,238,${a*.5})`;tc.lineWidth=1.5;tc.beginPath();tc.arc(W/2,H*.45,r,0,Math.PI*2);tc.stroke();}if(!called&&p>=.55){called=true;cb();}p<1.05?requestAnimationFrame(go):finishTrans();};requestAnimationFrame(go);
   },
 };

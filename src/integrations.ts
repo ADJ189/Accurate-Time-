@@ -89,13 +89,23 @@ function generateVerifier(length = 64): string {
 }
 
 export async function spotifyLogin(clientId: string) {
-  localStorage.setItem(SPOTIFY_CLIENT_ID_KEY, clientId);
+  // Sanitise clientId — must be alphanumeric (Spotify client IDs are hex strings)
+  const safeClientId = clientId.replace(/[^a-zA-Z0-9]/g, '');
+  if (!safeClientId || safeClientId.length < 16) return;
+  localStorage.setItem(SPOTIFY_CLIENT_ID_KEY, safeClientId);
   const verifier  = generateVerifier();
   const challenge = await spotifyPKCEChallenge(verifier);
   localStorage.setItem('sc_spotify_verifier', verifier);
-  const redirectUri = encodeURIComponent(window.location.origin + window.location.pathname);
-  const url = `https://accounts.spotify.com/authorize?response_type=code&client_id=${clientId}&scope=${encodeURIComponent(SPOTIFY_SCOPES)}&redirect_uri=${redirectUri}&code_challenge_method=S256&code_challenge=${challenge}`;
-  window.location.href = url;
+  // Build URL using URL constructor — prevents injection by design
+  const authUrl = new URL('https://accounts.spotify.com/authorize');
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('client_id', safeClientId);
+  authUrl.searchParams.set('scope', SPOTIFY_SCOPES);
+  authUrl.searchParams.set('redirect_uri', window.location.origin + window.location.pathname);
+  authUrl.searchParams.set('code_challenge_method', 'S256');
+  authUrl.searchParams.set('code_challenge', challenge);
+  // Use location.assign with the validated URL object's href
+  window.location.assign(authUrl.toString());
 }
 
 export async function spotifyHandleCallback() {

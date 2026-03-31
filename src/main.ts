@@ -71,6 +71,9 @@ const LOGOS: Record<string, string> = {
   onepiece:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000d1a"/><circle cx="16" cy="8" r="4" fill="#ffcc00" opacity=".9"/><path d="M4 16 Q8 12 16 14 Q24 12 28 16 L28 22 L4 22 Z" fill="#003d8f" opacity=".8"/><circle cx="8" cy="6" r="1.5" fill="#ffcc00" opacity=".5"/><circle cx="24" cy="6" r="1.5" fill="#ffcc00" opacity=".5"/></svg>`,
   attackontitan:`<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0a0800"/><path d="M22 22 L26 8 L28 22" fill="#1a1400" stroke="#c8a000" stroke-width=".8"/><path d="M22 22 L20 14 L24 14 Z" fill="#c8a000" opacity=".6"/><path d="M24 14 L28 14 L26 8 Z" fill="#884400" opacity=".5"/><line x1="4" y1="10" x2="18" y2="10" stroke="#c8a000" stroke-width=".5" opacity=".3" stroke-dasharray="2 2"/></svg>`,
   deathnote:    `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#060006"/><rect x="8" y="3" width="16" height="16" rx="2" fill="#0c000c" stroke="#cc00cc" stroke-width=".8"/><text x="16" y="11" text-anchor="middle" font-size="5" fill="#cc00cc" font-family="serif" opacity=".8">死</text><text x="16" y="17" text-anchor="middle" font-size="3.5" fill="#880088" font-family="serif" opacity=".6">神</text></svg>`,
+  hailmary:     `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000a0f"/><circle cx="26" cy="4" r="3" fill="rgba(255,240,180,.7)"/><circle cx="16" cy="11" r="2" fill="#00e8a8" opacity=".8"/><circle cx="8"  cy="14" r="1.5" fill="#00e8a8" opacity=".5"/><circle cx="22" cy="15" r="1" fill="#00b8ff" opacity=".6"/><circle cx="12" cy="7"  r="1" fill="#00e8a8" opacity=".4"/><path d="M14 10 Q16 9 18 10 Q20 12 18 14 Q16 15 14 14 Q12 12 14 10Z" fill="rgba(0,230,160,.2)" stroke="#00e8a8" stroke-width=".5"/></svg>`,
+  evangelion:   `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#0a0400"/><path d="M8 18 L16 3 L24 18 L20 18 L16 9 L12 18 Z" fill="#ff4400" opacity=".7"/><rect x="14" y="12" width="4" height="6" fill="#00cc44" opacity=".6"/><rect x="2" y="9" width="28" height="1" fill="#ff4400" opacity=".2"/></svg>`,
+  akira:        `<svg viewBox="0 0 32 22" fill="none"><rect width="32" height="22" fill="#000008"/><circle cx="16" cy="11" r="8" fill="none" stroke="#ee0044" stroke-width=".8" opacity=".8"/><circle cx="16" cy="11" r="5" fill="none" stroke="#0044ff" stroke-width=".5" opacity=".5"/><circle cx="16" cy="11" r="2" fill="#ee0044" opacity=".8"/><text x="16" y="20" text-anchor="middle" font-size="3.5" fill="#ee0044" opacity=".6" font-family="sans-serif" letter-spacing="1">AKIRA</text></svg>`,
 };
 
 // ── Cached DOM refs ────────────────────────────────────────────────────
@@ -3053,6 +3056,32 @@ function buildCommandPalette() {
       desc: 'Type "spice" → Dune theme',
       keywords: 'spice dune arrakis melange paul atreides',
       action: () => { applyTheme(THEME_BY_ID['dune']!); showToast('🏜️ The spice must flow.', 4000); },
+    },
+    {
+      id: 'hailmary-egg', name: 'Project Hail Mary',
+      icon: '🌟',
+      desc: 'Type "hailmary" or "ryland" → bioluminescent space theme',
+      keywords: 'hailmary ryland grace rocky astrophage tau ceti andy weir',
+      action: () => { applyTheme(THEME_BY_ID['hailmary']!); showToast('🌟 I\'m not dead. That\'s a good start.', 4000); },
+    },
+    {
+      id: 'evangelion-egg', name: 'Evangelion — Pattern Blue',
+      icon: '⚠️',
+      desc: 'Type "nerv" → NERV alert screen · "shinji" → theme switch',
+      keywords: 'evangelion nerv shinji unit01 rei asuka get in the robot',
+      action: () => {
+        applyTheme(THEME_BY_ID['evangelion']!);
+        // Trigger the alert effect
+        Easter.initEaster((id) => { const t = THEME_BY_ID[id]; if (t) applyTheme(t); }, showToast, () => Sound.playChime());
+        showToast('⚠️ Pattern Blue detected.', 4000);
+      },
+    },
+    {
+      id: 'akira-egg', name: 'Akira — Neo-Tokyo',
+      icon: '🏍',
+      desc: 'Type "kaneda" or "tetsuo" → psychic blast effect',
+      keywords: 'akira kaneda tetsuo neo tokyo anime 1988 manga',
+      action: () => { applyTheme(THEME_BY_ID['akira']!); showToast('🏍 Neo-Tokyo, 2019.', 4000); },
     },
   ];
 
