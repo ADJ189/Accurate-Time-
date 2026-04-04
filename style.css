@@ -1378,18 +1378,43 @@ body.flow-state .session-card { background: rgba(255,255,255,.03); border-color:
    TOAST NOTIFICATIONS
 ════════════════════════════════════════════════════════════ */
 .sc-toast {
-  position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%) translateY(12px);
+  position: fixed; bottom: 88px; left: 50%;
+  transform: translateX(-50%) translateY(16px) scale(.92);
   z-index: 9999; opacity: 0; pointer-events: none;
-  font-size: .75rem; font-weight: 600; letter-spacing: .03em;
-  padding: 10px 22px; border-radius: 99px;
-  background: rgba(14,12,30,.92); color: var(--clr-text);
-  border: 1px solid rgba(255,255,255,.14);
-  backdrop-filter: blur(20px); white-space: nowrap;
-  transition: opacity .3s, transform .4s cubic-bezier(.34,1.56,.64,1);
-  box-shadow: 0 4px 24px rgba(0,0,0,.5);
+  font-size: .74rem; font-weight: 700; letter-spacing: .04em;
+  padding: 11px 24px; border-radius: 99px;
+  background: var(--clr-panel, rgba(12,10,26,.96));
+  color: var(--clr-text);
+  /* Dialed-style: spinning conic accent border */
+  border: 1.5px solid transparent;
+  background-clip: padding-box;
+  white-space: nowrap;
+  transition: opacity .28s, transform .38s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:
+    0 0 0 1.5px var(--clr-accent),
+    0 8px 32px rgba(0,0,0,.55),
+    0 0 24px rgba(var(--clr-accent-rgb, 110,231,183), .2);
 }
-.sc-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
-body.light-theme .sc-toast { background: rgba(240,244,252,.95); color: var(--clr-text); }
+.sc-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+  animation: toastEntrance .42s cubic-bezier(.16,1,.3,1) forwards,
+             toastGlow 2s ease-in-out infinite .42s;
+}
+@keyframes toastEntrance {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(14px) scale(.88); }
+  60%  { opacity: 1; transform: translateX(-50%) translateY(-3px) scale(1.02); }
+  100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+@keyframes toastGlow {
+  0%,100% { box-shadow: 0 0 0 1.5px var(--clr-accent), 0 8px 32px rgba(0,0,0,.5), 0 0 20px rgba(var(--clr-accent-rgb,110,231,183),.18); }
+  50%     { box-shadow: 0 0 0 1.5px var(--clr-accent), 0 8px 40px rgba(0,0,0,.6), 0 0 40px rgba(var(--clr-accent-rgb,110,231,183),.35); }
+}
+body.light-theme .sc-toast {
+  background: rgba(240,244,252,.97);
+  color: var(--clr-text);
+  box-shadow: 0 0 0 1.5px var(--clr-accent), 0 8px 32px rgba(0,0,0,.2);
+}
 
 /* ════════════════════════════════════════════════════════════
    PWA INSTALL BUTTON (shown when installable)
@@ -2922,3 +2947,588 @@ body.clock-center .session-card {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
+
+/* ════════════════════════════════════════════════════════════
+   MICRO-ANIMATIONS — every interaction feels alive
+════════════════════════════════════════════════════════════ */
+
+/* ── Button ripple effect ──────────────────────────────────── */
+.btn, .btn-primary, .btn-ghost, .btn-icon, .feat-btn,
+.nat-btn, .template-card, .media-card, .panel-tab {
+  position: relative; overflow: hidden;
+}
+.btn::after, .btn-primary::after, .btn-ghost::after, .feat-btn::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at var(--rx,50%) var(--ry,50%),
+    rgba(255,255,255,.18) 0%, transparent 70%);
+  opacity: 0; border-radius: inherit;
+  transform: scale(0);
+  transition: opacity .4s, transform .4s;
+  pointer-events: none;
+}
+.btn:active::after, .btn-primary:active::after,
+.btn-ghost:active::after, .feat-btn:active::after {
+  opacity: 1; transform: scale(1);
+  transition: opacity 0s, transform 0s;
+}
+
+/* ── Toggle switch — spring bounce ─────────────────────────── */
+.settings-toggle {
+  transition: background .25s cubic-bezier(.34,1.56,.64,1);
+}
+.settings-toggle .toggle-thumb {
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1),
+              background .2s ease;
+}
+.settings-toggle.on .toggle-thumb {
+  transform: translateX(18px);
+}
+
+/* ── Toast — slide + fade in/out ──────────────────────────── */
+@keyframes toastIn {
+  0%   { opacity: 0; transform: translateX(24px) scale(.94); }
+  60%  { opacity: 1; transform: translateX(-4px) scale(1.01); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes toastOut {
+  0%   { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(16px) scale(.95); }
+}
+.toast { animation: toastIn .32s cubic-bezier(.16,1,.3,1) forwards; }
+.toast.hiding { animation: toastOut .22s ease forwards; }
+
+/* ── Modal — spring entrance ───────────────────────────────── */
+.sc-overlay.open .sc-modal {
+  animation: modalSpring .38s cubic-bezier(.16,1,.3,1) forwards;
+}
+@keyframes modalSpring {
+  0%   { opacity: 0; transform: translateY(28px) scale(.95); }
+  60%  { opacity: 1; transform: translateY(-3px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Clock digits — subtle scale pulse on change ──────────── */
+.digit-pair.tick {
+  animation: digitFlipCinematic .2s cubic-bezier(.4,0,.2,1);
+}
+@keyframes digitFlipCinematic {
+  0%   { opacity: 1; transform: translateY(0) scaleY(1); filter: blur(0); }
+  30%  { opacity: 0; transform: translateY(-6px) scaleY(.75); filter: blur(1px); }
+  70%  { opacity: 0; transform: translateY(6px) scaleY(.75); filter: blur(1px); }
+  100% { opacity: 1; transform: translateY(0) scaleY(1); filter: blur(0); }
+}
+
+/* ── Session card — breathe when running ──────────────────── */
+body.session-running .session-card {
+  animation: sessionBreathe 4s ease-in-out infinite;
+}
+@keyframes sessionBreathe {
+  0%, 100% { box-shadow:
+    0 1px 0 rgba(255,255,255,.07) inset,
+    0 8px 32px rgba(0,0,0,.28);
+  }
+  50% { box-shadow:
+    0 1px 0 rgba(255,255,255,.1) inset,
+    0 8px 40px rgba(0,0,0,.35),
+    0 0 0 1px rgba(var(--clr-accent-rgb,110,231,183),.08);
+  }
+}
+
+/* ── Feat buttons — haptic-style press ─────────────────────── */
+.feat-btn:active {
+  transform: scale(.88);
+  transition: transform .08s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── Theme swatches — pop on hover ─────────────────────────── */
+.nat-btn {
+  transition: transform .22s cubic-bezier(.34,1.56,.64,1),
+              border-color .2s, box-shadow .2s;
+}
+
+/* ── Media cards — lift with shadow ────────────────────────── */
+.media-card {
+  transition: transform .22s cubic-bezier(.34,1.56,.64,1),
+              box-shadow .22s ease, border-color .2s;
+}
+.media-card:hover {
+  transform: translateY(-4px) scale(1.025);
+  box-shadow: 0 12px 32px rgba(0,0,0,.4),
+              0 0 0 1px rgba(255,255,255,.06);
+}
+
+/* ── Settings rows — highlight on hover ────────────────────── */
+.settings-row {
+  transition: background .15s ease;
+  border-radius: 10px;
+}
+.settings-row:hover {
+  background: rgba(255,255,255,.03);
+}
+
+/* ── Panel tab — slide content ─────────────────────────────── */
+.tab-content {
+  animation: tabFadeSlide .2s cubic-bezier(.16,1,.3,1) forwards;
+}
+@keyframes tabFadeSlide {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Keyboard shortcut hint ─────────────────────────────────── */
+#kbHint {
+  animation: hintFade 6s ease forwards;
+}
+@keyframes hintFade {
+  0%,70% { opacity: .3; }
+  100%   { opacity: 0; pointer-events: none; }
+}
+
+/* ── Clock position pill — animated label change ────────────── */
+.clock-pos-pill {
+  transition: background .2s, color .2s, transform .15s;
+}
+.clock-pos-pill:active { transform: scale(.93); }
+
+/* ── Topbar pills — scale on press ─────────────────────────── */
+.topbar-icon-btn:active { transform: scale(.88) !important; }
+
+/* ── Input focus ring — accent glow ────────────────────────── */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--clr-accent-rgb,110,231,183),.35);
+  transition: box-shadow .18s ease;
+}
+
+/* ── Show-badge entrance ────────────────────────────────────── */
+@keyframes badgePop {
+  0%   { opacity: 0; transform: translateX(-50%) scale(.6) translateY(8px); }
+  70%  { transform: translateX(-50%) scale(1.08) translateY(-2px); }
+  100% { opacity: 1; transform: translateX(-50%) scale(1) translateY(0); }
+}
+
+/* ── Streak badge — celebratory pop ────────────────────────── */
+.streak-pop {
+  animation: streakCelebrate .6s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+@keyframes streakCelebrate {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.3) rotate(-5deg); }
+  70%  { transform: scale(.95) rotate(3deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* ── Focus log entries — stagger in ────────────────────────── */
+.log-entry {
+  animation: logEntryIn .3s cubic-bezier(.16,1,.3,1) both;
+}
+.log-entry:nth-child(1) { animation-delay: .02s; }
+.log-entry:nth-child(2) { animation-delay: .05s; }
+.log-entry:nth-child(3) { animation-delay: .08s; }
+.log-entry:nth-child(4) { animation-delay: .11s; }
+.log-entry:nth-child(5) { animation-delay: .14s; }
+@keyframes logEntryIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Reduced motion — disable all micro-animations ─────────── */
+body.reduced-motion * {
+  animation-duration: .01ms !important;
+  transition-duration: .01ms !important;
+}
+
+/* ════════════════════════════════════════════════════════════
+   RGB / HSL COLOUR PICKER
+════════════════════════════════════════════════════════════ */
+.color-swatch-pill {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 12px; border-radius: 99px;
+  background: var(--clr-pill, rgba(255,255,255,.06));
+  border: 1.5px solid rgba(255,255,255,.08);
+  cursor: pointer; color: var(--clr-text);
+  font-family: inherit;
+  transition: background .15s, border-color .15s, transform .15s;
+}
+.color-swatch-pill:hover { background: var(--clr-btn-bg); transform: translateY(-1px); }
+.color-swatch-pill.active {
+  border-color: var(--clr-accent);
+  background: var(--clr-btn-bg);
+  box-shadow: 0 0 0 1px var(--clr-accent);
+}
+.color-swatch-pill:active { transform: scale(.95); }
+
+body.light-theme .color-swatch-pill { background: rgba(0,0,0,.05); border-color: rgba(0,0,0,.09); }
+body.light-theme .color-swatch-pill.active { background: var(--clr-btn-bg); }
+
+/* ════════════════════════════════════════════════════════════
+   DIALED-INSPIRED DESIGN LANGUAGE
+   Radical focus · Personality in every interaction
+════════════════════════════════════════════════════════════ */
+
+/* ── Primary button — K14 elastic + K11 hue glow ──────────── */
+.btn-primary {
+  position: relative; overflow: hidden;
+  transition:
+    transform .22s cubic-bezier(.34,1.56,.64,1),
+    box-shadow .22s ease,
+    filter .15s ease;
+}
+.btn-primary::before {
+  content: '';
+  position: absolute; inset: -2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--spin-angle, 0deg),
+    var(--clr-accent), var(--clr-accent2, #818cf8),
+    var(--clr-accent), transparent 60%
+  );
+  opacity: 0;
+  transition: opacity .3s;
+  z-index: -1;
+  border-radius: 99px;
+}
+.btn-primary:hover::before { opacity: 0; }
+.btn-primary:active {
+  transform: scale(.93);
+  transition: transform .08s cubic-bezier(.4,0,.2,1);
+}
+/* Animate spin angle for running state */
+body.session-running .btn-primary::before {
+  opacity: .6;
+  animation: spinBorder 3s linear infinite;
+}
+@keyframes spinBorder {
+  from { --spin-angle: 0deg; }
+  to   { --spin-angle: 360deg; }
+}
+/* Register the custom property so CSS can animate it */
+@property --spin-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* ── Feat dock buttons — haptic-style with glow ────────────── */
+.feat-btn {
+  transition:
+    transform .18s cubic-bezier(.34,1.56,.64,1),
+    opacity .18s ease,
+    color .18s ease;
+}
+.feat-btn:hover {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px var(--clr-accent));
+}
+.feat-btn:active {
+  transform: scale(.82) translateY(2px) !important;
+}
+
+/* ── Session card start button — dialed breathing pulse ──── */
+body.session-running .btn-primary {
+  animation: dialedBreath 3s ease-in-out infinite;
+}
+@keyframes dialedBreath {
+  0%,100% {
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.2) inset,
+      0 4px 16px rgba(0,0,0,.25),
+      0 0 0 0 rgba(var(--clr-accent-rgb,110,231,183), .4);
+  }
+  50% {
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.25) inset,
+      0 6px 24px rgba(0,0,0,.32),
+      0 0 0 8px rgba(var(--clr-accent-rgb,110,231,183), 0);
+  }
+}
+
+/* ── Topbar — Dialed minimal strip ─────────────────────────── */
+.topbar {
+  height: 48px;
+}
+.topbar-icon-btn {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  opacity: .5;
+  transition: opacity .15s, transform .15s cubic-bezier(.34,1.56,.64,1), background .15s;
+}
+.topbar-icon-btn:hover {
+  opacity: 1;
+  background: rgba(255,255,255,.08);
+}
+.topbar-icon-btn:active { transform: scale(.85) !important; }
+
+/* ── Clock — Dialed large hero typography ───────────────────── */
+.clock-row {
+  gap: clamp(0px, .3vw, 4px);
+}
+.digit-pair {
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -.05em;
+}
+
+/* ── Session label — minimal ALL CAPS header ─────────────────  */
+.session-label {
+  text-transform: uppercase;
+  letter-spacing: .22em;
+  font-size: .5rem;
+  font-weight: 800;
+  opacity: .22;
+}
+
+/* ── Focus input — Dialed single-underline style ─────────────  */
+#focusInputWrap {
+  padding-top: 8px;
+}
+#focusInput {
+  font-size: .82rem;
+  font-weight: 500;
+  letter-spacing: .01em;
+  opacity: .75;
+  transition: opacity .2s;
+}
+#focusInput:focus { opacity: 1; }
+#focusTag {
+  font-size: .52rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  opacity: .28;
+}
+
+/* ── Status line — Dialed subtitle confidence ────────────────  */
+.session-status-line {
+  opacity: .38;
+  font-weight: 500;
+}
+body.session-running .session-status-line {
+  opacity: .55;
+  color: var(--clr-accent);
+}
+
+/* ── Greeting — Dialed minimal ALL CAPS ─────────────────────  */
+.greeting {
+  letter-spacing: .35em;
+  opacity: .32;
+  font-size: clamp(.52rem, .9vw, .7rem);
+  font-weight: 800;
+}
+
+/* ── UTC pill — Dialed monospace precision ──────────────────  */
+.utc-pill {
+  font-size: .6rem;
+  letter-spacing: .06em;
+  opacity: .45;
+  background: none;
+  border: none;
+  padding: 0;
+  transition: opacity .2s;
+}
+.utc-pill:hover { opacity: .8; }
+
+/* ── Panel toggle button — Dialed minimal ────────────────────  */
+#panelToggle {
+  font-size: .58rem;
+  letter-spacing: .18em;
+  opacity: .32;
+  padding: 8px 20px 5px;
+}
+#panelToggle:hover { opacity: .7; }
+
+/* ── Command palette — Dialed black glass ───────────────────  */
+.cmd-modal {
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.08);
+}
+.cmd-input {
+  font-size: .88rem;
+  font-weight: 500;
+  letter-spacing: .01em;
+}
+.cmd-input::placeholder { letter-spacing: .02em; }
+.cmd-item-name { font-size: .78rem; font-weight: 600; letter-spacing: -.005em; }
+.cmd-item-desc { opacity: .36; }
+
+/* ── Ripple ring on focus (Dialed K20) ──────────────────────  */
+@keyframes dialedRipple {
+  0%   { box-shadow: 0 0 0 0 rgba(var(--clr-accent-rgb,110,231,183),.4); }
+  100% { box-shadow: 0 0 0 12px rgba(var(--clr-accent-rgb,110,231,183),0); }
+}
+.btn-primary:focus-visible {
+  animation: dialedRipple .5s ease;
+  outline: none;
+}
+
+/* ── Light theme — Dialed works beautifully light too ───────  */
+body.light-theme .utc-pill { color: var(--clr-text); }
+body.light-theme .greeting  { color: var(--clr-text); }
+body.light-theme #focusTag  { color: var(--clr-text); }
+body.light-theme .session-label { color: var(--clr-text); }
+
+/* ════════════════════════════════════════════════════════════
+   FINAL POLISH PASS — perfecting every surface
+════════════════════════════════════════════════════════════ */
+
+/* ── Topbar infostrip chips ──────────────────────────────────── */
+.info-item {
+  font-size: .56rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  opacity: .38;
+  padding: 2px 8px;
+  border-radius: 99px;
+  border: 1px solid transparent;
+  transition: opacity .2s, border-color .2s, background .2s;
+}
+.info-item:hover {
+  opacity: .65;
+  border-color: rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+}
+
+/* ── Clock position pill — theme accent ─────────────────────── */
+#clockPosPill {
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  color: var(--clr-text);
+  opacity: .4;
+  transition: opacity .2s, background .2s, color .2s, transform .15s;
+}
+#clockPosPill:hover { opacity: .8; background: rgba(255,255,255,.1); }
+#clockPosPill.center-active {
+  color: var(--clr-accent);
+  border-color: rgba(var(--clr-accent-rgb,110,231,183),.35);
+  background: rgba(var(--clr-accent-rgb,110,231,183),.1);
+  opacity: 1;
+}
+
+/* ── Pomodoro ring wrap ──────────────────────────────────────── */
+#pomRingWrap {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+#pomRingSvg {
+  position: absolute;
+  filter: drop-shadow(0 0 8px rgba(var(--clr-accent-rgb,110,231,183),.35));
+  transition: filter .5s ease;
+}
+body.session-running #pomRingSvg {
+  filter: drop-shadow(0 0 12px rgba(var(--clr-accent-rgb,110,231,183),.6));
+}
+
+/* ── Session timer digits ────────────────────────────────────── */
+.session-timer {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+  letter-spacing: .04em;
+  transition: color .3s ease, text-shadow .3s ease;
+}
+body.session-running .session-timer {
+  color: var(--clr-accent);
+  text-shadow: 0 0 20px rgba(var(--clr-accent-rgb,110,231,183),.3);
+}
+
+/* ── Distraction button — Dialed minimal ─────────────────────── */
+.distraction-btn {
+  font-size: .58rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+/* ── Pom mode pill ───────────────────────────────────────────── */
+.pom-mode-pill {
+  transition: background .3s, color .3s, opacity .3s;
+}
+
+/* ── Flow state badge ────────────────────────────────────────── */
+#flowBadge {
+  animation: flowBadgePulse 2s ease-in-out infinite;
+}
+@keyframes flowBadgePulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(var(--clr-accent-rgb,110,231,183),.4); }
+  50%     { box-shadow: 0 0 0 6px rgba(var(--clr-accent-rgb,110,231,183),0); }
+}
+
+/* ── Theme panel — refined shadow ───────────────────────────── */
+#themePanel {
+  box-shadow: 0 -1px 0 rgba(255,255,255,.05), 0 -8px 32px rgba(0,0,0,.2);
+}
+
+/* ── Natural swatch active ring ─────────────────────────────── */
+.nat-btn.active {
+  border-color: var(--clr-accent) !important;
+  box-shadow:
+    0 0 0 2px var(--clr-accent),
+    0 0 12px rgba(var(--clr-accent-rgb,110,231,183),.4);
+}
+
+/* ── Media card active ───────────────────────────────────────── */
+.media-card.active {
+  border-color: var(--clr-accent);
+  box-shadow:
+    0 0 0 1px var(--clr-accent),
+    0 8px 24px rgba(0,0,0,.35),
+    0 0 20px rgba(var(--clr-accent-rgb,110,231,183),.15);
+}
+
+/* ── Theme panel tabs — theme accent underline ───────────────── */
+.panel-tabs {
+  gap: 0;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.panel-tab {
+  font-size: .56rem;
+  padding: 8px 14px 6px;
+  opacity: .38;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.panel-tab.active {
+  opacity: 1;
+  color: var(--clr-accent);
+}
+
+/* ── Settings sections ───────────────────────────────────────── */
+.settings-section-label {
+  color: var(--clr-accent);
+  opacity: .55;
+}
+.settings-row-label { font-weight: 600; }
+.settings-row-desc { opacity: .4; }
+
+/* ── Loading/transition page states ─────────────────────────── */
+body { transition: filter .4s ease; }
+body.theme-switching { filter: brightness(.85) saturate(.7); }
+
+/* ── Focus ring — accented outline ──────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgba(var(--clr-accent-rgb,110,231,183),.6);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Scrollbar — accent tinted ───────────────────────────────── */
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--clr-accent-rgb,110,231,183),.15);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--clr-accent-rgb,110,231,183),.3);
+}
+
+/* ── Light theme refinements ────────────────────────────────── */
+body.light-theme .session-timer {
+  color: var(--clr-text);
+}
+body.light-theme .info-item:hover {
+  border-color: rgba(0,0,0,.1);
+  background: rgba(0,0,0,.04);
+}
+body.light-theme #themePanel {
+  box-shadow: 0 -1px 0 rgba(0,0,0,.06), 0 -4px 24px rgba(0,0,0,.08);
+}
+body.light-theme .panel-tab { color: var(--clr-text); }
+body.light-theme .panel-tab.active { color: var(--clr-accent); }
