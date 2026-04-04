@@ -117,6 +117,8 @@ let sessionElapsed = 0;
 function startTimer() {
   sessionRunning = true;
   sessionStart = performance.now() - sessionElapsed;
+  document.body.classList.add('session-running');
+  (window as any).__uiSounds?.sessionStart();
   Features.updateButtonLabels('running', Pom.getPhase(), Pom.isActive(), DOM.btnStart as HTMLButtonElement);
   Features.setStatusState('running', { pomEnabled: Pom.isActive() });
   Features.updateDistractionUI(true);
@@ -132,6 +134,7 @@ function startTimer() {
 function pauseTimer() {
   sessionRunning = false;
   sessionElapsed = performance.now() - sessionStart;
+  document.body.classList.remove('session-running');
   Features.updateButtonLabels('paused', Pom.getPhase(), Pom.isActive(), DOM.btnStart as HTMLButtonElement);
   Features.setStatusState('paused');
   Features.updateDistractionUI(false);
@@ -144,6 +147,7 @@ function resetTimer() {
   Log.record(DOM.focusInput.value.trim(), dur);
   Features.updateDistractionUI(false);
   if (dur > 60_000) {
+    (window as any).__uiSounds?.sessionEnd();
     awardTokens(Math.floor(dur / 60000));
     Intel.recordCompleted();
     const streak = Intel.updateStreak();
@@ -167,6 +171,7 @@ function resetTimer() {
     Intel.recordAbandoned();
   }
   Intel.onFlowInterrupt();
+  document.body.classList.remove('session-running');
   sessionRunning = false; sessionStart = sessionElapsed = 0;
   Features.updateButtonLabels('idle', 'work', Pom.isActive(), DOM.btnStart as HTMLButtonElement);
   const todaySessions = JSON.parse(localStorage.getItem('sc_focus_log') || '[]').length;
@@ -346,12 +351,23 @@ const root = document.documentElement;
 const cssVar = (name: string, val: string) => root.style.setProperty(name, val);
 
 function applyTheme(theme: Theme, instant = false) {
+  // UI sound on theme switch (except initial load)
+  if (currentTheme && currentTheme.id !== theme.id && !instant) {
+    (window as any).__uiSounds?.themeSwitch();
+    document.body.classList.add('theme-switching');
+    setTimeout(() => document.body.classList.remove('theme-switching'), 350);
+  }
   const doApply = () => {
     currentTheme = theme;
     buildParticles(theme);
     cssVar('--clr-text',    theme.text);
     cssVar('--clr-accent',  theme.accent);
     cssVar('--clr-accent2', theme.accent2);
+    // Set RGB components for use in rgba() and animations
+    const accentRgb = theme.accent.startsWith('#')
+      ? theme.accent.slice(1).match(/.{2}/g)!.map(h => parseInt(h, 16)).join(',')
+      : '110,231,183';
+    cssVar('--clr-accent-rgb', accentRgb);
     cssVar('--clr-track',   theme.track);
     cssVar('--clr-btn-bg',  theme.btnBg);
     cssVar('--clr-btn-fg',  theme.btnFg);
@@ -1288,46 +1304,245 @@ function renderLogView() {
   },
 };
 
-// ── Custom Theme Builder ───────────────────────────────────────────────
+// ── Custom Theme Builder — full RGB/HSL palette ───────────────────────
 const THEME_FIELDS = [
-  { key: 'text', label: 'Text color' }, { key: 'accent', label: 'Accent (main)' },
-  { key: 'accent2', label: 'Accent 2' }, { key: 'btnFg', label: 'Button text' },
-  { key: 'panel', label: 'Panel BG' }, { key: 'baseBg0', label: 'Background' },
+  { key: 'accent',  label: 'Main Accent',  icon: '✦', hint: 'Clock glow, highlights, active states' },
+  { key: 'accent2', label: 'Accent 2',     icon: '◈', hint: 'Secondary highlights, pomodoro ring' },
+  { key: 'text',    label: 'Text',         icon: 'T', hint: 'All readable text' },
+  { key: 'btnFg',   label: 'Button Text',  icon: '▶', hint: 'Text on accent buttons' },
+  { key: 'baseBg0', label: 'Background',   icon: '▪', hint: 'Base canvas background' },
+  { key: 'panel',   label: 'Panel',        icon: '▭', hint: 'Cards, modals, panels' },
 ];
-let draft: Record<string, string> = { text:'#e0f2fe', accent:'#6ee7b7', accent2:'#818cf8', btnFg:'#6ee7b7', panel:'rgba(4,3,18,.7)', baseBg0:'#06030f' };
-const rgbaToHex = (s: string) => { const m = s.match(/[\d.]+/g); return m ? '#'+[m[0],m[1],m[2]].map(v=>parseInt(v).toString(16).padStart(2,'0')).join('') : '#ffffff'; };
+let draft: Record<string, string> = {
+  text: '#e0f2fe', accent: '#6ee7b7', accent2: '#818cf8',
+  btnFg: '#06030f', baseBg0: '#06030f', panel: 'rgba(4,3,18,.85)',
+};
+const rgbaToHex = (s: string): string => {
+  const m = s.match(/[\d.]+/g);
+  return m ? '#' + [m[0], m[1], m[2]].map(v => parseInt(v).toString(16).padStart(2,'0')).join('') : '#ffffff';
+};
+const hexToRgb = (h: string): [number,number,number] => {
+  const v = parseInt(h.slice(1), 16);
+  return [(v>>16)&255, (v>>8)&255, v&255];
+};
+const hexToHsl = (h: string): [number,number,number] => {
+  const [r,g,b] = hexToRgb(h).map(v => v/255) as [number,number,number];
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  const l = (max+min)/2;
+  if (max === min) return [0, 0, Math.round(l*100)];
+  const d = max - min;
+  const s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+  let hue = 0;
+  if (max===r) hue = ((g-b)/d + (g<b?6:0))/6;
+  else if (max===g) hue = ((b-r)/d + 2)/6;
+  else hue = ((r-g)/d + 4)/6;
+  return [Math.round(hue*360), Math.round(s*100), Math.round(l*100)];
+};
+const hslToHex = (h: number, s: number, l: number): string => {
+  s /= 100; l /= 100;
+  const a = s * Math.min(l, 1-l);
+  const f = (n: number) => { const k = (n+h/30)%12; const c = l - a*Math.max(Math.min(k-3,9-k,1),-1); return Math.round(255*c).toString(16).padStart(2,'0'); };
+  return '#' + f(0) + f(8) + f(4);
+};
+
+// Currently active picker field
+let _pickerField = 'accent';
 
 function buildColorRows() {
   const container = $('colorRows'); if (!container) return;
   container.innerHTML = '';
+
+  // Swatch bar — all fields as clickable pills
+  const swatchBar = document.createElement('div');
+  swatchBar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;padding:0 22px 16px;';
   THEME_FIELDS.forEach(f => {
     const raw = draft[f.key] ?? '#ffffff';
-    const hex = (raw.startsWith('rgba')||raw.startsWith('rgb')) ? rgbaToHex(raw) : raw;
-
-    const row   = document.createElement('div'); row.className = 'color-row';
-    const label = document.createElement('span'); label.className = 'color-label';
-    label.textContent = f.label;                          // ← textContent, not innerHTML
-
-    const wrap  = document.createElement('div'); wrap.className = 'color-picker-wrap';
-    const inp   = document.createElement('input') as HTMLInputElement;
-    inp.type = 'color'; inp.value = hex; inp.dataset.key = f.key;
-
-    const hexSpan = document.createElement('span');
-    hexSpan.className = 'color-hex'; hexSpan.id = 'hex_' + f.key;
-    hexSpan.textContent = hex;                            // ← textContent
-
-    wrap.appendChild(inp);
-    row.append(label, wrap, hexSpan);
-    container.appendChild(row);
+    const hex = raw.startsWith('r') ? rgbaToHex(raw) : raw;
+    const pill = document.createElement('button');
+    pill.className = 'color-swatch-pill' + (f.key === _pickerField ? ' active' : '');
+    pill.dataset.key = f.key;
+    const dot = document.createElement('span');
+    dot.style.cssText = `width:14px;height:14px;border-radius:50%;background:${hex};flex-shrink:0;box-shadow:0 0 0 1.5px rgba(255,255,255,.15);`;
+    const lbl = document.createElement('span'); lbl.style.cssText = 'font-size:.62rem;font-weight:600;'; lbl.textContent = f.label;
+    pill.append(dot, lbl);
+    pill.addEventListener('click', () => { _pickerField = f.key; buildColorRows(); });
+    swatchBar.appendChild(pill);
   });
-  container.querySelectorAll<HTMLInputElement>('input[type=color]').forEach(inp => {
-    inp.addEventListener('input', e => {
-      const el = e.target as HTMLInputElement;
-      draft[el.dataset.key!] = el.value;
-      const hexEl = document.getElementById('hex_' + el.dataset.key);
-      if (hexEl) hexEl.textContent = el.value;
+  container.appendChild(swatchBar);
+
+  // Active field info
+  const activeField = THEME_FIELDS.find(f => f.key === _pickerField)!;
+  const activeRaw = draft[_pickerField] ?? '#6ee7b7';
+  const activeHex = activeRaw.startsWith('r') ? rgbaToHex(activeRaw) : activeRaw;
+  const [ah, as_, al] = hexToHsl(activeHex);
+  const [ar, ag_, ab] = hexToRgb(activeHex);
+
+  const pickerWrap = document.createElement('div');
+  pickerWrap.style.cssText = 'padding:0 22px;';
+
+  // Field label
+  const fieldLabel = document.createElement('div');
+  fieldLabel.style.cssText = 'font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.45;margin-bottom:12px;';
+  fieldLabel.textContent = `${activeField.icon} ${activeField.label} — ${activeField.hint}`;
+  pickerWrap.appendChild(fieldLabel);
+
+  // HSL canvas gradient picker (2D: X=saturation, Y=lightness)
+  const canvasSize = Math.min(280, (window.innerWidth - 60));
+  const gradCanvas = document.createElement('canvas');
+  gradCanvas.width = canvasSize; gradCanvas.height = Math.floor(canvasSize * 0.55);
+  gradCanvas.style.cssText = `width:100%;border-radius:10px;cursor:crosshair;display:block;margin-bottom:10px;touch-action:none;`;
+  pickerWrap.appendChild(gradCanvas);
+
+  const drawGradCanvas = (hue: number) => {
+    const ctx = gradCanvas.getContext('2d')!;
+    const W = gradCanvas.width, H = gradCanvas.height;
+    // Saturation gradient (left=white, right=hue)
+    const satGrad = ctx.createLinearGradient(0, 0, W, 0);
+    satGrad.addColorStop(0, 'white');
+    satGrad.addColorStop(1, `hsl(${hue},100%,50%)`);
+    ctx.fillStyle = satGrad; ctx.fillRect(0, 0, W, H);
+    // Lightness gradient (top=transparent, bottom=black)
+    const litGrad = ctx.createLinearGradient(0, 0, 0, H);
+    litGrad.addColorStop(0, 'transparent');
+    litGrad.addColorStop(1, 'black');
+    ctx.fillStyle = litGrad; ctx.fillRect(0, 0, W, H);
+    // Draw current position cursor
+    const cx = (as_ / 100) * W;
+    const cy = (1 - al / 100) * H;
+    ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI*2);
+    ctx.strokeStyle = al > 50 ? 'rgba(0,0,0,.6)' : 'rgba(255,255,255,.9)';
+    ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI*2);
+    ctx.fillStyle = activeHex; ctx.fill();
+  };
+  drawGradCanvas(ah);
+
+  // Hue strip
+  const hueCanvas = document.createElement('canvas');
+  hueCanvas.width = canvasSize; hueCanvas.height = 18;
+  hueCanvas.style.cssText = 'width:100%;border-radius:6px;cursor:crosshair;display:block;margin-bottom:10px;touch-action:none;';
+  pickerWrap.appendChild(hueCanvas);
+  const drawHueStrip = () => {
+    const ctx = hueCanvas.getContext('2d')!;
+    const W = hueCanvas.width, H = hueCanvas.height;
+    const hueGrad = ctx.createLinearGradient(0, 0, W, 0);
+    for (let i = 0; i <= 360; i += 30) hueGrad.addColorStop(i/360, `hsl(${i},100%,50%)`);
+    ctx.fillStyle = hueGrad; ctx.fillRect(0, 0, W, H);
+    // Cursor
+    const cx = (ah / 360) * W;
+    ctx.beginPath(); ctx.arc(cx, H/2, H/2 - 1, 0, Math.PI*2);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+  };
+  drawHueStrip();
+
+  // Canvas interaction helpers
+  const updateFromGrad = (e: MouseEvent | Touch) => {
+    const r = gradCanvas.getBoundingClientRect();
+    const xPct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    const yPct = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+    const newS = Math.round(xPct * 100);
+    const newL = Math.round((1 - yPct) * 100);
+    const hex = hslToHex(ah, newS, newL);
+    draft[_pickerField] = hex;
+    updateAllInputs(hex); previewCustomTheme(); drawGradCanvas(ah); drawHueStrip();
+  };
+  const updateFromHue = (e: MouseEvent | Touch) => {
+    const r = hueCanvas.getBoundingClientRect();
+    const xPct = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    const newH = Math.round(xPct * 360);
+    const hex = hslToHex(newH, as_, al);
+    draft[_pickerField] = hex;
+    updateAllInputs(hex); previewCustomTheme(); drawGradCanvas(newH); drawHueStrip();
+  };
+  let gradDragging = false, hueDragging = false;
+  gradCanvas.addEventListener('mousedown', e => { gradDragging = true; updateFromGrad(e); });
+  gradCanvas.addEventListener('touchstart', e => { gradDragging = true; updateFromGrad(e.touches[0]!); }, { passive: true });
+  hueCanvas.addEventListener('mousedown', e => { hueDragging = true; updateFromHue(e); });
+  hueCanvas.addEventListener('touchstart', e => { hueDragging = true; updateFromHue(e.touches[0]!); }, { passive: true });
+  window.addEventListener('mousemove', e => {
+    if (gradDragging) updateFromGrad(e);
+    if (hueDragging) updateFromHue(e);
+  });
+  window.addEventListener('mouseup', () => { gradDragging = false; hueDragging = false; });
+  window.addEventListener('touchend', () => { gradDragging = false; hueDragging = false; }, { passive: true });
+  gradCanvas.addEventListener('touchmove', e => { if (gradDragging) updateFromGrad(e.touches[0]!); }, { passive: true });
+  hueCanvas.addEventListener('touchmove', e => { if (hueDragging) updateFromHue(e.touches[0]!); }, { passive: true });
+
+  // Hex / RGB / HSL text inputs
+  const inputRow = document.createElement('div');
+  inputRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px;';
+
+  const makeValueInput = (label: string, id: string, value: string, onChange: (v: string) => void) => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;gap:3px;';
+    const lbl = document.createElement('label');
+    lbl.style.cssText = 'font-size:.5rem;opacity:.4;letter-spacing:.08em;text-transform:uppercase;';
+    lbl.textContent = label;
+    const inp = document.createElement('input'); inp.id = id;
+    inp.style.cssText = 'padding:6px 8px;border-radius:7px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);color:var(--clr-text);font-family:monospace;font-size:.68rem;width:100%;box-sizing:border-box;';
+    inp.value = value;
+    inp.addEventListener('change', () => onChange(inp.value.trim()));
+    wrap.append(lbl, inp); return wrap;
+  };
+
+  const updateAllInputs = (hex: string) => {
+    const [r, g, b] = hexToRgb(hex);
+    const [h, s, l] = hexToHsl(hex);
+    const hexInp = document.getElementById('picker-hex') as HTMLInputElement | null;
+    const rgbInp = document.getElementById('picker-rgb') as HTMLInputElement | null;
+    const hslInp = document.getElementById('picker-hsl') as HTMLInputElement | null;
+    if (hexInp) hexInp.value = hex;
+    if (rgbInp) rgbInp.value = `${r}, ${g}, ${b}`;
+    if (hslInp) hslInp.value = `${h}, ${s}%, ${l}%`;
+    // Update swatch dot
+    const pill = swatchBar.querySelector(`[data-key="${_pickerField}"] span`) as HTMLElement | null;
+    if (pill) pill.style.background = hex;
+  };
+
+  inputRow.appendChild(makeValueInput('Hex', 'picker-hex', activeHex, v => {
+    const clean = v.startsWith('#') ? v : '#' + v;
+    if (/^#[0-9a-f]{6}$/i.test(clean)) { draft[_pickerField] = clean; updateAllInputs(clean); previewCustomTheme(); const [h] = hexToHsl(clean); drawGradCanvas(h); drawHueStrip(); }
+  }));
+  inputRow.appendChild(makeValueInput('RGB', 'picker-rgb', `${ar}, ${ag_}, ${ab}`, v => {
+    const parts = v.split(',').map(s => parseInt(s.trim()));
+    if (parts.length === 3 && parts.every(p => !isNaN(p) && p >= 0 && p <= 255)) {
+      const hex = '#' + parts.map(p => p.toString(16).padStart(2,'0')).join('');
+      draft[_pickerField] = hex; updateAllInputs(hex); previewCustomTheme(); const [h] = hexToHsl(hex); drawGradCanvas(h); drawHueStrip();
+    }
+  }));
+  inputRow.appendChild(makeValueInput('HSL', 'picker-hsl', `${ah}, ${as_}%, ${al}%`, v => {
+    const parts = v.replace(/%/g,'').split(',').map(s => parseFloat(s.trim()));
+    if (parts.length === 3 && !parts.some(isNaN)) {
+      const hex = hslToHex(parts[0]!, parts[1]!, parts[2]!);
+      draft[_pickerField] = hex; updateAllInputs(hex); previewCustomTheme(); drawGradCanvas(parts[0]!); drawHueStrip();
+    }
+  }));
+  pickerWrap.appendChild(inputRow);
+
+  // Quick palette swatches — curated harmonious colours
+  const paletteLabel = document.createElement('div');
+  paletteLabel.style.cssText = 'font-size:.52rem;opacity:.35;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;';
+  paletteLabel.textContent = 'Quick picks';
+  pickerWrap.appendChild(paletteLabel);
+  const palette = document.createElement('div');
+  palette.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;';
+  const QUICK = ['#6ee7b7','#818cf8','#f472b6','#fbbf24','#34d399','#60a5fa','#a78bfa',
+                 '#fb923c','#e879f9','#00eeff','#ff0090','#ff6600','#22d3ee','#ffffff','#000000'];
+  QUICK.forEach(c => {
+    const dot = document.createElement('button');
+    dot.style.cssText = `width:22px;height:22px;border-radius:50%;background:${c};border:2px solid rgba(255,255,255,.15);cursor:pointer;transition:transform .15s;flex-shrink:0;`;
+    dot.title = c;
+    dot.addEventListener('click', () => {
+      draft[_pickerField] = c; updateAllInputs(c); previewCustomTheme();
+      const [h] = hexToHsl(c); drawGradCanvas(h); drawHueStrip();
     });
+    dot.addEventListener('mouseenter', () => { dot.style.transform = 'scale(1.3)'; });
+    dot.addEventListener('mouseleave', () => { dot.style.transform = ''; });
+    palette.appendChild(dot);
   });
+  pickerWrap.appendChild(palette);
+
+  container.appendChild(pickerWrap);
   renderSavedSwatches();
 }
 
@@ -1342,7 +1557,7 @@ function saveCustomTheme() {
   saved.push({ id:'custom_'+Date.now(), name:'Custom '+saved.length, draft:{...draft} });
   if (saved.length > 10) saved.shift();
   localStorage.setItem('sc_custom_themes', JSON.stringify(saved));
-  renderSavedSwatches(); alert('Custom theme saved!');
+  renderSavedSwatches(); showToast('🎨 Custom theme saved!');
 }
 
 function renderSavedSwatches() {
@@ -1530,6 +1745,7 @@ function buildSettingsUI(activeTab = 'general') {
     const audioSec = makeSection('Audio');
     audioSec.appendChild(makeRow('3D Spatial Audio', 'Sounds pan independently — best with headphones', 'toggleSpatial', Sound.isSpatialEnabled(), 'ILD+ITD'));
     audioSec.appendChild(makeRow('Box Breathing on Break', 'Guided breathing overlay during Pomodoro breaks', 'toggleBreathing', breathingBreakEnabled));
+    audioSec.appendChild(makeRow('UI Sound Effects', 'Subtle click, chime, and interaction sounds', 'toggleUiSounds', localStorage.getItem('sc_ui_sounds') !== '0'));
     paneWrap.appendChild(audioSec);
 
     const soundBtnSec = makeSection('Mixer');
@@ -1541,6 +1757,7 @@ function buildSettingsUI(activeTab = 'general') {
 
     wireToggle('toggleSpatial',   (on) => Sound.setSpatial(on));
     wireToggle('toggleBreathing', (on) => { breathingBreakEnabled = on; localStorage.setItem('sc_breathing_break', on ? '1' : '0'); });
+    wireToggle('toggleUiSounds',  (on) => { localStorage.setItem('sc_ui_sounds', on ? '1' : '0'); showToast(on ? '🔔 UI sounds on' : '🔕 UI sounds off'); });
   }
 
   // ══ FOCUS ═════════════════════════════════════════════════════════════
@@ -2621,9 +2838,124 @@ function init() {
     posPill.addEventListener('click', () => {
       applyClockPosition(clockPosition === 'top' ? 'center' : 'top');
     });
-    // Set initial label
     applyClockPosition(clockPosition);
   }
+
+  // Ripple position tracking — track cursor for CSS ::after ripple
+  document.addEventListener('mousedown', e => {
+    const t = e.target as HTMLElement;
+    const btn = t.closest('.btn, .btn-primary, .btn-ghost, .feat-btn, .template-card') as HTMLElement | null;
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width * 100).toFixed(1);
+    const y = ((e.clientY - r.top) / r.height * 100).toFixed(1);
+    btn.style.setProperty('--rx', x + '%');
+    btn.style.setProperty('--ry', y + '%');
+  }, { passive: true });
+
+  // ── UI sound system ─────────────────────────────────────────
+  // Dialed-style: every interaction has a sound, optional
+  let uiAudioCtx: AudioContext | null = null;
+  const getUiCtx = () => {
+    if (!uiAudioCtx) uiAudioCtx = new AudioContext();
+    return uiAudioCtx;
+  };
+
+  const uiSounds = {
+    click() {
+      try {
+        const ctx = getUiCtx(); if (ctx.state === 'suspended') ctx.resume();
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.setValueAtTime(1200, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(600, ctx.currentTime + 0.06);
+        g.gain.setValueAtTime(0.06, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+        o.type = 'sine'; o.start(); o.stop(ctx.currentTime + 0.08);
+      } catch { /**/ }
+    },
+    toggle(on: boolean) {
+      try {
+        const ctx = getUiCtx(); if (ctx.state === 'suspended') ctx.resume();
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.setValueAtTime(on ? 880 : 660, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(on ? 1200 : 440, ctx.currentTime + 0.1);
+        g.gain.setValueAtTime(0.05, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+        o.type = 'sine'; o.start(); o.stop(ctx.currentTime + 0.12);
+      } catch { /**/ }
+    },
+    sessionStart() {
+      try {
+        const ctx = getUiCtx(); if (ctx.state === 'suspended') ctx.resume();
+        [0, 0.12, 0.24].forEach((delay, i) => {
+          const o = ctx.createOscillator(); const g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          const freqs = [523, 659, 784]; // C5 E5 G5
+          o.frequency.value = freqs[i]!;
+          g.gain.setValueAtTime(0, ctx.currentTime + delay);
+          g.gain.linearRampToValueAtTime(0.08, ctx.currentTime + delay + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.3);
+          o.type = 'sine'; o.start(ctx.currentTime + delay); o.stop(ctx.currentTime + delay + 0.3);
+        });
+      } catch { /**/ }
+    },
+    sessionEnd() {
+      try {
+        const ctx = getUiCtx(); if (ctx.state === 'suspended') ctx.resume();
+        [0, 0.15, 0.30, 0.45].forEach((delay, i) => {
+          const o = ctx.createOscillator(); const g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          const freqs = [784, 659, 523, 392]; // G5 E5 C5 G4
+          o.frequency.value = freqs[i]!;
+          g.gain.setValueAtTime(0, ctx.currentTime + delay);
+          g.gain.linearRampToValueAtTime(0.07, ctx.currentTime + delay + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.35);
+          o.type = 'sine'; o.start(ctx.currentTime + delay); o.stop(ctx.currentTime + delay + 0.4);
+        });
+      } catch { /**/ }
+    },
+    themeSwitch() {
+      try {
+        const ctx = getUiCtx(); if (ctx.state === 'suspended') ctx.resume();
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.setValueAtTime(400, ctx.currentTime);
+        o.frequency.exponentialRampToValueAtTime(1600, ctx.currentTime + 0.15);
+        g.gain.setValueAtTime(0.04, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+        o.type = 'sine'; o.start(); o.stop(ctx.currentTime + 0.18);
+      } catch { /**/ }
+    },
+    error() {
+      try {
+        const ctx = getUiCtx(); if (ctx.state === 'suspended') ctx.resume();
+        [0, 0.1].forEach(delay => {
+          const o = ctx.createOscillator(); const g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = 180;
+          g.gain.setValueAtTime(0.06, ctx.currentTime + delay);
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.12);
+          o.type = 'sawtooth'; o.start(ctx.currentTime + delay); o.stop(ctx.currentTime + delay + 0.12);
+        });
+      } catch { /**/ }
+    },
+  };
+  (window as any).__uiSounds = uiSounds;
+
+  // Wire UI sounds to interactions
+  document.addEventListener('click', e => {
+    if (localStorage.getItem('sc_ui_sounds') === '0') return;
+    const t = e.target as HTMLElement;
+    if (t.closest('.feat-btn, .btn-ghost, .btn-icon, .nat-btn, .media-card, .panel-tab, .topbar-icon-btn, .modal-close, .cmd-item')) {
+      uiSounds.click();
+    }
+    if (t.closest('.settings-toggle')) {
+      const isOn = (t.closest('.settings-toggle') as HTMLElement).classList.contains('on');
+      uiSounds.toggle(isOn);
+    }
+  }, { passive: true });
   const secretsBtn = $('cmdSecretsBtn');
   if (secretsBtn) secretsBtn.addEventListener('click', () => { Cmd.open('/'); });
 
@@ -3091,9 +3423,7 @@ function buildCommandPalette() {
   const actions: [string, string, string, string, () => void][] = [
     ['sound',        '🎵', 'Open Sound Mixer',          'Ambient sounds, binaural beats',            () => { buildSoundUI(); openModal('soundOverlay'); }],
     ['pom',          '⏱', 'Pomodoro Settings',          'Configure work/break cycles',               () => openModal('pomOverlay')],
-    ['integrations', '🔗', 'Integrations',           'Spotify, Calendar, Notion, Todoist, GitHub',() => openIntegrations()],
-    ['language',     '🌐', 'Language',                'Change UI language (8 languages)',           () => { buildLanguageUI(document.getElementById('languageContent')!); openModal('languageOverlay'); }],
-    ['templates',    '📋', 'Session Templates',        'Study, coding, deep work, reading…',        () => openModal('templatesOverlay')],
+    ['templates',    '📋', 'Session Templates',          'Study, coding, deep work, reading…',        () => openModal('templatesOverlay')],
     ['countdown',    '⏳', 'Deadline Countdown',         'Count down to an exam, meeting, or event',  () => openModal('countdownOverlay')],
     ['worldclock',   '🌍', 'World Clock',                'Compare times across timezones',             () => openModal('worldClockOverlay')],
     ['log',          '📊', 'Focus Log',                  'View session history & heatmap',            () => openLog()],
@@ -3108,6 +3438,7 @@ function buildCommandPalette() {
     ['pip',          '⧉', 'Picture-in-Picture Clock',   'Float clock above other apps',              () => APIs.enterPiP(document.getElementById('clock-block-wrap')!,{accent:currentTheme.accent,text:currentTheme.text,baseBg:currentTheme.baseBg}).then(()=>showToast('Clock in PiP'))],
     ['data',         '🛡', 'My Data',                    'View, export, or delete your data',         () => openDataPanel()],
     ['privacy',      '🔒', 'Toggle Privacy Mode',        'Disable weather, sync & fonts',             () => togglePrivacy()],
+    ['language',     '🌐', 'Language',                   'Change UI language (8 languages)',           () => { buildLanguageUI(document.getElementById('languageContent')!); openModal('languageOverlay'); }],
     ['random',       '🎲', 'Random Theme',               'Shuffle to a random theme',                 () => { const t=THEMES[Math.floor(Math.random()*THEMES.length)]!; applyTheme(t); showToast(`🎲 ${t.name}`); }],
     ['next-theme',   '▶', 'Next Theme',                  'Cycle to next theme',                      () => { const i=THEMES.indexOf(currentTheme); applyTheme(THEMES[(i+1)%THEMES.length]!); }],
   ];
